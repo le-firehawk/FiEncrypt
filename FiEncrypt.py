@@ -3878,6 +3878,11 @@ def login(display_initiate, user_account_name, error_colour, default_colour, pri
             if private_mode:
                 animated_print(f"Access granted! Welcome @Anonymous!")
             else:
+                temp = username_input.split()
+                print(temp)
+                username_input = ""
+                for word in temp:
+                    username_input += f"{word.strip().capitalize()} "
                 animated_print(f"Access granted! Welcome @{username_input}")
             current_user = get_current_user(new_user=username_input)
             menu(pass_user(), display_initiate, print_logs,
