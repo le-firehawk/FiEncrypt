@@ -842,6 +842,13 @@ def thumbs(foreign_user, up):
             print(line)
 
 
+def capitalize_user(user):
+    temp = ""
+    for word in user.split():
+        temp += f"{word.strip().capitalize()} "
+    return temp
+
+
 def check_secret_code(code):
     """Checks secret code entered by the user against a number of preset codes, dictating which secret function should be executed"""
     accepted_codes = [["c", "E"], ['J', '\x1d', '?', '2', 'G'], ['H', '%']]
@@ -3878,12 +3885,7 @@ def login(display_initiate, user_account_name, error_colour, default_colour, pri
             if private_mode:
                 animated_print(f"Access granted! Welcome @Anonymous!")
             else:
-                temp = username_input.split()
-                print(temp)
-                username_input = ""
-                for word in temp:
-                    username_input += f"{word.strip().capitalize()} "
-                animated_print(f"Access granted! Welcome @{username_input}")
+                animated_print(f"Access granted! Welcome @{capitalize_user(username_input)}")
             current_user = get_current_user(new_user=username_input)
             menu(pass_user(), display_initiate, print_logs,
                  default_colour, private_mode, error_colour, auto_code=auto_code)
