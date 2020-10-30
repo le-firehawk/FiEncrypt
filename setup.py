@@ -1,10 +1,11 @@
- 
+
 from setuptools import setup
 
 setup(
     name='FiEncrypt',
-    version='v1.1',
-    packages=['ntfy', 'plyer', 'netifaces','scapy'],
+    version='1.2.3',
+    packages=[],
+    install_requires=['plyer', 'ntfy', 'scapy', 'netifaces'],
     url='https://github.com/le-firehawk/FiEncrypt',
     license='AGPL v3',
     author='le_firehawk',

@@ -420,8 +420,8 @@ def establish_tree():
         pass
     with open(f"./inbox.txt", "w+") as indox_file:
         pass
-    with open(f"./CREDENTIALS", "w+") as credientials:
-        os.chmod(f"./CREDENTIALS", S_IREAD | S_IRGRP | S_IROTH)
+    with open(f"./CREDENTIALS.txt", "w+") as credientials:
+        os.chmod(f"./CREDENTIALS.txt", S_IREAD | S_IRGRP | S_IROTH)
     urllib.request.urlretrieve(
         "https://www.gnu.org/licenses/agpl-3.0.txt", f"./LICENSE")
     os.mkdir(f"./Contacts")
@@ -436,7 +436,7 @@ def add_new_user():
         username = privacy_input("Enter a username here", 0)
         hash_user = username.encode("utf-8")
         hash_user = hashlib.sha256(hash_user).hexdigest()
-        with open(f"./CREDENTIALS", "r+") as credentials:
+        with open(f"./CREDENTIALS.txt", "r+") as credentials:
             credential_lines = credentials.readlines()
             if len(credential_lines) == 0:
                 valid_username = True
@@ -452,7 +452,7 @@ def add_new_user():
     hash = username + password
     hash = hash.encode("utf-8")
     hash = hashlib.sha256(hash).hexdigest()
-    with open(f"./CREDENTIALS", "r+") as credentials:
+    with open(f"./CREDENTIALS.txt", "r+") as credentials:
         existing_credentials = credentials.readlines()
         existing_credentials.append(hash_user)
         existing_credentials.append(hash)
@@ -468,7 +468,7 @@ def validate_login(username, password):
     hash = username + password
     hash = hash.encode("utf-8")
     hash = hashlib.sha256(hash).hexdigest()
-    with open(f"./CREDENTIALS", "r+") as credentials:
+    with open(f"./CREDENTIALS.txt", "r+") as credentials:
         credential_lines = credentials.readlines()
         for i, line in enumerate(credential_lines):
             if hash_user in line:
@@ -3916,7 +3916,7 @@ def initiate():
         Colours(default_colour)
     else:
         Colours(None)
-    with open(f"./CREDENTIALS", "r+") as credentials:
+    with open(f"./CREDENTIALS.txt", "r+") as credentials:
         credential_lines = credentials.readlines()
         if len(credential_lines) < 2:
             animated_print(
