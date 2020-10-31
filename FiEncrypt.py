@@ -1,3 +1,4 @@
+from scapy.all import *
 # FiEncrypt, property of le_firehawk is pure Python, peer-to-peer communication software intended for personal use only.
 # Copyright (C) 2020 le_firehawk
 
@@ -19,7 +20,6 @@
 
 
 # Placed above due to import * only working at module level
-from scapy.all import *
 
 
 class ImportStructure:
@@ -64,12 +64,11 @@ class Colours:
     """Manages application of colour codes for the standard out"""
 
     def __init__(self, colour):
-        self.default_colour = colour
         if colour == None:
-            self.default_colour = "\033[0m"
-        self.default_colour = parse_colours(self.default_colour)
-        self.error = "\033[91m"
-        self.reset = "\033[0m"
+            self.default_colour = parse_colours("\033[0m")
+        else:
+            self.default_colour = parse_colours(colour)
+        self.error, self.reset = "\033[91m", "\033[0m"
         apply_colour(self.default_colour, self.error, self.reset)
 
     def return_default(self):
@@ -229,9 +228,7 @@ def parse_colours(colour):
 def apply_colour(default, error, reset):
     """Prints out the default colour defined within the config file and saves it as a global variable applied_default_colour"""
     global applied_default_colour
-    applied_default_colour = default
-    error_colour = error
-    reset_colour = reset
+    applied_default_colour, error_colour, reset_colour = default, error, reset
     print(f"{default}", end="")
 
 
@@ -418,8 +415,6 @@ def establish_tree():
         pass
     with open(f"./messageout.txt", "w+") as message_out_file:
         pass
-    with open(f"./inbox.txt", "w+") as indox_file:
-        pass
     with open(f"./CREDENTIALS.txt", "w+") as credientials:
         os.chmod(f"./CREDENTIALS.txt", S_IREAD | S_IRGRP | S_IROTH)
     urllib.request.urlretrieve(
@@ -459,6 +454,9 @@ def add_new_user():
         for credential in existing_credentials:
             credential = credential.replace("\n", "")
             credentials.write(f"{credential}\n")
+    os.mkdir(f"./{hash_user}_inbox")
+    with open(f"./{hash_user}_inbox/messages.txt", "w+") as indox_file:
+        pass
     animated_print(f"New user {username} successfully added to FiEncrypt!")
 
 
@@ -487,28 +485,20 @@ def validate_login(username, password):
 def self_terminate(confirm):
     """Deletes FiEncrypt"""
     if confirm:
+        enter_home_directory()
         os.remove(sys.argv[0])
         shutil.rmtree(f"../FiEncrypt")
 
 
-def get_own_ip():
+def get_own_ip(print_logs, private_mode):
     """Returns the IP address of the first functional interface"""
     if "linux" in pass_os():
         # ?Linux's @netifaces is considerably more complicated, and the first interface with an IP is used, which may be problematic
-        interface = netifaces.interfaces()
-        for i in interface:
-            try:
-                your_ip = str(netifaces.ifaddresses(i)[
-                    netifaces.AF_INET])
-                your_ip = your_ip.split()
-                your_ip = your_ip[1].replace(
-                    "'", "").replace(",", "")
-            except:
-                pass
-            # *You can enter your IP in manually if one is not found
-            if your_ip == "":
-                your_ip = privacy_input(
-                    "Enter your IP in dotted decimal format", private_mode)
+        your_ip = gnu_ip_resolve(print_logs, private_mode)
+        # *You can enter your IP in manually if one is not found
+        if your_ip == "":
+            your_ip = privacy_input(
+                "Enter your IP in dotted decimal format", private_mode)
     elif "win32" in pass_os():
         your_ip = socket.gethostbyname(socket.gethostname())
     return your_ip
@@ -536,7 +526,7 @@ def arp_scan(ip):
 
 def mac_resolve(mac, print_logs):
     """Checks for a desired MAC address from an ARP scan of the /16 network"""
-    IP = get_own_ip()
+    IP = get_own_ip(print_logs, False)
     IP = IP.split(".")
     # ?Runs with a /16 subnet as few networks have larger host portions than that. Can be changed
     submask = "/16"
@@ -700,7 +690,7 @@ def retrieve_config_settings():
 
 def log(string, log_type, user, display):
     """Records events in the log file based on paramters passed, also printing them to screen when display paramter is True"""
-    username = get_current_user()
+    username = capitalize_user(get_current_user())
     if username == None:
         username = "Undefined"
     log_entry = f"{datetime.datetime.now()}: {log_type} - {string}, Username: {username}"
@@ -718,22 +708,7 @@ def log(string, log_type, user, display):
 def get_poked(foreign_user, **poke_num):
     """Pokes the user with majestic ASCII art"""
     pokes = poke_num.get('poke_num', 1)
-    line1 = "                                     _______________________"
-    line2 = "                                    /                       \\"
-    line3 = "                                    \__________              \\"
-    line4 = " ______________________________________________|              \\"
-    line5 = "/                                                              \\"
-    line6 = "\________________________                                       \\"
-    line7 = "           ______________/                                       \\"
-    line8 = "          /                                                      |"
-    line9 = "          \______________                                        |"
-    line10 = "           ______________/                                       |"
-    line11 = "          /                                                      |"
-    line12 = "          \______________                                        |"
-    line13 = "           _____________/                             ___________|"
-    line14 = "          /                                         /"
-    line15 = "          \_____________                           /"
-    line16 = "                        \_________________________/"
+    line1, line2, line3, line4, line5, line6, line7, line8, line9, line10, line11, line12, line13, line14, line15, line16 = "                                     _______________________", "                                    /                       \\", "                                    \__________              \\", " ______________________________________________|              \\", "/                                                              \\", "\________________________                                       \\", "           ______________/                                       \\", "          /                                                      |", "          \______________                                        |", "           ______________/                                       |", "          /                                                      |", "          \______________                                        |", "           _____________/                             ___________|", "          /                                         /", "          \_____________                           /", "                        \_________________________/"
     if pokes > 10:
         pokes = 10
     for poke in range(pokes):
@@ -766,11 +741,11 @@ def get_poked(foreign_user, **poke_num):
                     sys.stdout.write("\033[F")
                     sys.stdout.write("\033[K")
         time.sleep(0.5)
-    if get_current_user().strip().lower() == foreign_user.strip().lower():
+    if capitalize_user(get_current_user()).strip().lower() == foreign_user.strip().lower():
         animated_print(
             f"You have poked yourself... Don't you think that is a little weird?")
     else:
-        animated_print(f"Hey {get_current_user().capitalize()}...")
+        animated_print(f"Hey {capitalize_user(get_current_user())}...")
         if pokes > 1:
             animated_print(
                 f"{foreign_user.capitalize()} has poked you {pokes} times!")
@@ -783,14 +758,7 @@ def you_are_loved(foreign_user, **hearts):
     hearts = hearts.get("hearts", 1)
     if foreign_user == None:
         foreign_user = "Anonymous"
-    line1 = "  ____      ____       "
-    line2 = " /    \____/    \\      "
-    line3 = "|                |     "
-    line4 = "|                |     "
-    line5 = " \              /      "
-    line6 = "   \          /        "
-    line7 = "     \      /          "
-    line8 = "       \__/            "
+    line1, line2, line3, line4, line5, line6, line7, line8 = "  ____      ____       ", " /    \____/    \\      ", "|                |     ", "|                |     ", " \              /      ", "   \          /        ", "     \      /          ", "       \__/            "
     if hearts >= 5:
         heart_range = 5
     else:
@@ -812,7 +780,7 @@ def you_are_loved(foreign_user, **hearts):
                 sys.stdout.write("\033[F")
                 sys.stdout.write("\033[K")
         time.sleep(0.5)
-    if get_current_user().strip().lower() == foreign_user.strip().lower():
+    if capitalize_user(get_current_user()).strip().lower() == foreign_user.strip().lower():
         animated_print(
             f"Congratulations! You have fallen in love with yourself!")
     else:
@@ -821,7 +789,7 @@ def you_are_loved(foreign_user, **hearts):
                 f"{foreign_user.capitalize()} loves you {hearts} times over!")
         else:
             animated_print(
-                f"{foreign_user.capitalize()} loves you {get_current_user().capitalize()}!")
+                f"{foreign_user.capitalize()} loves you {capitalize_user(get_current_user())}!")
 
 
 def thumbs(foreign_user, up):
@@ -844,9 +812,12 @@ def thumbs(foreign_user, up):
 
 def capitalize_user(user):
     temp = ""
-    for word in user.split():
-        temp += f"{word.strip().capitalize()} "
-    return temp
+    if user != None and user.strip() != "":
+        for word in user.split():
+            temp += f"{word.strip().capitalize()} "
+        return temp
+    else:
+        return "Anonymous"
 
 
 def check_secret_code(code):
@@ -897,8 +868,7 @@ def create_notification(ip, name):
 
 def get_recipient_ip(user, display_initiate, print_logs, default_colour, private_mode, error_colour):
     """Obtains the desired IP, MAC, or contact name that a message is to be sent to. Calls arp_scan() and mac_resolve() modules as appropiate"""
-    target_mac = None
-    target_name = None
+    target_mac, target_name = None, None
     ip = privacy_input(
         "Enter the IP, MAC address or contact name of the recipient", private_mode)
     if ip == None:
@@ -1001,6 +971,34 @@ def get_recipient_ip(user, display_initiate, print_logs, default_colour, private
     return valid_vars[0], valid_vars[1], valid_vars[2]
 
 
+def gnu_ip_resolve(print_logs, private_mode):
+    print("")
+    interfaces = netifaces.interfaces()
+    if print_logs:
+        for i, interface in enumerate(interfaces):
+            print(f"{i}. {interface}")
+        chosen_interface = privacy_input("Select one of these", private_mode)
+        try:
+            chosen_interface = interfaces[int(chosen_interface)]
+        except:
+            pass
+        if chosen_interface == None:
+            ip = None
+        else:
+            ip = str(netifaces.ifaddresses(chosen_interface)[netifaces.AF_INET])
+            ip = ip.split()
+            ip = ip[1].replace("'", "").replace(",", "")
+    else:
+        for i in interfaces:
+            try:
+                ip = str(netifaces.ifaddresses(i)[netifaces.AF_INET])
+                ip = ip.split()
+                ip = ip[1].replace("'", "").replace(",", "")
+            except:
+                pass
+    return ip
+
+
 def secretcode(user, current_user, default_colour, print_logs, private_mode, error_colour):
     enter_home_directory()
     secret_code = privacy_input(f"Enter the secret code here", private_mode)
@@ -1015,7 +1013,7 @@ def secretcode(user, current_user, default_colour, print_logs, private_mode, err
             Colours(default_colour)
             log("Secret Code Entered! Valid? False",
                 "sec_code", user, print_logs)
-            secretcode(user, get_current_user(), default_colour,
+            secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_colour,
                        print_logs, private_mode, error_colour)
         else:
             pass
@@ -1025,13 +1023,12 @@ def secretcode(user, current_user, default_colour, print_logs, private_mode, err
         Colours(default_colour)
         log("Secret Code Entered! Valid? False",
             "sec_code", user, print_logs)
-        secretcode(user, get_current_user(), default_colour,
+        secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_colour,
                    print_logs, private_mode, error_colour)
     temp = 0
     for i in range(0, len(secret_code), 2):
         temp = secret_code[i:i+2]
-        temp = chr(int(temp))
-        completed_code.append(temp)
+        completed_code.append(chr(int(temp)))
     valid, func = check_secret_code(completed_code)
     if not valid:
         animated_print(
@@ -1039,7 +1036,7 @@ def secretcode(user, current_user, default_colour, print_logs, private_mode, err
         Colours(default_colour)
         log("Secret Code Entered! Valid? False",
             "sec_code", user, print_logs)
-        secretcode(user, get_current_user(), default_colour,
+        secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_colour,
                    print_logs, private_mode, error_colour)
     else:
         log("Secret Code Entered! Valid? True",
@@ -1061,7 +1058,7 @@ def secretcode(user, current_user, default_colour, print_logs, private_mode, err
             menu(user, None, print_logs, default_colour,
                  private_mode, error_colour, print_speed=0)
         if edit_mode == 3:
-            secretcode(user, get_current_user(), default_colour,
+            secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_colour,
                        print_logs, private_mode, error_colour)
         config_file.close()
         os.remove(f"./config.txt")
@@ -1087,7 +1084,7 @@ def secretcode(user, current_user, default_colour, print_logs, private_mode, err
                     menu(user, None, print_logs, default_colour,
                          private_mode, error_colour, print_speed=0)
                 else:
-                    secretcode(user, get_current_user(), default_colour,
+                    secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_colour,
                                print_logs, private_mode, error_colour)
         elif edit_mode == 2:
             lines[2] = lines[2].split(" = ")
@@ -1131,7 +1128,7 @@ def secretcode(user, current_user, default_colour, print_logs, private_mode, err
             animated_print(
                 f"{error_colour}WARNING: Invalid mode selection!")
             Colours(default_colour)
-            secretcode(user, get_current_user(), default_colour,
+            secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_colour,
                        print_logs, private_mode, error_colour)
     elif func == 2:
         animated_print(
@@ -1250,13 +1247,11 @@ def showcode(user, current_user, private_mode, print_logs, error_colour, default
     if sys.platform.startswith("win32"):
         log(f"New Directory: {str(os.getcwd())} OS: Windows",
             "cwdchange", user, print_logs)
-        temp_file = open("./code.txt", "r+")
     else:
         log(f"New Directory: {str(os.getcwd())} OS: Linux",
             "cwdchange", user, print_logs)
-        temp_file = open("./code.txt", "r+")
-    code = temp_file.read()
-    temp_file.close()
+    with open(f"./code.txt", "r+") as temp_file:
+        code = temp_file.read()
     if current_user != 1 and current_user != 2:
         animated_print(
             f"This is the current code saved in the code.txt file:")
@@ -1274,9 +1269,7 @@ def showcode(user, current_user, private_mode, print_logs, error_colour, default
     else:
         try:
             code = code.split("_")
-            timestamp = code[0]
-            prefix = code[2]
-            code = code[1]
+            timestamp, prefix, code = code[0], code[2], code[1]
             return code, prefix, timestamp
         # TODO: Find a way to bypass the associated errors with not having a code saved in the file
         except:
@@ -1296,13 +1289,9 @@ def even_num():
 
 
 def random_filler(length, string):
-    output = ""
-    alphabet = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l",
-                "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"]
-    number = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-    symbols = ["!", "@", "#", "$", "%", "^", "&", "*",
-               "(", ")", "-", "=", "+", "{", "}", "[", "]", ";", ":", "'", "\"", ",", ".", "<", ">", "/", "?"]
-    new_string = ""
+    output, alphabet, number, symbols, new_string = "", ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l",
+                                                         "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"], [1, 2, 3, 4, 5, 6, 7, 8, 9], ["!", "@", "#", "$", "%", "^", "&", "*",
+                                                                                                                                                              "(", ")", "-", "=", "+", "{", "}", "[", "]", ";", ":", "'", "\"", ",", ".", "<", ">", "/", "?"], ""
     for i in range(int(length)):
         type_select = random.choice(["alphabet", "number", "symbols"])
         if type_select == "alphabet":
@@ -1433,8 +1422,7 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
 
 
 def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, auto_code, **poked):
-    previous_message = poked.get("message", "")
-    poked = poked.get("poked", False)
+    previous_message, poked = poked.get("message", ""), poked.get("poked", False)
     enter_home_directory()
     os.remove("./messageout.txt")
     with open("./messageout.txt", "w+") as message_file:
@@ -1448,9 +1436,11 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             recipient_ip = ""
     try:
         code2 = code
-        recipient_ip = recipient_ip
     except:
         code2 = ""
+    try:
+        recipient_ip = recipient_ip
+    except:
         recipient_ip = ""
     if recipient_ip == "" or code2 == "":
         #!Currently not functioning for extended encryption codes!
@@ -1760,7 +1750,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                     code, prefix, timestamp = showcode(
                         user, 1, private_mode, print_logs, error_colour, default_colour)
                     newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, error_colour,
-                               default_colour, private_mode, print_logs, mailing, display_initiate, auto_code)
+                               default_colour, private_mode, print_logs, mailing, display_initiate, True)
             else:
                 pass
         else:
@@ -1811,7 +1801,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 ip = ip.strip().replace("\n", "")
                 if recipient_ip != None:
                     recipient_ip = ip.strip().replace("\n", "")
-                your_ip = get_own_ip()
+                your_ip = get_own_ip(print_logs, private_mode)
                 if recipient_ip == your_ip or recipient_ip == "127.0.0.1":
                     animated_print(
                         f"You must be lonely dude! I'll let you talk to yourself!")
@@ -2134,16 +2124,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             content.close()
         elif mailbox:
             if sys.platform.startswith("linux"):
-                interface = netifaces.interfaces()
-                for i in interface:
-                    try:
-                        your_ip = str(netifaces.ifaddresses(i)[
-                            netifaces.AF_INET])
-                        your_ip = your_ip.split()
-                        your_ip = your_ip[1].replace(
-                            "'", "").replace(",", "")
-                    except:
-                        pass
+                ip = gnu_ip_resolve(print_logs, private_mode)
                 if your_ip == "":
                     your_ip = privacy_input(
                         "Enter your IP in dotted decimal format", private_mode)
@@ -2236,12 +2217,15 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
              private_mode, error_colour, print_speed=0)
 
 
+def hash_current_user(user):
+    hash_user = user.encode("utf-8")
+    hash_user = hashlib.sha256(hash_user).hexdigest()
+    return hash_user
+
+
 def decode_foreign_user(code, prefix, user):
-    passs = 0
-    code3 = code
-    encrypted_foreign_user = []
-    decrypted_foreign_user = ''
-    prefix = prefix.split("fE")
+    passs, code3, encrypted_foreign_user, decrypted_foreign_user, prefix = 0, code, [
+    ], '', prefix.split("fE")
     prefix[1] = prefix[1].split("||")
     prefix[0] = prefix[0].replace("$", "")
     if len(prefix[0]) == 2:
@@ -2296,11 +2280,11 @@ def validate_foreign_user(ip, expected_user):
     except ConnectionRefusedError:
         return False
     reply_link.send(
-        f"\\user_confirm={expected_user} |||| {get_own_ip()}".encode())
+        f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
     reply_link.shutdown(socket.SHUT_RDWR)
     reply_link.close()
     validate_link = socket.socket()
-    validate_link.bind((get_own_ip(), 15754))
+    validate_link.bind((get_own_ip(False, False), 15754))
     validate_link.listen(10)
     sc, address = validate_link.accept()
     info = sc.recv(1024)
@@ -2336,11 +2320,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
             conversation_mode = True
         else:
             conversation_mode = False
-    decrypted_message = []
-    poked = False
-    love_sent = False
-    thumb = None
-    code2 = ""
+    decrypted_message, poked, love_sent, thumb, code2, allow_message_input = [], False, False, None, "", False
     if old_code != "":
         code2 = old_code
         manual = False
@@ -2405,10 +2385,12 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
     if len(str(code2)) == 4:
         code3 = f"{int(code2[0:2])}{int(code2[2:4])}"
         code2 = code3
+        allow_message_input = True
     # *If the code is two digits long, the program assumes it was given a raw ASCII offset value
     elif len(str(code2)) == 2:
         code3 = int(code2)
         code2 = code3
+        allow_message_input = True
     elif not manual:
         backup_prefix = prefix
         prefix = prefix.split("fE")
@@ -2494,12 +2476,21 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
     passs = 0
     output_phrase = ''
     files = 0
+    if allow_message_input:
+        message_text = privacy_input(f"Enter message to be decrypted", private_mode)
     if len(message_text) == 0:
-        animated_print(
-            f"{error_colour}WARNING: No content in the messagein.txt file!")
-        Colours(default_colour)
-        menu(user, current_user, None, default_colour,
-             private_mode, error_colour, print_speed=0)
+        if not allow_message_input:
+            animated_print(
+                f"{error_colour}WARNING: Message cannot be blank!")
+            Colours(default_colour)
+            menu(user, current_user, None, default_colour,
+                 private_mode, error_colour, print_speed=0)
+        else:
+            while len(message_text) == 0:
+                animated_print(
+                    f"{error_colour}WARNING: Message cannot be blank!")
+                Colours(default_colour)
+                message_text = privacy_input(f"Enter message to be decrypted", private_mode)
     for i, k in enumerate(message_text):
         # ?The first half of the message(determined by len() attribute) is decrypted with @code_seg1
         if i < len(message_text) / 2 and len(str(code3)) >= 4:
@@ -2865,20 +2856,20 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
         Colours(default_colour)
         get_poked(get_foreign_user(), poke_num=pokes)
         animated_print(
-            f"{get_foreign_user().capitalize()} has left chat! Goodbye {get_current_user().capitalize()}!")
+            f"{get_foreign_user().capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
         menu(user, None, print_logs, default_colour,
              private_mode, error_colour, print_speed=0)
     elif conversation_mode and recipient_ip.strip() != "" and output_phrase.strip().endswith("\\exit") and "\\poke" in output_phrase.strip():
         get_poked(get_foreign_user(), poke_num=pokes)
         animated_print(
-            f"{get_foreign_user().capitalize()} has left chat! Goodbye {get_current_user().capitalize()}!")
+            f"{get_foreign_user().capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
         menu(user, None, print_logs, default_colour,
              private_mode, error_colour, print_speed=0)
     elif conversation_mode and recipient_ip.strip() != "" and output_phrase.strip().endswith("\\exit") and love_sent:
         you_are_loved(get_foreign_user(), hearts=hearts)
         Colours(default_colour)
         animated_print(
-            f"{get_foreign_user().capitalize()} has left chat! Goodbye {get_current_user().capitalize()}!")
+            f"{get_foreign_user().capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
         menu(user, None, print_logs, default_colour,
              private_mode, error_colour, print_speed=0)
     elif conversation_mode and recipient_ip.strip() != "" and "\\poke" in output_phrase.strip() and love_sent:
@@ -2893,7 +2884,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
                  private_mode, error_colour, print_speed=0)
     elif conversation_mode and recipient_ip.strip() != "" and output_phrase.strip().endswith("\\exit"):
         animated_print(
-            f"{get_foreign_user().capitalize()} has left chat! Goodbye {get_current_user().capitalize()}!")
+            f"{get_foreign_user().capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
         menu(user, None, print_logs, default_colour,
              private_mode, error_colour, print_speed=0)
     elif conversation_mode and recipient_ip.strip() != "" and love_sent:
@@ -2911,7 +2902,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
         pass
     elif not conversation_mode or recipient_ip == "" or talking_to_self:
         if poked and talking_to_self:
-            get_poked(get_current_user(), poke_num=pokes)
+            get_poked(capitalize_user(get_current_user()), poke_num=pokes)
             menu(user, None, print_logs, default_colour,
                  private_mode, error_colour, print_speed=0)
         else:
@@ -2976,14 +2967,7 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
     print("Server warming up... ", end="")
     enter_home_directory()
     if sys.platform.startswith("linux"):
-        interface = netifaces.interfaces()
-        for i in interface:
-            try:
-                ip = str(netifaces.ifaddresses(i)[netifaces.AF_INET])
-                ip = ip.split()
-                ip = ip[1].replace("'", "").replace(",", "")
-            except:
-                pass
+        ip = gnu_ip_resolve(print_logs, private_mode)
         if ip == "":
             animated_print(
                 f"{error_colour}WARNING: Unable to determine IP address!")
@@ -3051,7 +3035,7 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
         expected_user = message[0][1]
         message[0] = message[0][0]
         reply_ip = message[1]
-        if expected_user.strip().lower() == get_current_user().strip().lower():
+        if expected_user.strip().lower() == capitalize_user(get_current_user()).strip().lower():
             verify_link = socket.socket()
             verify_link.connect((reply_ip.strip(), 15754))
             verify_link.send(str(True).encode())
@@ -3124,7 +3108,7 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
         else:
             foreign_user = get_foreign_user()
         animated_print(
-            f"{foreign_user.capitalize()} has left chat! Goodbye {get_current_user().capitalize()}!")
+            f"{foreign_user.capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
         backup_current_user = user
     # ?Removes any remnants of the .encode() attribute added to messages before they are sent
     elif message.startswith("b'") or message.startswith("b\""):
@@ -3158,6 +3142,7 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
                         pass
                     else:
                         temp_foreign_user += i
+                temp_foreign_user = temp_foreign_user.replace("\033[F", "").replace("\033[K", "")
                 animated_print(f"Message from {temp_foreign_user} received!")
             else:
                 foreign_user = "Anonymous"
@@ -3208,14 +3193,7 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
 
 def send_conversation_invite(user, current_user, default_colour, private_mode, error_colour, print_logs, display_initiate):
     if sys.platform.startswith("linux"):
-        interface = netifaces.interfaces()
-        for i in interface:
-            try:
-                ip = str(netifaces.ifaddresses(i)[netifaces.AF_INET])
-                ip = ip.split()
-                ip = ip[1].replace("'", "").replace(",", "")
-            except:
-                pass
+        ip = gnu_ip_resolve(print_logs, private_mode)
         if ip == "":
             ip = privacy_input(
                 "Enter your IP in dotted decimal format", private_mode)
@@ -3291,7 +3269,7 @@ def send_conversation_invite(user, current_user, default_colour, private_mode, e
 def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, default_colour, display_initiate, print_logs, private_mode):
     enter_home_directory()
     if current_user != 2:
-        with open(f"./inbox.txt", "r+") as mailbox:
+        with open(f"./{hash_current_user(current_user)}_inbox/messages.txt", "r+") as mailbox:
             letters = mailbox.readlines()
         for i, letter in enumerate(letters):
             try:
@@ -3350,7 +3328,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, d
                 reply = privacy_input(
                     f"Would you like to send a reply? [Y|N]", private_mode)
                 if "y" in reply.lower():
-                    code, prefix, timestamp = showcode(get_current_user(), 1, private_mode,
+                    code, prefix, timestamp = showcode(capitalize_user(get_current_user()), 1, private_mode,
                                                        print_logs, error_colour, default_colour)
                     newmessage(code, user, message[1][1][1], None, prefix, None,
                                False, error_colour, default_colour, private_mode, print_logs, False, display_initiate, False)
@@ -3645,7 +3623,7 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
         # *Calls the appropiate function
         if func == 4:
             code, temp_file = randomcode(
-                user, get_current_user(), False, private_mode, print_logs, default_colour, error_colour)
+                user, capitalize_user(get_current_user()), False, private_mode, print_logs, default_colour, error_colour)
             try:
                 backup_code = code
             except:
@@ -3656,21 +3634,21 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
                 newmessage(code, user, recipient_ip, None, prefix, None,
                            talking_to_self, error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, auto_code)
             except UnboundLocalError:
-                code, prefix, timestamp = showcode(get_current_user(), 1, private_mode,
+                code, prefix, timestamp = showcode(capitalize_user(get_current_user()), 1, private_mode,
                                                    print_logs, error_colour, default_colour)
                 newmessage(code, user, recipient_ip, None, prefix, None,
                            talking_to_self, error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, auto_code)
         elif func == 2:
             try:
-                retrievemessage(backup_code, user, get_current_user(), prefix, recipient_ip, None, timestamp,
+                retrievemessage(backup_code, user, capitalize_user(get_current_user()), prefix, recipient_ip, None, timestamp,
                                 None, talking_to_self, default_colour, print_logs, private_mode, error_colour, None, display_initiate)
             except UnboundLocalError:
                 code, prefix, timestamp = showcode(user, 1, private_mode,
                                                    print_logs, error_colour, default_colour)
-                retrievemessage(code, user, get_current_user(), prefix, recipient_ip, None, timestamp,
+                retrievemessage(code, user, capitalize_user(get_current_user()), prefix, recipient_ip, None, timestamp,
                                 None, talking_to_self, default_colour, print_logs, private_mode, error_colour, None, display_initiate)
         elif func == 3:
-            showcode(user, get_current_user(), private_mode,
+            showcode(user, capitalize_user(get_current_user()), private_mode,
                      print_logs, error_colour, default_colour)
         # ?If display_initiate is set to true, the user will see this option, although it should only need to be run once
         elif func == 5:
@@ -3683,18 +3661,18 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
             if display_initiate:
                 helper("all", backup_user)
             else:
-                secretcode(user, get_current_user(), default_colour,
+                secretcode(user, capitalize_user(get_current_user()), default_colour,
                            print_logs, private_mode, error_colour)
         elif func == 7:
             if display_initiate:
-                secretcode(user, get_current_user(), default_colour,
+                secretcode(user, capitalize_user(get_current_user()), default_colour,
                            print_logs, private_mode, error_colour)
             else:
                 code, prefix, timestamp = showcode(
                     user, 1, private_mode, print_logs, error_colour, default_colour)
                 date = timestamp.split("|")
                 date = date[1]
-                server_recieve(user, code, get_current_user(), None, recipient_ip, timestamp, prefix,
+                server_recieve(user, code, capitalize_user(get_current_user()), None, recipient_ip, timestamp, prefix,
                                date, default_colour, print_logs, private_mode, error_colour, display_initiate)
         elif func == 8:
             if display_initiate:
@@ -3702,27 +3680,27 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
                     user, 1, private_mode, print_logs, error_colour, default_colour)
                 date = timestamp.split("|")
                 date = date[1]
-                server_recieve(user, code, get_current_user(), None, recipient_ip, timestamp, prefix,
+                server_recieve(user, code, capitalize_user(get_current_user()), None, recipient_ip, timestamp, prefix,
                                date, default_colour, print_logs, private_mode, error_colour, display_initiate)
             else:
                 send_conversation_invite(
-                    user, get_current_user(), default_colour, private_mode, error_colour, print_logs, display_initiate)
+                    user, capitalize_user(get_current_user()), default_colour, private_mode, error_colour, print_logs, display_initiate)
         elif func == 9:
             if display_initiate:
                 send_conversation_invite(
-                    user, get_current_user(), default_colour, private_mode, error_colour, print_logs, display_initiate)
+                    user, capitalize_user(get_current_user()), default_colour, private_mode, error_colour, print_logs, display_initiate)
             else:
                 try:
-                    check_mailbox(user, get_current_user(), None, mailing, timestamp,
+                    check_mailbox(user, capitalize_user(get_current_user()), None, mailing, timestamp,
                                   error_colour, default_colour, display_initiate, print_logs, private_mode)
                 except UnboundLocalError:
                     code, prefix, timestamp = showcode(user, 1, private_mode,
                                                        print_logs, error_colour, default_colour)
-                    check_mailbox(user, get_current_user(), None, mailing, timestamp,
+                    check_mailbox(user, capitalize_user(get_current_user()), None, mailing, timestamp,
                                   error_colour, default_colour, display_initiate, print_logs, private_mode)
         elif func == 10:
             if display_initiate:
-                check_mailbox(user, get_current_user(), None, mailing, timestamp,
+                check_mailbox(user, capitalize_user(get_current_user()), None, mailing, timestamp,
                               error_colour, default_colour, display_initiate, print_logs, private_mode)
             else:
                 contact_func = 0
@@ -3838,11 +3816,11 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
                         animated_print(
                             f"Inavlid option selected!")
             else:
-                config_settings(user, get_current_user(), default_colour,
+                config_settings(user, capitalize_user(get_current_user()), default_colour,
                                 print_logs, private_mode, error_colour)
         elif func == 12:
             if display_initiate:
-                config_settings(user, get_current_user(), default_colour,
+                config_settings(user, capitalize_user(get_current_user()), default_colour,
                                 print_logs, private_mode, error_colour)
             else:
                 initiate()

@@ -119,10 +119,75 @@ def enter_home_directory():
     return home_directory, operating_system, user
 
 
+def hash_current_user(user):
+    hash_user = user.encode("utf-8")
+    hash_user = hashlib.sha256(hash_user).hexdigest()
+    return hash_user
+
+
+def privacy_input(string, state, **line_break):
+    """Custom input function that employs the getpass module to hide user input based on the state paramter"""
+    line_break = line_break.get("line_break", None)
+    try:
+        if state == 1 or "true" in str(state).lower():
+            if line_break:
+                temp = getpass.getpass(f"{string}: \n")
+            else:
+                temp = getpass.getpass(f"{string}: ")
+        else:
+            if line_break:
+                temp = input(f"{string}: \n")
+            else:
+                temp = input(f"{string}: ")
+        if temp == None or temp == "EXIT":
+            return None
+        else:
+            return temp.strip()
+    except KeyboardInterrupt:
+        print("")
+        maybe_quit()
+        return None
+    except UnboundLocalError:
+        privacy_input(string, state)
+
+
+def validate_login(username, password):
+    enter_home_directory()
+    hash_user = username.encode("utf-8")
+    hash_user = hashlib.sha256(hash_user).hexdigest()
+    hash = username + password
+    hash = hash.encode("utf-8")
+    hash = hashlib.sha256(hash).hexdigest()
+    with open(f"./CREDENTIALS.txt", "r+") as credentials:
+        credential_lines = credentials.readlines()
+        for i, line in enumerate(credential_lines):
+            if hash_user in line:
+                valid_username = True
+                if hash in credential_lines[i+1]:
+                    valid_password = True
+                else:
+                    valid_password = False
+                if valid_username and valid_password:
+                    return True
+            else:
+                valid_username = False
+    return False
+
+
 def main():
     display_license()
+    valid = False
     print(f"FiEncrypt Listener starting up!")
     home_directory, os, user = enter_home_directory()
+    while not valid:
+        username = privacy_input("Username", 0)
+        password = privacy_input("Password", 1)
+        valid = validate_login(username, password)
+        if not valid:
+            username, password = None, None
+            animated_print(
+                f"Incorrect Login! Try again!")
+
     if os == "linux":
         import netifaces
         interface = netifaces.interfaces()
@@ -173,7 +238,7 @@ def main():
             message[1] = message[1].split(":")
             message[2][0] = message[2][0].split(":")
             print(message)
-            with open(f"./inbox.txt", "r+") as mailbox:
+            with open(f"./{hash_current_user(username)}/messages.txt", "r+") as mailbox:
                 letters = mailbox.readlines()
                 private_mode = get_privacy_mode()
                 for i, line in enumerate(letters):
