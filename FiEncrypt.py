@@ -454,8 +454,9 @@ def add_new_user():
         for credential in existing_credentials:
             credential = credential.replace("\n", "")
             credentials.write(f"{credential}\n")
-    os.mkdir(f"./{hash_user}_inbox")
-    with open(f"./{hash_user}_inbox/messages.txt", "w+") as indox_file:
+    os.mkdir(f"./{hash_current_user(username.lower())}_inbox")
+    os.chdir(f"./{hash_current_user(username.lower())}_inbox")
+    with open(f"./messages.txt", "w+") as indox_file:
         pass
     animated_print(f"New user {username} successfully added to FiEncrypt!")
 
@@ -3269,7 +3270,8 @@ def send_conversation_invite(user, current_user, default_colour, private_mode, e
 def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, default_colour, display_initiate, print_logs, private_mode):
     enter_home_directory()
     if current_user != 2:
-        with open(f"./{hash_current_user(current_user)}_inbox/messages.txt", "r+") as mailbox:
+        os.chdir(f"./{hash_current_user(get_current_user().strip().lower())}_inbox")
+        with open(f"./messages.txt", "r+") as mailbox:
             letters = mailbox.readlines()
         for i, letter in enumerate(letters):
             try:
@@ -3314,7 +3316,9 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, d
                     f"{error_colour}WARNING: Message {i} contains corrupted format! This message will be removed!")
                 Colours(default_colour)
             del(index[i])
-            with open(f"./inbox.txt", "w+") as inbox:
+            enter_home_directory()
+            os.chdir(f"./{hash_current_user(get_current_user().strip().lower())}_inbox")
+            with open(f"./messages.txt", "w+") as inbox:
                 inbox.seek(0)
                 inbox.truncate()
                 try:
@@ -3853,8 +3857,8 @@ def login(display_initiate, user_account_name, error_colour, default_colour, pri
                 animated_print(
                     f"{error_colour}WARNING: Password cannot be blank!")
                 Colours(default_colour)
-        #table = set_credentials()
-        #password_table = validate(username_input, password_input)
+        # table = set_credentials()
+        # password_table = validate(username_input, password_input)
         access = validate_login(username_input, password_input)
         if attempts == 0:
             animated_print(f"0 Attempts left! Game over brother!")

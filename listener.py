@@ -25,6 +25,8 @@ import socket
 import urllib.request
 import os
 import subprocess
+import getpass
+import hashlib
 from plyer import notification
 
 
@@ -178,17 +180,17 @@ def main():
     display_license()
     valid = False
     print(f"FiEncrypt Listener starting up!")
-    home_directory, os, user = enter_home_directory()
+    home_directory, system, user = enter_home_directory()
     while not valid:
         username = privacy_input("Username", 0)
         password = privacy_input("Password", 1)
         valid = validate_login(username, password)
         if not valid:
             username, password = None, None
-            animated_print(
+            print(
                 f"Incorrect Login! Try again!")
 
-    if os == "linux":
+    if "linux" in sys.platform.lower():
         import netifaces
         interface = netifaces.interfaces()
         for i in interface:
@@ -201,7 +203,7 @@ def main():
         if ip == "":
             ip = input("Enter your IP in dotted decimal format: ")
         src = f"./anarchy.png"
-    elif os == "win32":
+    elif "win32" in sys.platform.lower():
         ip = socket.gethostbyname(socket.gethostname())
         src = f"./anarchy2.ico"
     print(f"Link bound to {ip}:19507")
@@ -219,6 +221,7 @@ def main():
         print(f"\033[91mWARNING: Link address already in use! Perhaps another instance of FiEncrypt Listener is running?\033[0m")
         exit()
     while True:
+        os.chdir(f"./{hash_current_user(username.lower())}_inbox")
         try:
             sc, address = link.accept()
             info = sc.recv(1024)
@@ -238,7 +241,7 @@ def main():
             message[1] = message[1].split(":")
             message[2][0] = message[2][0].split(":")
             print(message)
-            with open(f"./{hash_current_user(username)}/messages.txt", "r+") as mailbox:
+            with open(f"./messages.txt", "r+") as mailbox:
                 letters = mailbox.readlines()
                 private_mode = get_privacy_mode()
                 for i, line in enumerate(letters):
