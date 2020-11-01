@@ -63,12 +63,15 @@ class ImportStructure:
 class Colours:
     """Manages application of colour codes for the standard out"""
 
-    def __init__(self, colour):
+    def __init__(self, colour, **force_apply):
+        force_apply = force_apply.get("force", False)
+        self.error, self.reset = "\033[91m", "\033[0m"
         if colour == None:
             self.default_colour = parse_colours("\033[0m")
         else:
             self.default_colour = parse_colours(colour)
-        self.error, self.reset = "\033[91m", "\033[0m"
+            if force_apply and "40" in self.default_colour:
+                self.error = True
         apply_colour(self.default_colour, self.error, self.reset)
 
     def return_default(self):
@@ -217,6 +220,8 @@ def parse_colours(colour):
         return "\033[44m"
     elif "purple_background" in colour.lower():
         return "\033[45m"
+    elif "ocean_background" in colour.lower():
+        return "\033[40m"
     elif "teal_background" in colour.lower():
         return "\033[46m"
     elif "white_background" in colour.lower():
@@ -229,7 +234,12 @@ def apply_colour(default, error, reset):
     """Prints out the default colour defined within the config file and saves it as a global variable applied_default_colour"""
     global applied_default_colour
     applied_default_colour, error_colour, reset_colour = default, error, reset
-    print(f"{default}", end="")
+    if int(default.replace("\033[", "").replace("m", "")) / 10 != 4:
+        print(f"{default}", end="")
+    elif error == True:
+        raise Exception("Invalid Colour!")
+    else:
+        pass
 
 
 def animated_print(string, **speed):
@@ -1516,23 +1526,31 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 old_code = old_code[0]
                 new_code = update_code.replace(old_code, timestamp)
                 update_file.write(new_code)
-        if len(prefix[0]) == 2:
-            code_seg1 = code2[int(prefix[0][0]):int(prefix[0][1])]
-        elif len(prefix[0]) == 3:
-            code_seg1 = code2[int(prefix[0][0]):int(prefix[0][1:3])]
-        elif len(prefix[0]) == 4:
-            code_seg1 = code2[int(prefix[0][0:2]):int(prefix[0][1:3])]
-        code_seg1 = list(code_seg1)
-        code_seg1 = sum(map(int, code_seg1))
-        if len(prefix[1][0]) == 2:
-            code_seg2 = code2[int(prefix[1][0][0]):int(prefix[1][0][1])]
-        elif len(prefix[1][0]) == 3:
-            code_seg2 = code2[int(prefix[1][0][0]):int(prefix[1][0][1:3])]
-        elif len(prefix[1][0]) == 4:
-            code_seg2 = code2[int(prefix[1][0][0:2]):int(prefix[1][0][1:3])]
-        code_seg2 = list(code_seg2)
-        code_seg2 = sum(map(int, code_seg2))
-        code3 = code2
+        try:
+            if len(prefix[0]) == 2:
+                code_seg1 = code2[int(prefix[0][0]):int(prefix[0][1])]
+            elif len(prefix[0]) == 3:
+                code_seg1 = code2[int(prefix[0][0]):int(prefix[0][1:3])]
+            elif len(prefix[0]) == 4:
+                code_seg1 = code2[int(prefix[0][0:2]):int(prefix[0][1:3])]
+            code_seg1 = list(code_seg1)
+            code_seg1 = sum(map(int, code_seg1))
+            if len(prefix[1][0]) == 2:
+                code_seg2 = code2[int(prefix[1][0][0]):int(prefix[1][0][1])]
+            elif len(prefix[1][0]) == 3:
+                code_seg2 = code2[int(prefix[1][0][0]):int(prefix[1][0][1:3])]
+            elif len(prefix[1][0]) == 4:
+                code_seg2 = code2[int(prefix[1][0][0:2]):int(prefix[1][0][1:3])]
+            code_seg2 = list(code_seg2)
+            code_seg2 = sum(map(int, code_seg2))
+            code3 = code2
+            Colours(default_colour, force=True)
+        except:
+            code_seg1 = code_seg1[::-1]
+            temp = code_seg2
+            code_seg2 = code_seg1
+            code_seg1 = temp
+            Colours(default_colour)
     if conversation_mode and recipient_ip != "" and poked:
         try:
             message_text = privacy_input(
@@ -2377,21 +2395,29 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
         prefix = prefix.split(":")
         # ?Advanced index calling, finding two portions of the main encryption code that will be summed into a two-digit ASCII offset value
         # TODO: Make tweaks to improve the security of this method. Traditionally ASCII offset encryption is not secure, but by taking random parts of a longer string and extracing two different values, applying the encryption to the text as halves, requires a hacker to thoroughly understand the methodology to make even a brute-force effective enough to decrypt the whole message. Yeah yeah 0-94, I know...
-        if len(prefix[0]) == 2:
-            code_seg1 = code2[int(prefix[0][0]): int(prefix[0][1])]
-        elif len(prefix[0]) == 3:
-            code_seg1 = code2[int(prefix[0][0]): int(prefix[0][1:3])]
-        elif len(prefix[0]) == 4:
-            code_seg1 = code2[int(prefix[0][0:2]): int(prefix[0][1:3])]
-        if len(prefix[1]) == 2:
-            code_seg2 = code2[int(prefix[1][0]): int(prefix[1][1])]
-        elif len(prefix[1]) == 3:
-            code_seg2 = code2[int(prefix[1][0]): int(prefix[1][1:3])]
-        elif len(prefix[1]) == 4:
-            code_seg2 = code2[int(prefix[1][0:2]): int(prefix[1][1:3])]
-        code_seg1 = sum(map(int, list(code_seg1)))
-        code_seg2 = sum(map(int, list(code_seg2)))
-        code3 = code2
+        try:
+            if len(prefix[0]) == 2:
+                code_seg1 = code2[int(prefix[0][0]): int(prefix[0][1])]
+            elif len(prefix[0]) == 3:
+                code_seg1 = code2[int(prefix[0][0]): int(prefix[0][1:3])]
+            elif len(prefix[0]) == 4:
+                code_seg1 = code2[int(prefix[0][0:2]): int(prefix[0][1:3])]
+            if len(prefix[1]) == 2:
+                code_seg2 = code2[int(prefix[1][0]): int(prefix[1][1])]
+            elif len(prefix[1]) == 3:
+                code_seg2 = code2[int(prefix[1][0]): int(prefix[1][1:3])]
+            elif len(prefix[1]) == 4:
+                code_seg2 = code2[int(prefix[1][0:2]): int(prefix[1][1:3])]
+            code_seg1 = sum(map(int, list(code_seg1)))
+            code_seg2 = sum(map(int, list(code_seg2)))
+            code3 = code2
+            Colours(default_colour, force=True)
+        except:
+            code_seg1 = code_seg1[::-1]
+            temp = code_seg2
+            code_seg2 = code_seg1
+            code_seg1 = temp
+            Colours(default_colour)
     # *The old and far less secure method of using 4-digit keys that were split into two values, still supported for decryption
     if len(str(code2)) == 4:
         code3 = f"{int(code2[0:2])}{int(code2[2:4])}"
