@@ -2276,7 +2276,7 @@ def decode_foreign_user(code, prefix, user, default_colour):
             code_seg2 = code[int(prefix[1][0][0:2]): int(prefix[1][0][1:3])]
         code_seg2 = list(code_seg2)
         code_seg2 = sum(map(int, code_seg2))
-        Colours(, force=True)
+        Colours(default_colour, force=True)
     except:
         temp = code_seg2
         code_seg2 = int(str(code_seg1)[::-1])
