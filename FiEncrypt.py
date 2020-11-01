@@ -444,6 +444,13 @@ def add_new_user():
                     else:
                         valid_username = True
     password = privacy_input("Enter a password here", 1)
+    hash_pass = password.encode("utf-8")
+    hash_pass = hashlib.sha256(hash_pass).hexdigest()
+    confirm_password = "".encode("utf-8")
+    while hash_pass != hashlib.sha256(confirm_password).hexdigest():
+        confirm_password = privacy_input("Enter password again", 1).encode("utf-8")
+        if hash_pass != hashlib.sha256(confirm_password).hexdigest():
+            print(f"Passwords do not match!")
     hash = username + password
     hash = hash.encode("utf-8")
     hash = hashlib.sha256(hash).hexdigest()
@@ -454,7 +461,10 @@ def add_new_user():
         for credential in existing_credentials:
             credential = credential.replace("\n", "")
             credentials.write(f"{credential}\n")
-    os.mkdir(f"./{hash_current_user(username.lower())}_inbox")
+    try:
+        os.mkdir(f"./{hash_current_user(username.lower())}_inbox")
+    except FileExistsError:
+        pass
     os.chdir(f"./{hash_current_user(username.lower())}_inbox")
     with open(f"./messages.txt", "w+") as indox_file:
         pass
@@ -3285,7 +3295,6 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, d
         loop = 1
         index = [0]
         for i in range(1, len(letters), 2):
-            print(f"{loop}. {letters[i]}")
             index.append(letters[i])
             loop += 1
     mailing = True
