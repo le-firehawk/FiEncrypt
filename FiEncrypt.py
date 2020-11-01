@@ -1546,10 +1546,12 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             code3 = code2
             Colours(default_colour, force=True)
         except:
+            print(code_seg1, code_seg2)
             code_seg1 = str(code_seg1)[::-1]
             temp = code_seg2
             code_seg2 = int(code_seg1)
             code_seg1 = temp
+            print(code_seg1, code_seg2)
             Colours(default_colour)
     if conversation_mode and recipient_ip != "" and poked:
         try:
@@ -2252,27 +2254,34 @@ def hash_current_user(user):
     return hash_user
 
 
-def decode_foreign_user(code, prefix, user):
+def decode_foreign_user(code, prefix, user, default_colour):
     passs, code3, encrypted_foreign_user, decrypted_foreign_user, prefix = 0, code, [
     ], '', prefix.split("fE")
     prefix[1] = prefix[1].split("||")
     prefix[0] = prefix[0].replace("$", "")
-    if len(prefix[0]) == 2:
-        code_seg1 = code[int(prefix[0][0]): int(prefix[0][1])]
-    elif len(prefix[0]) == 3:
-        code_seg1 = code[int(prefix[0][0]): int(prefix[0][1:3])]
-    elif len(prefix[0]) == 4:
-        code_seg1 = code[int(prefix[0][0:2]): int(prefix[0][1:3])]
-    code_seg1 = list(code_seg1)
-    code_seg1 = sum(map(int, code_seg1))
-    if len(prefix[1][0]) == 2:
-        code_seg2 = code[int(prefix[1][0][0]): int(prefix[1][0][1])]
-    elif len(prefix[1][0]) == 3:
-        code_seg2 = code[int(prefix[1][0][0]): int(prefix[1][0][1:3])]
-    elif len(prefix[1][0]) == 4:
-        code_seg2 = code[int(prefix[1][0][0:2]): int(prefix[1][0][1:3])]
-    code_seg2 = list(code_seg2)
-    code_seg2 = sum(map(int, code_seg2))
+    try:
+        if len(prefix[0]) == 2:
+            code_seg1 = code[int(prefix[0][0]): int(prefix[0][1])]
+        elif len(prefix[0]) == 3:
+            code_seg1 = code[int(prefix[0][0]): int(prefix[0][1:3])]
+        elif len(prefix[0]) == 4:
+            code_seg1 = code[int(prefix[0][0:2]): int(prefix[0][1:3])]
+        code_seg1 = list(code_seg1)
+        code_seg1 = sum(map(int, code_seg1))
+        if len(prefix[1][0]) == 2:
+            code_seg2 = code[int(prefix[1][0][0]): int(prefix[1][0][1])]
+        elif len(prefix[1][0]) == 3:
+            code_seg2 = code[int(prefix[1][0][0]): int(prefix[1][0][1:3])]
+        elif len(prefix[1][0]) == 4:
+            code_seg2 = code[int(prefix[1][0][0:2]): int(prefix[1][0][1:3])]
+        code_seg2 = list(code_seg2)
+        code_seg2 = sum(map(int, code_seg2))
+        Colours(, force=True)
+    except:
+        temp = code_seg2
+        code_seg2 = int(str(code_seg1)[::-1])
+        code_seg1 = temp
+        Colours(default_colour)
     for i, k in enumerate(user):
         if i < len(user) / 2 and len(str(code3)) >= 4:
             if len(str(code3)) > 4:
@@ -2395,29 +2404,21 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
         prefix = prefix.split(":")
         # ?Advanced index calling, finding two portions of the main encryption code that will be summed into a two-digit ASCII offset value
         # TODO: Make tweaks to improve the security of this method. Traditionally ASCII offset encryption is not secure, but by taking random parts of a longer string and extracing two different values, applying the encryption to the text as halves, requires a hacker to thoroughly understand the methodology to make even a brute-force effective enough to decrypt the whole message. Yeah yeah 0-94, I know...
-        try:
-            if len(prefix[0]) == 2:
-                code_seg1 = code2[int(prefix[0][0]): int(prefix[0][1])]
-            elif len(prefix[0]) == 3:
-                code_seg1 = code2[int(prefix[0][0]): int(prefix[0][1:3])]
-            elif len(prefix[0]) == 4:
-                code_seg1 = code2[int(prefix[0][0:2]): int(prefix[0][1:3])]
-            if len(prefix[1]) == 2:
-                code_seg2 = code2[int(prefix[1][0]): int(prefix[1][1])]
-            elif len(prefix[1]) == 3:
-                code_seg2 = code2[int(prefix[1][0]): int(prefix[1][1:3])]
-            elif len(prefix[1]) == 4:
-                code_seg2 = code2[int(prefix[1][0:2]): int(prefix[1][1:3])]
-            code_seg1 = sum(map(int, list(code_seg1)))
-            code_seg2 = sum(map(int, list(code_seg2)))
-            code3 = code2
-            Colours(default_colour, force=True)
-        except:
-            code_seg1 = str(code_seg1)[::-1]
-            temp = code_seg2
-            code_seg2 = int(code_seg1)
-            code_seg1 = temp
-            Colours(default_colour)
+        if len(prefix[0]) == 2:
+            code_seg1 = code2[int(prefix[0][0]): int(prefix[0][1])]
+        elif len(prefix[0]) == 3:
+            code_seg1 = code2[int(prefix[0][0]): int(prefix[0][1:3])]
+        elif len(prefix[0]) == 4:
+            code_seg1 = code2[int(prefix[0][0:2]): int(prefix[0][1:3])]
+        if len(prefix[1]) == 2:
+            code_seg2 = code2[int(prefix[1][0]): int(prefix[1][1])]
+        elif len(prefix[1]) == 3:
+            code_seg2 = code2[int(prefix[1][0]): int(prefix[1][1:3])]
+        elif len(prefix[1]) == 4:
+            code_seg2 = code2[int(prefix[1][0:2]): int(prefix[1][1:3])]
+        code_seg1 = sum(map(int, list(code_seg1)))
+        code_seg2 = sum(map(int, list(code_seg2)))
+        code3 = code2
     # *The old and far less secure method of using 4-digit keys that were split into two values, still supported for decryption
     if len(str(code2)) == 4:
         code3 = f"{int(code2[0:2])}{int(code2[2:4])}"
@@ -2436,22 +2437,29 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
         prefix[1] = prefix[1].split("||")
         prefix[0] = prefix[0].replace("$", "")
         time_decode = int(prefix[1][1].replace("#", ""))
-        if len(prefix[0]) == 2:
-            code_seg1 = code2[int(prefix[0][0]): int(prefix[0][1])]
-        elif len(prefix[0]) == 3:
-            code_seg1 = code2[int(prefix[0][0]): int(prefix[0][1:3])]
-        elif len(prefix[0]) == 4:
-            code_seg1 = code2[int(prefix[0][0:2]): int(prefix[0][1:3])]
-        code_seg1 = list(code_seg1)
-        code_seg1 = sum(map(int, code_seg1))
-        if len(prefix[1][0]) == 2:
-            code_seg2 = code2[int(prefix[1][0][0]): int(prefix[1][0][1])]
-        elif len(prefix[1][0]) == 3:
-            code_seg2 = code2[int(prefix[1][0][0]): int(prefix[1][0][1:3])]
-        elif len(prefix[1][0]) == 4:
-            code_seg2 = code2[int(prefix[1][0][0:2]): int(prefix[1][0][1:3])]
-        code_seg2 = list(code_seg2)
-        code_seg2 = sum(map(int, code_seg2))
+        try:
+            if len(prefix[0]) == 2:
+                code_seg1 = code2[int(prefix[0][0]): int(prefix[0][1])]
+            elif len(prefix[0]) == 3:
+                code_seg1 = code2[int(prefix[0][0]): int(prefix[0][1:3])]
+            elif len(prefix[0]) == 4:
+                code_seg1 = code2[int(prefix[0][0:2]): int(prefix[0][1:3])]
+            code_seg1 = list(code_seg1)
+            code_seg1 = sum(map(int, code_seg1))
+            if len(prefix[1][0]) == 2:
+                code_seg2 = code2[int(prefix[1][0][0]): int(prefix[1][0][1])]
+            elif len(prefix[1][0]) == 3:
+                code_seg2 = code2[int(prefix[1][0][0]): int(prefix[1][0][1:3])]
+            elif len(prefix[1][0]) == 4:
+                code_seg2 = code2[int(prefix[1][0][0:2]): int(prefix[1][0][1:3])]
+            code_seg2 = list(code_seg2)
+            code_seg2 = sum(map(int, code_seg2))
+            Colours(default_colour, force=True)
+        except:
+            temp = code_seg2
+            code_seg2 = int(str(code_seg1)[::-1])
+            code_seg1 = temp
+            Colours(default_colour)
         times = []
         date = timestamp.split("|")
         date = date[1]
@@ -3208,7 +3216,7 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
             except:
                 pass
             if "Anonymous" not in foreign_user:
-                foreign_user = decode_foreign_user(code, prefix, foreign_user)
+                foreign_user = decode_foreign_user(code, prefix, foreign_user, default_colour)
             sys.stdout.write("\033[F")
             if get_foreign_user() != None and foreign_user.strip().lower() != get_foreign_user().strip().lower():
                 animated_print(
@@ -3341,7 +3349,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, d
                 message[1][1] = message[1][1].split("@")
                 if message[1][1][0] != None and message[1][1][0].strip() != "" and "anonymous" not in message[1][1][0].lower():
                     message[1][1][0] = decode_foreign_user(
-                        old_code, prefix, message[1][1][0].strip())
+                        old_code, prefix, message[1][1][0].strip(), default_colour)
                 else:
                     message[1][1][0] = "Anonymous"
                 message[1][1][0] = get_foreign_user(new_user=message[1][1][0])
