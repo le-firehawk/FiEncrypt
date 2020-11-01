@@ -1546,9 +1546,9 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             code3 = code2
             Colours(default_colour, force=True)
         except:
-            code_seg1 = code_seg1[::-1]
+            code_seg1 = str(code_seg1)[::-1]
             temp = code_seg2
-            code_seg2 = code_seg1
+            code_seg2 = int(code_seg1)
             code_seg1 = temp
             Colours(default_colour)
     if conversation_mode and recipient_ip != "" and poked:
@@ -2413,9 +2413,9 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
             code3 = code2
             Colours(default_colour, force=True)
         except:
-            code_seg1 = code_seg1[::-1]
+            code_seg1 = str(code_seg1)[::-1]
             temp = code_seg2
-            code_seg2 = code_seg1
+            code_seg2 = int(code_seg1)
             code_seg1 = temp
             Colours(default_colour)
     # *The old and far less secure method of using 4-digit keys that were split into two values, still supported for decryption
