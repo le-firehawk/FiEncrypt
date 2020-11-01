@@ -1546,12 +1546,10 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             code3 = code2
             Colours(default_colour, force=True)
         except:
-            print(code_seg1, code_seg2)
             code_seg1 = str(code_seg1)[::-1]
             temp = code_seg2
             code_seg2 = int(code_seg1)
             code_seg1 = temp
-            print(code_seg1, code_seg2)
             Colours(default_colour)
     if conversation_mode and recipient_ip != "" and poked:
         try:
