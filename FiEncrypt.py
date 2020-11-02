@@ -836,7 +836,7 @@ def capitalize_user(user):
     if user != None and user.strip() != "":
         for word in user.split():
             temp += f"{word.strip().capitalize()} "
-        return temp
+        return temp.strip()
     else:
         return "Anonymous"
 
@@ -1444,6 +1444,7 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
 
 def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, auto_code, **poked):
     previous_message, poked = poked.get("message", ""), poked.get("poked", False)
+    manual = False
     enter_home_directory()
     os.remove("./messageout.txt")
     with open("./messageout.txt", "w+") as message_file:
@@ -1832,8 +1833,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                     recipient_ip = ip.strip().replace("\n", "")
                 your_ip = get_own_ip(print_logs, private_mode)
                 if recipient_ip == your_ip or recipient_ip == "127.0.0.1":
-                    animated_print(
-                        f"You must be lonely dude! I'll let you talk to yourself!")
+                    foreign_user = get_foreign_user(new_user=get_current_user())
                     enter_home_directory()
                     with open("./messagein.txt", "r+") as self_talk:
                         self_talk.seek(0)
@@ -1846,7 +1846,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                     if len(str(code2)) != 2 and not manual:
                         retrievemessage(
                             code, user, 2, backup_prefix, recipient_ip, link, timestamp, mailing, talking_to_self, default_colour, print_logs, private_mode, error_colour, None, display_initiate)
-                    elif manual:
+                    elif manual != None and manual:
                         retrievemessage(
                             code2, user, 2, None, recipient_ip, link, None, mailing, talking_to_self, default_colour, print_logs, private_mode, error_colour, None, display_initiate)
                     else:
@@ -2919,12 +2919,8 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
         you_are_loved(get_foreign_user(), hearts=hearts)
         Colours(default_colour)
         get_poked(get_foreign_user(), poke_num=pokes)
-        if not talking_to_self:
-            newmessage(old_code, user, recipient_ip, link, backup_prefix, date, talking_to_self,
-                       error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, get_auto_code(), poked=True, message=temp_output_phrase)
-        else:
-            menu(user, None, print_logs, default_colour,
-                 private_mode, error_colour, print_speed=0)
+        newmessage(old_code, user, recipient_ip, link, backup_prefix, date, talking_to_self,
+                   error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, get_auto_code(), poked=True, message=temp_output_phrase)
     elif conversation_mode and recipient_ip.strip() != "" and output_phrase.strip().endswith("\\exit"):
         animated_print(
             f"{get_foreign_user().capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
@@ -2946,8 +2942,11 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
     elif not conversation_mode or recipient_ip == "" or talking_to_self:
         if poked and talking_to_self:
             get_poked(capitalize_user(get_current_user()), poke_num=pokes)
-            menu(user, None, print_logs, default_colour,
-                 private_mode, error_colour, print_speed=0)
+            newmessage(old_code, user, recipient_ip, link, backup_prefix, date, talking_to_self,
+                       error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase)
+        elif talking_to_self:
+            newmessage(old_code, user, recipient_ip, link, backup_prefix, date, talking_to_self,
+                       error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase)
         else:
             success = privacy_input(f"Was the decryption successful? (Y/N)", 0)
             if success == None:
@@ -2998,12 +2997,8 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
             newmessage(old_code, user, recipient_ip, link, backup_prefix, date, talking_to_self,
                        error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, get_auto_code(), poked=True, message=temp_output_phrase)
         else:
-            if not talking_to_self:
-                newmessage(old_code, user, recipient_ip, link, backup_prefix, date, talking_to_self,
-                           error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase)
-            else:
-                menu(user, None, print_logs, default_colour,
-                     private_mode, error_colour, print_speed=0)
+            newmessage(old_code, user, recipient_ip, link, backup_prefix, date, talking_to_self,
+                       error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase)
 
 
 def server_recieve(user, code, current_user, link, recipient_ip, timestamp, prefix, date, default_colour, print_logs, private_mode, error_colour, display_initiate):
