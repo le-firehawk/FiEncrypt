@@ -175,6 +175,22 @@ def validate_login(username, password):
     return False
 
 
+def get_current_user(**new_user):
+    """Collects the name of the FiEncrypt user account that is currently logged in and saves it to a global variable"""
+    global current_user
+    try:
+        old_user = current_user
+    except:
+        pass
+    current_user = new_user.get('new_user', None)
+    if current_user == None:
+        try:
+            current_user = old_user
+        except UnboundLocalError:
+            current_user = None
+    return current_user
+
+
 def login():
     try:
         valid = False
@@ -198,6 +214,7 @@ def main():
     home_directory, system, user = enter_home_directory()
     valid, username, password = login()
     if valid:
+        get_current_user(new_user=username)
         if "linux" in sys.platform.lower():
             import netifaces
             interface = netifaces.interfaces()
@@ -249,7 +266,23 @@ def main():
                 message[0] = message[0].split(":")
                 message[1] = message[1].split(":")
                 message[2][0] = message[2][0].split(":")
-                print(message)
+                if "\\user_confirm" in message[0]:
+                    message[0] = message[0].split("=")
+                    expected_user = message[0][1]
+                    message[0] = message[0][0]
+                    reply_ip = message[1]
+                    print(message)
+                    if expected_user.strip().lower() == get_current_user().strip().lower():
+                        verify_link = socket.socket()
+                        verify_link.connect((reply_ip.strip(), 15754))
+                        verify_link.send(str(True).encode())
+                        verify_link.shutdown(socket.SHUT_RDWR)
+                        verify_link.close()
+                        link.shutdown(socket.SHUT_RDWR)
+                        link.close()
+                        sc.close()
+                else:
+                    print(message)
                 with open(f"./messages.txt", "r+") as mailbox:
                     letters = mailbox.readlines()
                     private_mode = get_privacy_mode()
@@ -302,6 +335,10 @@ def main():
                     pass
         sc.close()
         link.close()
+        try:
+            link.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
 
 
 display_license()

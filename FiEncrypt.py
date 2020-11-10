@@ -806,6 +806,8 @@ def you_are_loved(foreign_user, **hearts):
             f"Congratulations! You have fallen in love with yourself!")
     else:
         if hearts > 1:
+            if hearts == 2:
+                animated_print(f"No... those are not boobs! I swear...")
             animated_print(
                 f"{foreign_user.capitalize()} loves you {hearts} times over!")
         else:
@@ -1981,6 +1983,11 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                         animated_print(
                             f"{error_colour}WARNING: Unable to reach the host! Try a different address!")
                     Colours(default_colour)
+                    try:
+                        if ip:
+                            pass
+                    except UnboundLocalError:
+                        ip = None
                     if ip == None or ip.strip() == "":
                         ip, target_mac, target_name = get_recipient_ip(user, display_initiate, print_logs,
                                                                        default_colour, private_mode, error_colour)
@@ -2331,7 +2338,28 @@ def validate_foreign_user(ip, expected_user):
     if "true" in info.lower():
         return True
     else:
-        return False
+        reply_link = socket.socket()
+        try:
+            reply_link.connect((ip.strip(), 19507))
+        except ConnectionRefusedError:
+            return False
+        reply_link.send(
+            f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
+        reply_link.shutdown(socket.SHUT_RDWR)
+        reply_link.close()
+        validate_link = socket.socket()
+        validate_link.bind((get_own_ip(False, False), 15754))
+        validate_link.listen(10)
+        sc, address = validate_link.accept()
+        info = sc.recv(1024)
+        info = info.decode()
+        sc.close()
+        validate_link.shutdown(socket.SHUT_RDWR)
+        validate_link.close()
+        if "true" in info.lower():
+            return True
+        else:
+            return False
 
 
 def get_auto_code():
