@@ -991,7 +991,6 @@ def get_recipient_ip(user, display_initiate, print_logs, default_colour, private
                 get_recipient_ip(user, display_initiate, print_logs,
                                  default_colour, private_mode, error_colour)
     valid_vars = check_vars(ip, target_mac, target_name)
-    print(valid_vars)
     return valid_vars[0], valid_vars[1], valid_vars[2]
 
 
@@ -2322,7 +2321,10 @@ def validate_foreign_user(ip, expected_user):
     try:
         reply_link.connect((ip.strip(), 15753))
     except ConnectionRefusedError:
-        return False
+        try:
+            reply_link.connect((ip.strip(), 19507))
+        except ConnectionRefusedError:
+            return False
     reply_link.send(
         f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
     reply_link.shutdown(socket.SHUT_RDWR)

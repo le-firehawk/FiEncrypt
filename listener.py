@@ -196,6 +196,8 @@ def login():
         valid = False
         while not valid:
             username = privacy_input("Username", 0)
+            if username == None:
+                exit()
             password = privacy_input("Password", 1)
             if username == None or password == None:
                 raise KeyboardInterrupt
@@ -247,6 +249,7 @@ def main():
                 f"\033[91mWARNING: Link address already in use! Perhaps another instance of FiEncrypt Listener is running?\033[0m")
             exit()
         while True:
+            enter_home_directory()
             os.chdir(f"./{hash_current_user(username.lower())}_inbox")
             try:
                 sc, address = link.accept()
@@ -261,25 +264,45 @@ def main():
                 main()
             try:
                 message = info.decode()
-                print(message)
-                cont = input("")
-                message = message.split(" | ")
-                message[2] = message[2].split(" |||| ")
-                message[0] = message[0].split(":")
-                message[1] = message[1].split(":")
-                message[2][0] = message[2][0].split(":")
-                if "\\user_confirm" in message[0]:
+                try:
+                    message = message.split(" | ")
+                    message[2] = message[2].split(" |||| ")
+                    message[0] = message[0].split(":")
+                    message[1] = message[1].split(":")
+                    message[2][0] = message[2][0].split(":")
+                except:
+                    message = info.decode()
+                    message = message.split(" |||| ")
+                if "\\\\user_confirm" in message[0] or "\\user_confirm" in message[0]:
                     message[0] = message[0].split("=")
                     expected_user = message[0][1]
                     message[0] = message[0][0]
                     reply_ip = message[1]
-                    print(message)
                     if expected_user.strip().lower() == get_current_user().strip().lower():
                         verify_link = socket.socket()
                         verify_link.connect((reply_ip.strip(), 15754))
                         verify_link.send(str(True).encode())
                         verify_link.shutdown(socket.SHUT_RDWR)
                         verify_link.close()
+                        try:
+                            link.bind((ip, 19507))
+                            print("bound!")
+                        except:
+                            link = socket.socket()
+                            link.bind((ip, 19507))
+                            print("bound!")
+                        link.listen(10)
+                        try:
+                            sc, address = link.accept()
+                            info = sc.recv(1024)
+                        except:
+                            pass
+                        message = message.split(" | ")
+                        message[2] = message[2].split(" |||| ")
+                        message[0] = message[0].split(":")
+                        message[1] = message[1].split(":")
+                        message[2][0] = message[2][0].split(":")
+                        print(message)
                         link.shutdown(socket.SHUT_RDWR)
                         link.close()
                         sc.close()
