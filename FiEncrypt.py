@@ -51,6 +51,7 @@ class ImportStructure:
             global urllib, socket, netifaces
             import urllib.request as urllib
             import socket
+            import tqdm
             try:
                 import netifaces
             except:
@@ -2417,6 +2418,56 @@ def get_auto_code():
     return auto_code
 
 
+def sftp_send(recipient_ip):
+    SEPERATOR = "<SEPERATOR>"
+    BUFFER_SIZE = 4096
+    port = 15753
+    print(os.getcwd())
+    filename = f"./{input('')}"
+    filesize = os.path.getsize(filename)
+    print(SEPERATOR, BUFFER_SIZE, f"{host_ip.strip()}:{port}", filename, filesize)
+    file_server = socket.socket()
+    file_server.connect((recipient_ip.strip(), port))
+    file_server.send(f"{filename}{SEPERATOR}{filesize}".encode())
+    progress = tqdm.tqdm(
+        range(filesize), f"Sending {filename}", unit="B", unit_scale=True, unit_divisor=1024)
+    with open(filename, "rb") as f:
+        for _ in progress:
+            bytes_read = f.read(BUFFER_SIZE)
+            if not bytes_read:
+                break
+            file_server.sendall(bytes_read)
+            progress.update(len(bytes_read))
+    file_server.close()
+
+
+def sftp_recieve():
+    file_recipient = socket.socket()
+    file_recipient.bind((get_own_ip(False, False).strip(), 15753))
+    file_recipient.listen(10)
+    sc, address = file_recipient.accept()
+    inbound = sc.recv(4096).decode()
+    filename, filesize = inbound.split("<SEPERATOR>")
+    filename = os.path.basename(filename)
+    progress = tqdm.tqdm(range(int(filesize)),
+                         f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
+    with open(filename, "wb") as f:
+        for _ in progress:
+            bytes_read = sc.recv(4096)
+            if not bytes_read:
+                break
+            f.write(bytes_read)
+            progress.update(len(bytes_read))
+    sc.close()
+    file_recipient.close()
+
+
+# close the client socket
+client_socket.close()
+# close the server socket
+s.close()
+
+
 def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, timestamp, mailing, talking_to_self, default_colour, print_logs, private_mode, error_colour, index, display_initiate):
     # ?Names such as @old_code are used to seperate the various states the string is put into during decryption
     try:
@@ -3489,6 +3540,10 @@ def config_settings(user, current_user, default_colour, print_logs, private_mode
         if "display" in config_lines[3].lower():
             display_initiate = config_lines[3].split(" = ")
             display_initiate = display_initiate[1]
+            if "false" in display_initiate.lower():
+                display_initiate = False
+            else:
+                display_initiate = True
         else:
             display_initiate = False
         if "printing" in config_lines[4].lower():
@@ -3546,6 +3601,7 @@ def config_settings(user, current_user, default_colour, print_logs, private_mode
             animated_print(
                 f"9. Auto code: {auto_code}", speed=master_printing_speed)
             animated_print(f"10. Create new user...", speed=master_printing_speed)
+            animated_print(f"11. Return to main menu", speed=master_printing_speed)
         else:
             animated_print(
                 f"5. Conversation mode: {conversation_mode}", speed=master_printing_speed)
@@ -3556,6 +3612,7 @@ def config_settings(user, current_user, default_colour, print_logs, private_mode
             animated_print(
                 f"8. Auto code: {auto_code}", speed=master_printing_speed)
             animated_print(f"9. Create new user...", speed=master_printing_speed)
+            animated_print(f"10. Return to main menu", speed=master_printing_speed)
         choice = privacy_input(
             f"What setting would you like to modify", private_mode)
         if choice == None:
@@ -3664,6 +3721,13 @@ def config_settings(user, current_user, default_colour, print_logs, private_mode
         elif choice == "10":
             if custom_scheme:
                 add_new_user()
+            else:
+                menu(user, display_initiate, print_logs, default_colour,
+                     private_mode, error_colour, print_speed=0)
+        elif choice == "11":
+            if custom_scheme:
+                menu(user, display_initiate, print_logs, default_colour,
+                     private_mode, error_colour, print_speed=0)
             else:
                 pass
         config_file.close()
@@ -3955,6 +4019,8 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
         elif func == 14:
             if display_initiate:
                 exit()
+            else:
+                sftp()
         else:
             animated_print(f"Invalid Fuction!")
 
