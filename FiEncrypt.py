@@ -2423,7 +2423,7 @@ def sftp_send(recipient_ip):
     BUFFER_SIZE = 4096
     port = 15753
     print(os.getcwd())
-    filename = f"./{input('')}"
+    filename = input('')
     filesize = os.path.getsize(filename)
     print(SEPERATOR, BUFFER_SIZE, f"{recipient_ip.strip()}:{port}", filename, filesize)
     file_server = socket.socket()
