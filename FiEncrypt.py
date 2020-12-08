@@ -48,7 +48,7 @@ class ImportStructure:
             import getpass
             import textwrap
         elif bracket == "network":
-            global urllib, socket, netifaces
+            global urllib, socket, netifaces, tqdm
             import urllib.request as urllib
             import socket
             import tqdm
@@ -2425,7 +2425,7 @@ def sftp_send(recipient_ip):
     print(os.getcwd())
     filename = f"./{input('')}"
     filesize = os.path.getsize(filename)
-    print(SEPERATOR, BUFFER_SIZE, f"{host_ip.strip()}:{port}", filename, filesize)
+    print(SEPERATOR, BUFFER_SIZE, f"{recipient_ip.strip()}:{port}", filename, filesize)
     file_server = socket.socket()
     file_server.connect((recipient_ip.strip(), port))
     file_server.send(f"{filename}{SEPERATOR}{filesize}".encode())
