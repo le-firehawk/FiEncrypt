@@ -2455,7 +2455,7 @@ def sftp_send(recipient_ip, default_colour, error_colour):
         file_server.connect((recipient_ip.strip(), 15753))
         file_server.send(f"{filename}<SEPERATOR>{filesize}".encode())
         progress = tqdm.tqdm(
-            range(filesize), f"Sending {filename}", unit="B", unit_scale=True, unit_divisor=1024)
+            range(filesize), f"Sending {filename}", unit_scale=True, unit_divisor=1024)
         with open(filename, "rb") as f:
             for _ in progress:
                 bytes_read = f.read(4096)
@@ -2465,6 +2465,9 @@ def sftp_send(recipient_ip, default_colour, error_colour):
                 progress.update(len(bytes_read))
         sys.stdout.write("\033[F")
         sys.stdout.write("\033[K")
+    except OverflowError:
+        animated_print(f"{error_colour}WARNING: File too large! Aborting...")
+        Colours(default_colour)
     except ConnectionResetError:
         if foreign_user != None:
             animated_print(
