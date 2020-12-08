@@ -35,7 +35,7 @@ class ImportStructure:
             import datetime
             from plyer import notification
         elif bracket == "system":
-            global os, sys, shutil, subprocess, zipfile, ctypes, hashlib, Image
+            global os, sys, shutil, subprocess, zipfile, ctypes, hashlib, Image, pyaudio, wave, playsound
             import os
             import sys
             import shutil
@@ -44,6 +44,9 @@ class ImportStructure:
             import ctypes
             import hashlib
             from PIL import Image
+            import pyaudio
+            import wave
+            from playsound import playsound
         elif bracket == "string":
             global getpass, textwrap
             import getpass
@@ -1708,6 +1711,30 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
         mailbox = False
     else:
         skip = False
+    if "\\v" in message_text.strip().lower():
+        enter_home_directory()
+        voice_file = f"./cache/voice_message.wav"
+        voice_module = pyaudio.PyAudio()
+        chunk, FORMAT, channels, sample_rate, record_seconds = 1024, pyaudio.paInt16, 2, 44100, 15
+        stream = voice_module.open(format=FORMAT, channels=channels,
+                                   rate=sample_rate, input=True, output=False, frames_per_buffer=chunk)
+        frames = []
+        for _ in range(31):
+            sys.stdout.write("\033[F")
+            sys.stdout.write("\033[K")
+        animated_print("Recording for 15 seconds")
+        for i in range(int((44100 / chunk) * record_seconds)):
+            data = stream.read(chunk, exception_on_overflow=False)
+            frames.append(data)
+        stream.stop_stream()
+        stream.close()
+        voice_module.terminate()
+        audio_out = wave.open(voice_file, "wb")
+        audio_out.setnchannels(channels)
+        audio_out.setsampwidth(voice_module.get_sample_size(FORMAT))
+        audio_out.setframerate(sample_rate)
+        audio_out.writeframes(b"".join(frames))
+        audio_out.close()
     if message_text.count("\"\"") >= 2:
         temp_message_text = message_text.split("\"\"")
         if message_text.count("\"\"") == 2:
@@ -1717,8 +1744,12 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             message_text = f"{temp_message_text[0].strip()}"
             for i in range(2, len(temp_message_text), 2):
                 message_text += f"YOU ({get_foreign_user().capitalize()}): {temp_message_text[i-1].strip()} -> {temp_message_text[i].strip()}"
-    if "\\file" in message_text.strip():
+    if "\\file" in message_text.strip() or "\\v" in message_text.strip():
         outbound_file = True
+        if "\\v" in message_text.strip():
+            voice_message = True
+        else:
+            voice_message = False
     else:
         outbound_file = False
     if not skip:
@@ -2241,7 +2272,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 sys.stdout.flush()
                 time.sleep(1)
             print("")
-            sftp_send(ip, default_colour, error_colour)
+            sftp_send(ip, default_colour, error_colour, voice_message)
         if not skip and print_logs:
             animated_print(
                 f"Message {message.decode()} with decryption code {decrypt_code} successfully sent to {ip}!")
@@ -2441,7 +2472,7 @@ def get_auto_code():
     return auto_code
 
 
-def sftp_send(recipient_ip, default_colour, error_colour):
+def sftp_send(recipient_ip, default_colour, error_colour, voice_message):
     alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
                 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
     valid_file = False
@@ -2450,7 +2481,10 @@ def sftp_send(recipient_ip, default_colour, error_colour):
     else:
         temp_foreign_user = get_foreign_user()
     while not valid_file:
-        filename = input(f"Enter path of file to send to {temp_foreign_user}: ")
+        if voice_message:
+            filename = "cache/voice_message.wav"
+        else:
+            filename = input(f"Enter path of file to send to {temp_foreign_user}: ")
         try:
             if not filename.startswith(".") and not filename.startswith("/") and filename[0].lower() not in alphabet:
                 filename = f"./{filename}"
@@ -2465,7 +2499,7 @@ def sftp_send(recipient_ip, default_colour, error_colour):
         file_server.connect((recipient_ip.strip(), 15753))
         file_server.send(f"{filename}<SEPERATOR>{filesize}".encode())
         progress = tqdm.tqdm(
-            range(filesize), f"Sending {filename}", unit="B", unit_scale=True, unit_divisor=1024)
+            range(filesize), f"Sending {os.path.basename(filename)}", unit="B", unit_scale=True, unit_divisor=1024)
         with open(filename, "rb") as f:
             for _ in progress:
                 bytes_read = f.read(4096)
@@ -2475,6 +2509,9 @@ def sftp_send(recipient_ip, default_colour, error_colour):
                 progress.update(len(bytes_read))
         sys.stdout.write("\033[F")
         sys.stdout.write("\033[K")
+    except KeyboardInterrupt:
+        animated_print(f"{error_colour}WARNING: File transfer interrupted!")
+        Colours(default_colour)
     except OverflowError:
         animated_print(f"{error_colour}WARNING: File too large! Aborting...")
         Colours(default_colour)
@@ -2505,6 +2542,8 @@ def sftp_recieve(user, default_colour, error_colour):
         progress = tqdm.tqdm(range(int(filesize)),
                              f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
         enter_home_directory()
+        if filename == "voice_message.wav":
+            filename = "foreign_voice_message.wav"
         with open(f"./cache/{filename}", "wb") as f:
             for _ in progress:
                 bytes_read = sc.recv(4096)
@@ -2809,9 +2848,14 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
         temp_output_phrase = temp_output_phrase.replace(
             "\\thumbs_down", "").strip()
         thumb = False
-    if "\\file" in temp_output_phrase.strip():
+    if "\\file" in temp_output_phrase.strip() or "\\v" in temp_output_phrase.strip():
         temp_output_phrase = temp_output_phrase.replace("\\file", "").strip()
         expecting_file = True
+        if "\\v" in temp_output_phrase.strip():
+            temp_output_phrase = temp_output_phrase.replace("\\v", "").strip()
+            voice_message = True
+        else:
+            voice_message = False
     else:
         expecting_file = False
     if temp_output_phrase.strip().count("$") >= 2:
@@ -3077,6 +3121,9 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
         animated_print(f"\033[41m{temp_output_phrase}\033[0m")
     if expecting_file:
         sftp_recieve(user, default_colour, error_colour)
+    if voice_message:
+        enter_home_directory()
+        playsound(f"./cache/foreign_voice_message.wav")
     Colours(default_colour)
     # *@recipient_ip needs to be defined for the below if statement, if it is not, it gets set to blank
     try:
@@ -4088,15 +4135,18 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
                 config_settings(user, capitalize_user(get_current_user()), default_colour,
                                 print_logs, private_mode, error_colour)
             else:
+                clear_cache()
                 initiate()
         elif func == 13:
             if display_initiate:
+                clear_cache()
                 initiate()
             else:
                 clear_cache()
                 exit()
         elif func == 14:
             if display_initiate:
+                clear_cache()
                 exit()
         else:
             animated_print(f"Invalid Fuction!")
@@ -4160,6 +4210,7 @@ def initiate():
         Colours(default_colour)
     else:
         Colours(None)
+    clear_cache()
     with open(f"./CREDENTIALS.txt", "r+") as credentials:
         credential_lines = credentials.readlines()
         if len(credential_lines) < 2:
