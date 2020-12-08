@@ -1705,6 +1705,10 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             message_text = f"{temp_message_text[0].strip()}"
             for i in range(2, len(temp_message_text), 2):
                 message_text += f"YOU ({get_foreign_user().capitalize()}): {temp_message_text[i-1].strip()} -> {temp_message_text[i].strip()}"
+    if "\\file" in message_text.strip():
+        outbound_file = True
+    else:
+        outbound_file = False
     if not skip:
         decrypted_message = []
         decrypted_current_user = []
@@ -2243,6 +2247,8 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             animated_print(f"Message left!")
         elif poke:
             animated_print(f"Poke sent!")
+        elif outbound_file:
+            sftp_send(ip)
         else:
             animated_print(
                 f"Leaving conversation with {foreign_user.capitalize()}!")
@@ -2441,24 +2447,31 @@ def sftp_send(recipient_ip):
 def sftp_recieve():
     file_recipient = socket.socket()
     file_recipient.bind((get_own_ip(False, False).strip(), 15753))
-    file_recipient.listen(10)
-    sc, address = file_recipient.accept()
-    inbound = sc.recv(4096).decode()
-    filename, filesize = inbound.split("<SEPERATOR>")
-    filename = os.path.basename(filename)
-    progress = tqdm.tqdm(range(int(filesize)),
-                         f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
-    with open(filename, "wb") as f:
-        for _ in progress:
-            bytes_read = sc.recv(4096)
-            if not bytes_read:
-                break
-            f.write(bytes_read)
-            progress.update(len(bytes_read))
-    sys.stdout.write("\033[F")
-    sys.stdout.write("\033[K")
-    sc.close()
-    file_recipient.close()
+    animated_print(f"Awaiting file...")
+    try:
+        file_recipient.listen(10)
+        sc, address = file_recipient.accept()
+        inbound = sc.recv(4096).decode()
+        filename, filesize = inbound.split("<SEPERATOR>")
+        filename = os.path.basename(filename)
+        progress = tqdm.tqdm(range(int(filesize)),
+                             f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
+        with open(filename, "wb") as f:
+            for _ in progress:
+                bytes_read = sc.recv(4096)
+                if not bytes_read:
+                    break
+                f.write(bytes_read)
+                progress.update(len(bytes_read))
+        sys.stdout.write("\033[F")
+        sys.stdout.write("\033[K")
+    except KeyboardInterrupt:
+        animated_print(f"Aborting file transfer...")
+    try:
+        sc.close()
+        file_recipient.close()
+    except:
+        pass
 
 
 def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, timestamp, mailing, talking_to_self, default_colour, print_logs, private_mode, error_colour, index, display_initiate):
@@ -2731,6 +2744,11 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
         temp_output_phrase = temp_output_phrase.replace(
             "\\thumbs_down", "").strip()
         thumb = False
+    if "\\file" in temp_output_phrase.strip():
+        temp_output_phrase = temp_output_phrase.replace("\\file", "").strip()
+        expecting_file = True
+    else:
+        expecting_file = False
     if temp_output_phrase.strip().count("$") >= 2:
         try:
             cached_output_phrase = temp_output_phrase
@@ -2992,6 +3010,8 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
             temp_output_phrase = cached_output_phrase
     else:
         animated_print(f"\033[41m{temp_output_phrase}\033[0m")
+    if expecting_file:
+        sftp_recieve()
     Colours(default_colour)
     # *@recipient_ip needs to be defined for the below if statement, if it is not, it gets set to blank
     try:
