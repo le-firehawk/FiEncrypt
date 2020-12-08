@@ -2462,12 +2462,6 @@ def sftp_recieve():
     file_recipient.close()
 
 
-# close the client socket
-client_socket.close()
-# close the server socket
-s.close()
-
-
 def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, timestamp, mailing, talking_to_self, default_colour, print_logs, private_mode, error_colour, index, display_initiate):
     # ?Names such as @old_code are used to seperate the various states the string is put into during decryption
     try:
@@ -3785,7 +3779,7 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
         animated_print(f"12. Reload", speed=print_speed)
         animated_print(f"13. Quit", speed=print_speed)
     # *While loop to force the user to enter correct function num
-    while func not in range(1, 14):
+    while func not in range(1, 15):
         try:
             func = input(f"Select one of these functions: ")
         except KeyboardInterrupt:
@@ -4020,7 +4014,9 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
             if display_initiate:
                 exit()
             else:
-                sftp()
+                sftp_send(input("recipient_ip: "))
+        elif func == 15:
+            sftp_recieve()
         else:
             animated_print(f"Invalid Fuction!")
 
