@@ -2223,6 +2223,8 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
         except:
             pass
         link.close()
+        if outbound_file:
+            sftp_send(ip, default_colour, error_colour)
         if not skip and print_logs:
             animated_print(
                 f"Message {message.decode()} with decryption code {decrypt_code} successfully sent to {ip}!")
@@ -2247,8 +2249,6 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             animated_print(f"Message left!")
         elif poke:
             animated_print(f"Poke sent!")
-        elif outbound_file:
-            sftp_send(ip)
         else:
             animated_print(
                 f"Leaving conversation with {foreign_user.capitalize()}!")
@@ -2424,8 +2424,12 @@ def get_auto_code():
     return auto_code
 
 
-def sftp_send(recipient_ip):
-    filename = input('')
+def sftp_send(recipient_ip, default_colour, error_colour):
+    alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
+                'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
+    filename = input(f"Enter path of file to be sent to {recipient_ip}: ")
+    if not filename.startswith(".") and not filename.startswith("/") and filename[0].lower() not in alphabet:
+        filename = f"./{filename}"
     filesize = os.path.getsize(filename)
     file_server = socket.socket()
     file_server.connect((recipient_ip.strip(), 15753))
@@ -2444,9 +2448,10 @@ def sftp_send(recipient_ip):
     file_server.close()
 
 
-def sftp_recieve():
+def sftp_recieve(user, default_colour, error_colour):
     file_recipient = socket.socket()
     file_recipient.bind((get_own_ip(False, False).strip(), 15753))
+    Colours(default_colour)
     animated_print(f"Awaiting file...")
     try:
         file_recipient.listen(10)
@@ -2456,7 +2461,8 @@ def sftp_recieve():
         filename = os.path.basename(filename)
         progress = tqdm.tqdm(range(int(filesize)),
                              f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
-        with open(filename, "wb") as f:
+        enter_home_directory()
+        with open(f"./cache/{filename}", "wb") as f:
             for _ in progress:
                 bytes_read = sc.recv(4096)
                 if not bytes_read:
@@ -2465,8 +2471,10 @@ def sftp_recieve():
                 progress.update(len(bytes_read))
         sys.stdout.write("\033[F")
         sys.stdout.write("\033[K")
+        animated_print(f"File {filename} saved to {os.getcwd()}/cache/{filename}!")
     except KeyboardInterrupt:
-        animated_print(f"Aborting file transfer...")
+        animated_print(f"\n{error_colour}WARNING: Aborting file transfer...")
+        Colours(default_colour)
     try:
         sc.close()
         file_recipient.close()
@@ -3011,7 +3019,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
     else:
         animated_print(f"\033[41m{temp_output_phrase}\033[0m")
     if expecting_file:
-        sftp_recieve()
+        sftp_recieve(user, default_colour, error_colour)
     Colours(default_colour)
     # *@recipient_ip needs to be defined for the below if statement, if it is not, it gets set to blank
     try:
