@@ -35,7 +35,7 @@ class ImportStructure:
             import datetime
             from plyer import notification
         elif bracket == "system":
-            global os, sys, shutil, subprocess, zipfile, ctypes, hashlib
+            global os, sys, shutil, subprocess, zipfile, ctypes, hashlib, Image
             import os
             import sys
             import shutil
@@ -43,6 +43,7 @@ class ImportStructure:
             import zipfile
             import ctypes
             import hashlib
+            from PIL import Image
         elif bracket == "string":
             global getpass, textwrap
             import getpass
@@ -2511,6 +2512,11 @@ def sftp_recieve(user, default_colour, error_colour):
                     break
                 f.write(bytes_read)
                 progress.update(len(bytes_read))
+        file_extension = filename.split(".")
+        file_extension = file_extension[1]
+        if file_extension.lower() in ["png", "jpg", "jpeg", "bmp", "ico"]:
+            cached_image = Image.open(f"./cache/{filename}")
+            cached_image.show()
         sys.stdout.write("\033[F")
         sys.stdout.write("\033[K")
         if str(filesize).strip() == str(os.path.getsize(f"./cache/{filename}")).strip():
