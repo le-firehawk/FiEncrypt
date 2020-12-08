@@ -621,6 +621,9 @@ def get_foreign_user(**new_user):
         except AttributeError:
             foreign_user = None
         return foreign_user
+    elif foreign_user == "\\reset":
+        foreign_user = None
+        return foreign_user
     else:
         return foreign_user.replace("\n", "")
 
@@ -889,14 +892,41 @@ def create_notification(ip, name):
         )
 
 
-def get_recipient_ip(user, display_initiate, print_logs, default_colour, private_mode, error_colour):
+def get_recipient_ip(user, display_initiate, print_logs, default_colour, private_mode, error_colour, **args):
     """Obtains the desired IP, MAC, or contact name that a message is to be sent to. Calls arp_scan() and mac_resolve() modules as appropiate"""
     target_mac, target_name = None, None
-    ip = privacy_input(
-        "Enter the IP, MAC address or contact name of the recipient", private_mode)
+    is_invite = args.get("is_invite", False)
+    confirm_ip = args.get("confirm_ip", None)
+    if confirm_ip == None:
+        ip = privacy_input(
+            "Enter the IP, MAC address or contact name of the recipient", private_mode)
+    else:
+        ip = confirm_ip
     if ip == None:
         menu(user, None, print_logs, default_colour,
              private_mode, error_colour, print_speed=0)
+    elif is_invite:
+        if "@" in ip:
+            ip = ip.split("@")
+            target_name = ip[0].strip()
+            ip = ip[1].strip()
+            if "." not in ip:
+                target_name, target_mac, target_ip, details = Contacts.check_for(
+                    ip)
+                target_name = target_name.replace("\n", "")
+                if target_ip != None:
+                    ip = target_ip
+                else:
+                    ip = mac_resolve(target_mac, print_logs)
+                if ip == None:
+                    animated_print(
+                        f"{error_colour}WARNING: Unable to resolve IP address through ARP!")
+                    Colours(default_colour)
+                    connected = False
+                else:
+                    Contacts.add_ip(target_name, ip)
+            else:
+                target_mac = None
     elif "@" in ip:
         ip = ip.split("@")
         expected_user = ip[0].strip()
@@ -916,7 +946,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_colour, private
                 connected = False
             else:
                 Contacts.add_ip(target_name, ip)
-        validated = validate_foreign_user(ip, expected_user)
+        validated = validate_foreign_user(ip, expected_user, print_logs)
         if not validated:
             animated_print(
                 f"{error_colour}WARNING: Unable to verify if recipient is {expected_user}!")
@@ -2205,6 +2235,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             if get_foreign_user() != None:
                 animated_print(
                     f"{get_foreign_user().capitalize()} is not available! Message left in their mailbox!")
+                get_foreign_user(new_user="\\reset")
             else:
                 animated_print(f"Message left!")
         elif mailbox:
@@ -2316,7 +2347,7 @@ def decode_foreign_user(code, prefix, user, default_colour):
     return decrypted_foreign_user
 
 
-def validate_foreign_user(ip, expected_user):
+def validate_foreign_user(ip, expected_user, print_logs):
     reply_link = socket.socket()
     try:
         reply_link.connect((ip.strip(), 15753))
@@ -2327,12 +2358,28 @@ def validate_foreign_user(ip, expected_user):
             return False
     reply_link.send(
         f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
-    reply_link.shutdown(socket.SHUT_RDWR)
-    reply_link.close()
     validate_link = socket.socket()
-    validate_link.bind((get_own_ip(False, False), 15754))
-    validate_link.listen(10)
-    sc, address = validate_link.accept()
+    try:
+        validate_link.bind((get_own_ip(False, False), 15754))
+        reply_link.shutdown(socket.SHUT_RDWR)
+        reply_link.close()
+        validate_link.listen(10)
+        sc, address = validate_link.accept()
+    except OSError:
+        try:
+            reply_link.shutdown(socket.SHUT_RDWR)
+            reply_link.close()
+            reply_link = socket.socket()
+            reply_link.bind((get_own_ip(False, False), 15754))
+            reply_link.listen(10)
+            sc, address = reply_link.accept()
+        except OSError:
+            print(f"\033[91mWARNING: Unable to startup network listener!{applied_default_colour}")
+            if print_logs:
+                raise Exception(
+                    f"Unable to bind to {get_own_ip(False, False)}/listen on socket 15754!")
+            else:
+                return False
     info = sc.recv(1024)
     info = info.decode()
     sc.close()
@@ -3270,7 +3317,7 @@ def send_conversation_invite(user, current_user, default_colour, private_mode, e
         ip = socket.gethostbyname(socket.gethostname())
     try:
         dest_ip, target_mac, target_name = get_recipient_ip(user, display_initiate, print_logs,
-                                                            default_colour, private_mode, error_colour)
+                                                            default_colour, private_mode, error_colour, is_invite=True)
         dest_ip = dest_ip.strip()
     except KeyboardInterrupt:
         print("")
@@ -3309,7 +3356,10 @@ def send_conversation_invite(user, current_user, default_colour, private_mode, e
                  private_mode, error_colour, print_speed=0)
     log(f"Conversation invite sent to {dest_ip}",
         "conv", user, print_logs)
-    content = f"Request:True Source_IP:{ip} Name:{current_user}"
+    if target_name != None or target_name.strip() != "":
+        content = f"Request:True Source_IP:{ip} Name:{current_user} Target:{target_name}"
+    else:
+        content = f"Request:True Source_IP:{ip} Name:{current_user}"
     packet = content.encode()
     link.send(packet)
     try:
@@ -3401,6 +3451,8 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, d
                 if "y" in reply.lower():
                     code, prefix, timestamp = showcode(capitalize_user(get_current_user()), 1, private_mode,
                                                        print_logs, error_colour, default_colour)
+                    ip, target_mac, target_name = get_recipient_ip(
+                        user, display_initiate, print_logs, default_colour, private_mode, error_colour, confirm_ip=f"{message[1][1][0]}@{message[1][1][1]}")
                     newmessage(code, user, message[1][1][1], None, prefix, None,
                                False, error_colour, default_colour, private_mode, print_logs, False, display_initiate, False)
                 else:
