@@ -2438,6 +2438,8 @@ def sftp_send(recipient_ip):
                 break
             file_server.sendall(bytes_read)
             progress.update(len(bytes_read))
+    sys.stdout.write("\033[F")
+    sys.stdout.write("\033[K")
     file_server.close()
 
 
@@ -2458,6 +2460,8 @@ def sftp_recieve():
                 break
             f.write(bytes_read)
             progress.update(len(bytes_read))
+    sys.stdout.write("\033[F")
+    sys.stdout.write("\033[K")
     sc.close()
     file_recipient.close()
 
