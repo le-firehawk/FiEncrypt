@@ -304,6 +304,7 @@ def maybe_quit():
     elif "y" in quit.lower():
         sys.stdout.write("\033[F")
         sys.stdout.write("\033[K")
+        clear_cache()
         exit()
 
 
@@ -431,8 +432,18 @@ def establish_tree():
     urllib.request.urlretrieve(
         "https://www.gnu.org/licenses/agpl-3.0.txt", f"./LICENSE")
     os.mkdir(f"./Contacts")
+    os.mkdir(f"./cache")
     if sys.platform == "win32":
         hide_tree()
+
+
+def clear_cache():
+    enter_home_directory()
+    try:
+        shutil.rmtree(f"./cache")
+        os.mkdir(f"./cache")
+    except:
+        pass
 
 
 def add_new_user():
@@ -2427,25 +2438,44 @@ def get_auto_code():
 def sftp_send(recipient_ip, default_colour, error_colour):
     alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
                 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
-    filename = input(f"Enter path of file to be sent to {recipient_ip}: ")
-    if not filename.startswith(".") and not filename.startswith("/") and filename[0].lower() not in alphabet:
-        filename = f"./{filename}"
-    filesize = os.path.getsize(filename)
+    valid_file = False
+    while not valid_file:
+        filename = input(f"Enter path of file to be sent to {recipient_ip}: ")
+        try:
+            if not filename.startswith(".") and not filename.startswith("/") and filename[0].lower() not in alphabet:
+                filename = f"./{filename}"
+            filesize = os.path.getsize(filename)
+            valid_file = True
+        except FileNotFoundError:
+            animated_print(f"{error_colour}WARNING: File not found!")
+            Colours(default_colour)
+            valid_file = False
     file_server = socket.socket()
-    file_server.connect((recipient_ip.strip(), 15753))
-    file_server.send(f"{filename}<SEPERATOR>{filesize}".encode())
-    progress = tqdm.tqdm(
-        range(filesize), f"Sending {filename}", unit="B", unit_scale=True, unit_divisor=1024)
-    with open(filename, "rb") as f:
-        for _ in progress:
-            bytes_read = f.read(4096)
-            if not bytes_read:
-                break
-            file_server.sendall(bytes_read)
-            progress.update(len(bytes_read))
-    sys.stdout.write("\033[F")
-    sys.stdout.write("\033[K")
-    file_server.close()
+    try:
+        file_server.connect((recipient_ip.strip(), 15753))
+        file_server.send(f"{filename}<SEPERATOR>{filesize}".encode())
+        progress = tqdm.tqdm(
+            range(filesize), f"Sending {filename}", unit="B", unit_scale=True, unit_divisor=1024)
+        with open(filename, "rb") as f:
+            for _ in progress:
+                bytes_read = f.read(4096)
+                if not bytes_read:
+                    break
+                file_server.sendall(bytes_read)
+                progress.update(len(bytes_read))
+        sys.stdout.write("\033[F")
+        sys.stdout.write("\033[K")
+    except ConnectionResetError:
+        if foreign_user != None:
+            animated_print(
+                f"{error_colour}WARNING: {foreign_user.capitalize()} has reset the conenction!")
+        else:
+            animated_print(f"{error_colour}WARNING: Peer has reset the conenction!")
+        Colours(default_colour)
+    try:
+        file_server.close()
+    except:
+        pass
 
 
 def sftp_recieve(user, default_colour, error_colour):
@@ -4036,14 +4066,11 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
             if display_initiate:
                 initiate()
             else:
+                clear_cache()
                 exit()
         elif func == 14:
             if display_initiate:
                 exit()
-            else:
-                sftp_send(input("recipient_ip: "))
-        elif func == 15:
-            sftp_recieve()
         else:
             animated_print(f"Invalid Fuction!")
 
