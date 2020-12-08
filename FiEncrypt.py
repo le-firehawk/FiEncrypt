@@ -2489,8 +2489,9 @@ def sftp_recieve(user, default_colour, error_colour):
         inbound = sc.recv(4096).decode()
         filename, filesize = inbound.split("<SEPERATOR>")
         filename = os.path.basename(filename)
+        print(str(filesize))
         progress = tqdm.tqdm(range(int(filesize)),
-                             f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
+                             f"Receiving {filename}", unit_scale=True, unit_divisor=1024)
         enter_home_directory()
         with open(f"./cache/{filename}", "wb") as f:
             for _ in progress:
@@ -2501,7 +2502,10 @@ def sftp_recieve(user, default_colour, error_colour):
                 progress.update(len(bytes_read))
         sys.stdout.write("\033[F")
         sys.stdout.write("\033[K")
-        animated_print(f"File {filename} saved to {os.getcwd()}/cache/{filename}!")
+        animated_print(f"File {filename} saved to {os.getcwd()}/cache/{filename}")
+    except OverflowError:
+        animated_print(f"{error_colour}WARNING: File too large! Aborting...")
+        Colours(default_colour)
     except KeyboardInterrupt:
         animated_print(f"\n{error_colour}WARNING: Aborting file transfer...")
         Colours(default_colour)
