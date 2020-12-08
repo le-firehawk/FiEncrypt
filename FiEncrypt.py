@@ -2419,21 +2419,16 @@ def get_auto_code():
 
 
 def sftp_send(recipient_ip):
-    SEPERATOR = "<SEPERATOR>"
-    BUFFER_SIZE = 4096
-    port = 15753
-    print(os.getcwd())
     filename = input('')
     filesize = os.path.getsize(filename)
-    print(SEPERATOR, BUFFER_SIZE, f"{recipient_ip.strip()}:{port}", filename, filesize)
     file_server = socket.socket()
-    file_server.connect((recipient_ip.strip(), port))
-    file_server.send(f"{filename}{SEPERATOR}{filesize}".encode())
+    file_server.connect((recipient_ip.strip(), 15753))
+    file_server.send(f"{filename}<SEPERATOR>{filesize}".encode())
     progress = tqdm.tqdm(
         range(filesize), f"Sending {filename}", unit="B", unit_scale=True, unit_divisor=1024)
     with open(filename, "rb") as f:
         for _ in progress:
-            bytes_read = f.read(BUFFER_SIZE)
+            bytes_read = f.read(4096)
             if not bytes_read:
                 break
             file_server.sendall(bytes_read)
