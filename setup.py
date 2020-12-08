@@ -5,7 +5,7 @@ setup(
     name='FiEncrypt',
     version='1.2.3',
     packages=[],
-    install_requires=['plyer', 'ntfy', 'scapy', 'netifaces'],
+    install_requires=['plyer', 'ntfy', 'scapy', 'netifaces', 'tqdm'],
     url='https://github.com/le-firehawk/FiEncrypt',
     license='AGPL v3',
     author='le_firehawk',

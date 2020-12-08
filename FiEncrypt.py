@@ -2235,6 +2235,11 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             pass
         link.close()
         if outbound_file:
+            for i in range(4):
+                sys.stdout.write("*")
+                sys.stdout.flush()
+                time.sleep(1)
+            print("")
             sftp_send(ip, default_colour, error_colour)
         if not skip and print_logs:
             animated_print(
@@ -2439,8 +2444,12 @@ def sftp_send(recipient_ip, default_colour, error_colour):
     alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
                 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
     valid_file = False
+    if get_foreign_user() == None or get_foreign_user().strip() == "":
+        temp_foreign_user = recipient_ip
+    else:
+        temp_foreign_user = get_foreign_user()
     while not valid_file:
-        filename = input(f"Enter path of file to be sent to {recipient_ip}: ")
+        filename = input(f"Enter path of file to send to {temp_foreign_user}: ")
         try:
             if not filename.startswith(".") and not filename.startswith("/") and filename[0].lower() not in alphabet:
                 filename = f"./{filename}"
@@ -2455,7 +2464,7 @@ def sftp_send(recipient_ip, default_colour, error_colour):
         file_server.connect((recipient_ip.strip(), 15753))
         file_server.send(f"{filename}<SEPERATOR>{filesize}".encode())
         progress = tqdm.tqdm(
-            range(filesize), f"Sending {filename}", unit_scale=True, unit_divisor=1024)
+            range(filesize), f"Sending {filename}", unit="B", unit_scale=True, unit_divisor=1024)
         with open(filename, "rb") as f:
             for _ in progress:
                 bytes_read = f.read(4096)
@@ -2492,9 +2501,8 @@ def sftp_recieve(user, default_colour, error_colour):
         inbound = sc.recv(4096).decode()
         filename, filesize = inbound.split("<SEPERATOR>")
         filename = os.path.basename(filename)
-        print(str(filesize))
         progress = tqdm.tqdm(range(int(filesize)),
-                             f"Receiving {filename}", unit_scale=True, unit_divisor=1024)
+                             f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
         enter_home_directory()
         with open(f"./cache/{filename}", "wb") as f:
             for _ in progress:
@@ -2505,7 +2513,13 @@ def sftp_recieve(user, default_colour, error_colour):
                 progress.update(len(bytes_read))
         sys.stdout.write("\033[F")
         sys.stdout.write("\033[K")
-        animated_print(f"File {filename} saved to {os.getcwd()}/cache/{filename}")
+        if str(filesize).strip() == str(os.path.getsize(f"./cache/{filename}")).strip():
+            animated_print(f"File {filename} saved to {os.getcwd()}/cache/{filename}")
+        else:
+            animated_print(
+                f"{error_colour}WARNING: File corrupt or incomplete! Check {os.getcwd()}/cache/{filename}")
+            Colours(default_colour)
+
     except OverflowError:
         animated_print(f"{error_colour}WARNING: File too large! Aborting...")
         Colours(default_colour)
