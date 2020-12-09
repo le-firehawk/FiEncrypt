@@ -1,3 +1,4 @@
+import contextlib
 from scapy.all import *
 # FiEncrypt, property of le_firehawk is pure Python, peer-to-peer communication software intended for personal use only.
 # Copyright (C) 2020 le_firehawk
@@ -247,10 +248,10 @@ def apply_colour(default, error, reset):
         pass
 
 
-def animated_print(string, **speed):
+def animated_print(string, **kwargs):
     """Accepts a string to be printed, along with the optional parameter for how long Python should wait before printing the next character"""
     try:
-        speed = speed.get('speed', None)
+        speed = kwargs.get('speed', None)
         enter_home_directory()
         with open(f"./config.txt", "r+") as config_file:
             config_lines = config_file.readlines()
@@ -442,6 +443,7 @@ def establish_tree():
 
 
 def clear_cache():
+    """Deletes all files saved to the cache during the user's session"""
     enter_home_directory()
     try:
         shutil.rmtree(f"./cache")
@@ -451,6 +453,7 @@ def clear_cache():
 
 
 def add_new_user():
+    """Creates user login using SHA256, saved under CREDENTIALS.txt"""
     enter_home_directory()
     valid_username, valid_password = False, False
     while not valid_username:
@@ -498,6 +501,7 @@ def add_new_user():
 
 
 def validate_login(username, password):
+    """Checks both the username and password entered by encrypting them and running a comparison"""
     hash_user = username.encode("utf-8")
     hash_user = hashlib.sha256(hash_user).hexdigest()
     hash = username + password
@@ -593,6 +597,21 @@ def mac_resolve(mac, print_logs):
             if mac.strip() in str(mapping['MAC']).strip():
                 return str(format(mapping['IP']))
     return None
+
+
+@contextlib.contextmanager
+def ignore_stderr():
+    """Overrides behaviour of Python's standard error (stderr) to supress errors raised during creation of voice message"""
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    old_stderr = os.dup(2)
+    sys.stderr.flush()
+    os.dup2(devnull, 2)
+    os.close(devnull)
+    try:
+        yield
+    finally:
+        os.dup2(old_stderr, 2)
+        os.close(old_stderr)
 
 
 def is_private():
@@ -853,6 +872,7 @@ def thumbs(foreign_user, up):
 
 
 def capitalize_user(user):
+    """Takes a username and capitalizes each word"""
     temp = ""
     if user != None and user.strip() != "":
         for word in user.split():
@@ -1041,6 +1061,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_colour, private
 
 
 def gnu_ip_resolve(print_logs, private_mode):
+    """Employs the modules to handle obtaining an IP address from a GNU/Linux system with multiple interfaces"""
     print("")
     interfaces = netifaces.interfaces()
     if print_logs:
@@ -1069,6 +1090,7 @@ def gnu_ip_resolve(print_logs, private_mode):
 
 
 def secretcode(user, current_user, default_colour, print_logs, private_mode, error_colour):
+    """Accepts secret codes to execute special behaviours, like an easter egg! NO PEAKING!"""
     enter_home_directory()
     secret_code = privacy_input(f"Enter the secret code here", private_mode)
     if secret_code == None:
@@ -1312,6 +1334,7 @@ def secretcode(user, current_user, default_colour, print_logs, private_mode, err
 
 
 def showcode(user, current_user, private_mode, print_logs, error_colour, default_colour):
+    """Outputs the current encryption code in various forms, based on input parameters"""
     enter_home_directory()
     if sys.platform.startswith("win32"):
         log(f"New Directory: {str(os.getcwd())} OS: Windows",
@@ -1350,6 +1373,7 @@ def showcode(user, current_user, private_mode, print_logs, error_colour, default
 
 
 def even_num():
+    """Produces a random even number between 2 and (number between 4 and 100)"""
     num2 = 1
     while (num2 % 2) / 2 != 0:
         num1 = random.randint(4, 100)
@@ -1358,6 +1382,7 @@ def even_num():
 
 
 def random_filler(length, string):
+    """Produces filler to accompany a message before it is send over the network"""
     output, alphabet, number, symbols, new_string = "", ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l",
                                                          "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"], [1, 2, 3, 4, 5, 6, 7, 8, 9], ["!", "@", "#", "$", "%", "^", "&", "*",
                                                                                                                                                               "(", ")", "-", "=", "+", "{", "}", "[", "]", ";", ":", "'", "\"", ",", ".", "<", ">", "/", "?"], ""
@@ -1381,6 +1406,7 @@ def random_filler(length, string):
 
 
 def decrypt_filler(length, string):
+    """Reconstructs message with filler removed"""
     new_string = ""
     for k, char in enumerate(string):
         if k in range(0, int(int(length)/2)):
@@ -1392,6 +1418,7 @@ def decrypt_filler(length, string):
 
 
 def randomcode(user, current_user, auto_request, private_mode, print_logs, default_colour, error_colour, **auto_code):
+    """Generates fresh encryption code"""
     auto_code = auto_code.get("auto_code", None)
     if auto_code == None:
         auto_code = False
@@ -1491,6 +1518,7 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
 
 
 def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, auto_code, **poked):
+    """Allows user to create and send an encrypted message"""
     previous_message, poked = poked.get("message", ""), poked.get("poked", False)
     manual = False
     enter_home_directory()
@@ -1714,14 +1742,12 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
     if "\\v" in message_text.strip().lower():
         enter_home_directory()
         voice_file = f"./cache/voice_message.wav"
-        voice_module = pyaudio.PyAudio()
-        chunk, FORMAT, channels, sample_rate, record_seconds = 1024, pyaudio.paInt16, 1, 44100, 15
-        stream = voice_module.open(format=FORMAT, channels=channels,
-                                   rate=sample_rate, input=True, output=False, frames_per_buffer=chunk)
+        with ignore_stderr():
+            voice_module = pyaudio.PyAudio()
+            chunk, FORMAT, channels, sample_rate, record_seconds = 1024, pyaudio.paInt16, 1, 44100, 15
+            stream = voice_module.open(format=FORMAT, channels=channels,
+                                       rate=sample_rate, input=True, output=True, frames_per_buffer=chunk)
         frames = []
-        for _ in range(31):
-            sys.stdout.write("\033[F")
-            sys.stdout.write("\033[K")
         animated_print("Recording for 15 seconds")
         for i in range(int((44100 / chunk) * record_seconds)):
             data = stream.read(chunk, exception_on_overflow=False)
@@ -2346,12 +2372,14 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
 
 
 def hash_current_user(user):
+    """Applies SHA256 encryption on string passed"""
     hash_user = user.encode("utf-8")
     hash_user = hashlib.sha256(hash_user).hexdigest()
     return hash_user
 
 
 def decode_foreign_user(code, prefix, user, default_colour):
+    """Decrypts the username of person who sent a message, using the main encryption code"""
     passs, code3, encrypted_foreign_user, decrypted_foreign_user, prefix = 0, code, [
     ], '', prefix.split("fE")
     prefix[1] = prefix[1].split("||")
@@ -2409,6 +2437,7 @@ def decode_foreign_user(code, prefix, user, default_colour):
 
 
 def validate_foreign_user(ip, expected_user, print_logs):
+    """When someone declares the name of a desired recipient, that string is compared to the user curretly logged in, returning True/False"""
     reply_link = socket.socket()
     try:
         reply_link.connect((ip.strip(), 15753))
@@ -2474,11 +2503,13 @@ def validate_foreign_user(ip, expected_user, print_logs):
 
 
 def get_auto_code():
+    """Specifically retrieves the state of the auto_code parameter in the config file"""
     print_logs, display_initiate, graphic_mode, private_mode, colour_enabled, default_colour, auto_code = retrieve_config_settings()
     return auto_code
 
 
 def sftp_send(recipient_ip, default_colour, error_colour, voice_message):
+    """Sends file using unique socket"""
     alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
                 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
     valid_file = False
@@ -2502,7 +2533,7 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message):
             valid_file = False
     file_server = socket.socket()
     try:
-        file_server.connect((recipient_ip.strip(), 15753))
+        file_server.connect((recipient_ip.strip(), 1553))
         file_server.send(f"{filename}<SEPERATOR>{filesize}".encode())
         progress = tqdm.tqdm(
             range(filesize), f"Sending {os.path.basename(filename)}", unit="B", unit_scale=True, unit_divisor=1024)
@@ -2535,8 +2566,9 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message):
 
 
 def sftp_recieve(user, default_colour, error_colour):
+    """Recieves file over socket"""
     file_recipient = socket.socket()
-    file_recipient.bind((get_own_ip(False, False).strip(), 15753))
+    file_recipient.bind((get_own_ip(False, False).strip(), 1553))
     Colours(default_colour)
     animated_print(f"Awaiting file...")
     try:
@@ -2585,6 +2617,7 @@ def sftp_recieve(user, default_colour, error_colour):
 
 
 def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, timestamp, mailing, talking_to_self, default_colour, print_logs, private_mode, error_colour, index, display_initiate):
+    """Recieves message from other FiEncrypt user, or yourself (loopback), decrypts and displays it"""
     # ?Names such as @old_code are used to seperate the various states the string is put into during decryption
     try:
         prefix = prefix
@@ -3267,6 +3300,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
 
 
 def server_recieve(user, code, current_user, link, recipient_ip, timestamp, prefix, date, default_colour, print_logs, private_mode, error_colour, display_initiate):
+    """Opens server to recieve and interpret message"""
     print("Server warming up... ", end="")
     enter_home_directory()
     if sys.platform.startswith("linux"):
@@ -3495,6 +3529,7 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
 
 
 def send_conversation_invite(user, current_user, default_colour, private_mode, error_colour, print_logs, display_initiate):
+    """Sends a simple alert to recipient, prompting them with an IP address to send a message to, through listener.py"""
     if sys.platform.startswith("linux"):
         ip = gnu_ip_resolve(print_logs, private_mode)
         if ip == "":
@@ -3573,6 +3608,7 @@ def send_conversation_invite(user, current_user, default_colour, private_mode, e
 
 
 def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, default_colour, display_initiate, print_logs, private_mode):
+    """Checks your mailbox for any unread messages"""
     enter_home_directory()
     if current_user != 2:
         os.chdir(f"./{hash_current_user(get_current_user().strip().lower())}_inbox")
@@ -3655,6 +3691,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, d
 
 
 def config_settings(user, current_user, default_colour, print_logs, private_mode, error_colour):
+    """Provides an interface to modify the config file through"""
     master_printing_speed = None
     animated_print(f"Loading special options...")
     enter_home_directory()
@@ -3880,6 +3917,7 @@ def config_settings(user, current_user, default_colour, print_logs, private_mode
 
 
 def menu(user, display_initiate, print_logs, default_colour, private_mode, error_colour, **print_speed):
+    """Main menu for FiEncrypt"""
     temp_print_speed = print_speed.get("print_speed", None)
     auto_code = print_speed.get("auto_code", False)
     print_speed = temp_print_speed
@@ -4164,6 +4202,7 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
 
 
 def login(display_initiate, user_account_name, error_colour, default_colour, print_logs, private_mode, auto_code):
+    """Login portal, referring to CREDENTIALS.txt for validation"""
     access, attempts, username_input, password_input = False, 3, "", ""
     animated_print(
         f"Welcome to FiEncrypt! Enter your credientials below!")
@@ -4205,6 +4244,7 @@ def login(display_initiate, user_account_name, error_colour, default_colour, pri
 
 
 def initiate():
+    """Startup script for FiEncrypt"""
     ImportStructure("logic")
     ImportStructure("system")
     log("--== FiEncrypt Warming Up! ==--", "", pass_user(), False)
