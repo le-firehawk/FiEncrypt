@@ -3134,6 +3134,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
         except ValueError:
             animated_print(
                 f"{error_colour}WARNING: Unable to play voice message! Maybe {sys.platform} doesn't support PyAudio?")
+            raise
     Colours(default_colour)
     # *@recipient_ip needs to be defined for the below if statement, if it is not, it gets set to blank
     try:
