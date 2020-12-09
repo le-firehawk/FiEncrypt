@@ -349,13 +349,28 @@ def hide_tree():
         try:
             subprocess.check_call(
                 ["atrib", "+H", f"./anarchy2.ico"])
-        except:
-            pass
-        try:
-            subprocess.check_call(
-                ["attrib", "+H", f"./anarchy.png"])
-        except:
-            pass
+        finally:
+            try:
+                subprocess.check_call(
+                    ["attrib", "+H", f"./anarchy.png"])
+            finally:
+                try:
+                    subprocess.check_call(["attrib", "+H", f"./build"])
+                finally:
+                    try:
+                        subprocess.check_call(["attrib", "+H", f"./cache"])
+                    finally:
+                        try:
+                            subprocess.check_call(["attrib", "+H", f"./dist"])
+                        finally:
+                            try:
+                                subprocess.check_call(["attrib", "+H", f"./FiEncrypt.egg-info"])
+                            finally:
+                                try:
+                                    subprocess.check_call(
+                                        ["attrib", "+H", f"./{hash_current_user(get_current_user().lower().strip())}"])
+                                except:
+                                    pass
 
 
 def set_home_directory(operating_system):
@@ -424,6 +439,11 @@ def establish_tree():
                           "display_initiate = False", "-", "-", "-", "-", "graphic_mode = False", "private_mode = False", "auto_code = False"]
         for line in default_config:
             config_file.write(f"{line}\n")
+    with open(f"./cache_settings.txt", "w+") as cache_settings_file:
+        default_cache_config = ["# FiEncrypt", "[cache_settings.txt]",
+                                "auto-sync = False", "max_size = 2GB"]
+        for line in default_cache_config:
+            cache_settings_file.write(f"{line}\n")
     with open(f"./code.txt", "w+") as code_file:
         pass
     with open(f"./logs.txt", "w+") as logs_file:
@@ -433,7 +453,7 @@ def establish_tree():
     with open(f"./messageout.txt", "w+") as message_out_file:
         pass
     with open(f"./CREDENTIALS.txt", "w+") as credientials:
-        os.chmod(f"./CREDENTIALS.txt", S_IREAD | S_IRGRP | S_IROTH)
+        pass
     urllib.request.urlretrieve(
         "https://www.gnu.org/licenses/agpl-3.0.txt", f"./LICENSE")
     os.mkdir(f"./Contacts")
@@ -491,11 +511,13 @@ def add_new_user():
             credential = credential.replace("\n", "")
             credentials.write(f"{credential}\n")
     try:
-        os.mkdir(f"./{hash_current_user(username.lower())}_inbox")
+        os.mkdir(f"./{hash_current_user(username.lower())}")
     except FileExistsError:
         pass
-    os.chdir(f"./{hash_current_user(username.lower())}_inbox")
-    with open(f"./messages.txt", "w+") as indox_file:
+    os.chdir(f"./{hash_current_user(username.lower())}")
+    os.mkdir(f"./inbox")
+    os.mkdir(f"./files")
+    with open(f"./inbox/messages.txt", "w+") as indox_file:
         pass
     animated_print(f"New user {username} successfully added to FiEncrypt!")
 
@@ -1519,8 +1541,8 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
 
 def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, auto_code, **poked):
     """Allows user to create and send an encrypted message"""
-    previous_message, poked = poked.get("message", ""), poked.get("poked", False)
-    manual = False
+    previous_message, poked, voice_message, outbound_file, manual = poked.get(
+        "message", ""), poked.get("poked", False), False, False, False
     enter_home_directory()
     os.remove("./messageout.txt")
     with open("./messageout.txt", "w+") as message_file:
@@ -2508,6 +2530,13 @@ def get_auto_code():
     return auto_code
 
 
+def to_boolean(state):
+    if "true" in state.lower().strip():
+        return True
+    else:
+        return False
+
+
 def sftp_send(recipient_ip, default_colour, error_colour, voice_message):
     """Sends file using unique socket"""
     alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
@@ -3167,7 +3196,8 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
         except ValueError:
             animated_print(
                 f"{error_colour}WARNING: Unable to play voice message! Maybe {sys.platform} doesn't support PyAudio?")
-            raise
+        except KeyboardInterrupt:
+            pass
     Colours(default_colour)
     # *@recipient_ip needs to be defined for the below if statement, if it is not, it gets set to blank
     try:
@@ -3611,7 +3641,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, d
     """Checks your mailbox for any unread messages"""
     enter_home_directory()
     if current_user != 2:
-        os.chdir(f"./{hash_current_user(get_current_user().strip().lower())}_inbox")
+        os.chdir(f"./{hash_current_user(get_current_user().strip().lower())}/inbox")
         with open(f"./messages.txt", "r+") as mailbox:
             letters = mailbox.readlines()
         for i, letter in enumerate(letters):
@@ -3657,7 +3687,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, d
                 Colours(default_colour)
             del(index[i])
             enter_home_directory()
-            os.chdir(f"./{hash_current_user(get_current_user().strip().lower())}_inbox")
+            os.chdir(f"./{hash_current_user(get_current_user().strip().lower())}/inbox")
             with open(f"./messages.txt", "w+") as inbox:
                 inbox.seek(0)
                 inbox.truncate()
@@ -3905,15 +3935,296 @@ def config_settings(user, current_user, default_colour, print_logs, private_mode
                 pass
         config_file.close()
         os.remove(f"./config.txt")
-        with open("./config.txt", "w+") as file:
-            pass
-        config_file = open("./config.txt", "r+")
-        for line in config_lines:
-            if line.strip() != "" and line != "-":
-                line = f"{line}\n"
-            config_file.write(line)
-        config_file.close()
+        with open("./config.txt", "w+") as config_file:
+            for line in config_lines:
+                if line.strip() != "" and line != "-":
+                    line = f"{line}\n"
+                config_file.write(line)
         master_printing_speed = 0
+
+
+def cache_settings(user, current_user, default_colour, print_logs, private_mode, error_colour, **kwargs):
+    mode = kwargs.get("mode", "read")
+    escape = False
+    if mode.lower() == "read":
+        with open(f"./cache_settings.txt", "r") as cache_settings_file:
+            old_cache_settings = cache_settings_file.read()
+            old_cache_settings = old_cache_settings.split("\n")
+        if "auto-sync" in old_cache_settings[2].lower():
+            autosync = old_cache_settings[2].split(" = ")
+            autosync = to_boolean(autosync[1])
+        else:
+            autosync = False
+        if "max_size" in old_cache_settings[3].lower():
+            max_size = old_cache_settings[3].split(" = ")
+            max_size = max_size[1]
+        else:
+            max_size = "2GB"
+        return autosync, max_size
+
+    elif mode.lower() == "edit":
+        with open(f"./cache_settings.txt", "r+") as cache_settings_file:
+            old_cache_settings = cache_settings_file.read()
+            old_cache_settings = old_cache_settings.split("\n")
+    while not escape:
+        if "auto-sync" in old_cache_settings[2].lower():
+            autosync = old_cache_settings[2].split(" = ")
+            autosync = to_boolean(autosync[1])
+        else:
+            autosync = False
+        if "max_size" in old_cache_settings[3].lower():
+            max_size = old_cache_settings[3].split(" = ")
+            max_size = max_size[1]
+        else:
+            max_size = "2GB"
+        # more settings go here
+
+        # output
+        animated_print(f"1. Auto Sync: {autosync}")
+        animated_print(f"2. Max Personal Cache Size: {max_size}")
+        animated_print(f"6. Return to Cache Menu")
+        choice = privacy_input(f"What setting would you like to modify", private_mode)
+        if choice == None:
+            escape = True
+        elif choice == "1":
+            autosync = privacy_input(f"True/False", private_mode)
+            old_cache_settings[2] = f"auto-sync = {to_boolean(autosync)}"
+        elif choice == "2":
+            valid_size = False
+            while not valid_size:
+                max_size = privacy_input(f"Enter size in MB or GB", private_mode)
+                if not max_size.strip().lower().endswith("mb") and not max_size.strip().lower().endswith("gb"):
+                    if len(max_size.strip()) <= 2 or "." in max_size.strip():
+                        assumed_type = "GB"
+                    else:
+                        assumed_type = "MB"
+                    animated_print(
+                        f"{error_colour}WARNING: Data unit not declared... assuming {assumed_type}")
+                    Colours(default_colour)
+                    try:
+                        if "." in max_size or assumed_type == "gb":
+                            max_size = float(max_size.strip())
+                        else:
+                            max_size = int(max_size.strip())
+                        valid_size = True
+                        old_cache_settings[3] = f"max_size = {max_size}{assumed_type.upper()}"
+                    except:
+                        animated_print(f"{error_colour}WARNING: Invalid personal cache size!")
+                        Colours(default_colour)
+                else:
+                    if max_size.strip().lower().endswith("gb"):
+                        requested_size = substring(max_size.lower(), "gb", 0)
+                        unit = substring(max_size.lower(), "gb", 1)
+                    elif max_size.strip().lower().endswith("mb"):
+                        requested_size = substring(max_size.lower(), "mb", 0)
+                        unit = substring(max_size.lower(), "mb", 1)
+                    else:
+                        animated_print(f"{error_colour}WARNING: Invalid data unit... assuming MB")
+                        Colours(default_colour)
+                        unit = "mb"
+                    try:
+                        if "." in requested_size or unit == "gb":
+                            requested_size = float(requested_size.strip())
+                        else:
+                            requested_size = int(requested_size.strip())
+                        valid_size = True
+                        old_cache_settings[3] = f"max_size = {requested_size}{unit.upper()}"
+                    except:
+                        animated_print(f"{error_colour}WARNING: Invalid personal cache size!")
+                        Colours(default_colour)
+        elif choice == "6":
+            escape = True
+        else:
+            animated_print(f"{error_colour}WARNING: Invalid option!")
+            Colours(default_colour)
+        with open(f"./cache_settings.txt", "w+") as new_cache_file:
+            for line in old_cache_settings:
+                line = line.replace("\n", "").strip()
+                new_cache_file.write(f"{line}\n")
+
+
+def manage_cache(user, current_user, default_colour, print_logs, private_mode, error_colour, **kwargs):
+    enter_home_directory()
+    straight_to_menu = kwargs.get("menu", False)
+    old_files = kwargs.get("files", None)
+    os.chdir(f"./cache")
+    if len([filenum for filenum in os.listdir(".")]) > 0:
+        if not straight_to_menu:
+            animated_print("Dumping cache...")
+        for root, dirs, files in os.walk("./cache", topdown=False):
+            if not straight_to_menu:
+                animated_print(files)
+        enter_home_directory()
+        if len([filenum for filenum in os.listdir(f"./{hash_current_user(get_current_user().lower().strip())}/files")]) > 0:
+            menu_state = ["", "", "", "", "", ""]
+        else:
+            if not straight_to_menu:
+                animated_print(f"{error_colour}WARNING: Private cache is empty!")
+                Colours(default_colour)
+            menu_state = ["", "", "", "\033[9m", "\033[9m", ""]
+    else:
+        files = None
+        enter_home_directory()
+        if len([filenum for filenum in os.listdir(f"./{hash_current_user(get_current_user().lower().strip())}/files")]) > 0:
+            if not straight_to_menu:
+                animated_print(f"{error_colour}WARNING: Public cache is empty!")
+                Colours(default_colour)
+            menu_state = ["\033[9m", "\033[9m", "\033[9m", "", "", ""]
+        else:
+            if not straight_to_menu:
+                animated_print(f"{error_colour}WARNING: Public and Private caches are empty!")
+                Colours(default_colour)
+            menu_state = ["\033[9m", "\033[9m", "\033[9m", "\033[9m", "\033[9m", ""]
+    animated_print(f"{menu_state[0]}1. Archive public cache\033[0m", speed=0.01)
+    Colours(default_colour)
+    animated_print(f"{menu_state[1]}2. Delete from public cache\033[0m", speed=0.01)
+    Colours(default_colour)
+    animated_print(f"{menu_state[2]}3. Empty public cache\033[0m", speed=0.01)
+    Colours(default_colour)
+    animated_print(f"{menu_state[3]}4. View private cache\033[0m", speed=0.01)
+    Colours(default_colour)
+    animated_print(f"{menu_state[4]}5. Empty private cache\033[0m", speed=0.01)
+    Colours(default_colour)
+    animated_print(f"{menu_state[5]}6. Cache settings\033[0m", speed=0.01)
+    Colours(default_colour)
+    animated_print(f"7. Return to main menu", speed=0.01)
+    valid_choice = False
+    while not valid_choice:
+        cache_option = privacy_input("Select an option", private_mode)
+        try:
+            cache_option = int(cache_option)
+            valid_choice = True
+        except:
+            animated_print(f"{error_colour}WARNING: Invalid selection!")
+            Colours(default_colour)
+    if cache_option == 1:
+        if menu_state[0].strip() == "":
+            enter_home_directory()
+            autosync, max_size = cache_settings(
+                user, current_user, default_colour, print_logs, private_mode, error_colour, mode="read")
+            if "gb" in max_size.lower():
+                max_size = max_size.lower().split("gb")
+                if "." in max_size[0]:
+                    max_size = float(max_size[0]) * 1073741824
+                else:
+                    max_size = int(max_size[0]) * 1073741824
+                max_size = int(max_size)
+            else:
+                max_size = max_size.lower().split("mb")
+                max_size = int(max_size[0]) * 1048576
+            cache_total_size = 0
+            for path, dirs, temp_files in os.walk(f"./cache"):
+                for temp_file in temp_files:
+                    cache_total_size += os.path.getsize(f"./cache/{temp_file}")
+            personal_cache_total_size = 0
+            for path, dirs, temp_files in os.walk(f"./{hash_current_user(get_current_user().lower().strip())}/files"):
+                for temp_file in temp_files:
+                    personal_cache_total_size += os.path.getsize(
+                        f"./{hash_current_user(get_current_user().lower().strip())}/files/{temp_file}")
+            os.chdir(f"./{hash_current_user(get_current_user().lower().strip())}/files")
+            if pass_os == "win32":
+                copy = "copy"
+            else:
+                copy = "cp"
+            if (int(cache_total_size) + int(personal_cache_total_size)) > max_size:
+                animated_print(
+                    f"{error_colour}WARNING: Size of files in public cache exceeds max allocated size of your private cache!")
+                Colours(default_colour)
+            else:
+                try:
+                    for file in files:
+                        os.system(f"{copy} ../../cache/{file} {file}")
+                except UnboundLocalError:
+                    if old_files != None:
+                        for file in old_files:
+                            os.system(f"{copy} ../../cache/{file} {file}")
+                        files = old_files
+                    else:
+                        animated_print(
+                            f"{error_colour}WARNING: Files in public cache no longer accessible!")
+                        Colours(default_colour)
+                        files = None
+        else:
+            animated_print(f"{error_colour}WARNING: Option not available!")
+            Colours(default_colour)
+    elif cache_option == 2:
+        if menu_state[1].strip() == "":
+            file_string = ""
+            for i, file in enumerate(files):
+                if i > 0 and i < len(files):
+                    file_string += " OR "
+                file_string += f"{i+1}[{file}]"
+            enter_home_directory()
+            file_to_delete = privacy_input(f"Delete {file_string}", private_mode)
+        else:
+            animated_print(f"{error_colour}WARNING: Option not available!")
+            Colours(default_colour)
+    elif cache_option == 3:
+        if menu_state[2].strip() == "":
+            confirm = privacy_input(f"Are you sure? [Y|N]", private_mode)
+            if "y" in confirm.lower():
+                clear_cache()
+            else:
+                pass
+        else:
+            animated_print(f"{error_colour}WARNING: Option not available!")
+            Colours(default_colour)
+    elif cache_option == 4:
+        if menu_state[3].strip() == "":
+            enter_home_directory()
+            animated_print(f"Please confirm your login: ")
+            username = privacy_input("Username", private_mode)
+            password = privacy_input("Password", 1)
+            valid = validate_login(username, password)
+            current_valid = username.lower().strip() == get_current_user().lower().strip()
+            if valid and current_valid:
+                os.chdir(f"./{hash_current_user(username.lower().strip())}/files")
+                for root, dirs, files in os.walk("./", topdown=False):
+                    animated_print(files)
+            else:
+                animated_print(f"{error_colour}WARNING: Access Denied!")
+                Colours(default_colour)
+        else:
+            animated_print(f"{error_colour}WARNING: Option not available!")
+            Colours(default_colour)
+    elif cache_option == 5:
+        if menu_state[4].strip() == "":
+            enter_home_directory()
+            animated_print(f"Please confirm your login: ")
+            username = privacy_input("Username", private_mode)
+            password = privacy_input("Password", 1)
+            valid = validate_login(username, password)
+            current_valid = username.lower().strip() == get_current_user().lower().strip()
+            if valid and current_valid:
+                os.chdir(f"./{hash_current_user(username.lower().strip())}")
+                shutil.rmtree("./files")
+                os.mkdir("./files")
+            else:
+                animated_print(f"{error_colour}WARNING: Access Denied!")
+                Colours(default_colour)
+        else:
+            animated_print(f"{error_colour}WARNING: Option not available!")
+            Colours(default_colour)
+    elif cache_option == 6:
+        if menu_state[5].strip() == "":
+            enter_home_directory()
+            cache_settings(user, current_user, default_colour, print_logs,
+                           private_mode, error_colour, mode="edit")
+    elif cache_option == 7:
+        print("")
+        menu(user, False, print_logs, default_colour,
+             private_mode, error_colour, print_speed=0)
+    else:
+        pass
+    print("")
+    enter_home_directory()
+    os.chdir(f"./cache")
+    if len([filenum for filenum in os.listdir(f"../{hash_current_user(get_current_user().lower().strip())}/files")]) == 0 or len([filenum for filenum in os.listdir(".")]) == 0:
+        manage_cache(user, current_user, default_colour, print_logs,
+                     private_mode, error_colour, files=files)
+    else:
+        manage_cache(user, current_user, default_colour, print_logs,
+                     private_mode, error_colour, menu=True, files=files)
 
 
 def menu(user, display_initiate, print_logs, default_colour, private_mode, error_colour, **print_speed):
@@ -3946,8 +4257,9 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
         animated_print(f"10. Check Mailbox", speed=print_speed)
         animated_print(f"11. Manage Contacts", speed=print_speed)
         animated_print(f"12. Config Settings", speed=print_speed)
-        animated_print(f"13. Reload", speed=print_speed)
-        animated_print(f"14. Quit", speed=print_speed)
+        animated_print(f"13. Manage Cache", speed=print_speed)
+        animated_print(f"14. Reload", speed=print_speed)
+        animated_print(f"15. Quit", speed=print_speed)
     else:
         animated_print(f"5. Encryption Helper", speed=print_speed)
         animated_print(f"6. Secret Code", speed=print_speed)
@@ -3956,10 +4268,11 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
         animated_print(f"9. Check Mailbox", speed=print_speed)
         animated_print(f"10. Manage Contacts", speed=print_speed)
         animated_print(f"11. Config Settings", speed=print_speed)
-        animated_print(f"12. Reload", speed=print_speed)
-        animated_print(f"13. Quit", speed=print_speed)
+        animated_print(f"12. Manage Cache", speed=print_speed)
+        animated_print(f"13. Reload", speed=print_speed)
+        animated_print(f"14. Quit", speed=print_speed)
     # *While loop to force the user to enter correct function num
-    while func not in range(1, 15):
+    while func not in range(1, 16):
         try:
             func = input(f"Select one of these functions: ")
         except KeyboardInterrupt:
@@ -4184,16 +4497,23 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
                 config_settings(user, capitalize_user(get_current_user()), default_colour,
                                 print_logs, private_mode, error_colour)
             else:
+                manage_cache(user, capitalize_user(get_current_user()), default_colour,
+                             print_logs, private_mode, error_colour)
+        elif func == 13:
+            if display_initiate:
+                manage_cache(user, capitalize_user(get_current_user()), default_colour,
+                             print_logs, private_mode, error_colour)
+            else:
                 clear_cache()
                 initiate()
-        elif func == 13:
+        elif func == 14:
             if display_initiate:
                 clear_cache()
                 initiate()
             else:
                 clear_cache()
                 exit()
-        elif func == 14:
+        elif func == 15:
             if display_initiate:
                 clear_cache()
                 exit()
