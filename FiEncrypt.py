@@ -1715,7 +1715,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
         enter_home_directory()
         voice_file = f"./cache/voice_message.wav"
         voice_module = pyaudio.PyAudio()
-        chunk, FORMAT, channels, sample_rate, record_seconds = 1024, pyaudio.paInt16, 2, 44100, 15
+        chunk, FORMAT, channels, sample_rate, record_seconds = 1024, pyaudio.paInt16, 1, 44100, 15
         stream = voice_module.open(format=FORMAT, channels=channels,
                                    rate=sample_rate, input=True, output=False, frames_per_buffer=chunk)
         frames = []
