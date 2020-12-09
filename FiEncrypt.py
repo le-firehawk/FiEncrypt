@@ -2533,7 +2533,7 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message):
             valid_file = False
     file_server = socket.socket()
     try:
-        file_server.connect((recipient_ip.strip(), 1553))
+        file_server.connect((recipient_ip.strip(), 15753))
         file_server.send(f"{filename}<SEPERATOR>{filesize}".encode())
         progress = tqdm.tqdm(
             range(filesize), f"Sending {os.path.basename(filename)}", unit="B", unit_scale=True, unit_divisor=1024)
@@ -2568,7 +2568,7 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message):
 def sftp_recieve(user, default_colour, error_colour):
     """Recieves file over socket"""
     file_recipient = socket.socket()
-    file_recipient.bind((get_own_ip(False, False).strip(), 1553))
+    file_recipient.bind((get_own_ip(False, False).strip(), 15753))
     Colours(default_colour)
     animated_print(f"Awaiting file...")
     try:
