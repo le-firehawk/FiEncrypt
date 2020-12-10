@@ -2550,7 +2550,12 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message):
         if voice_message:
             filename = "cache/voice_message.wav"
         else:
-            filename = input(f"Enter path of file to send to {temp_foreign_user}: ")
+            try:
+                filename = input(f"Enter path of file to send to {temp_foreign_user}: ")
+            except KeyboardInterrupt:
+                animated_print(f"{error_colour}WARNING: File transfer aborted!")
+                Colours(default_colour)
+                continue
         try:
             if not filename.startswith(".") and not filename.startswith("/") and filename[0].lower() not in alphabet:
                 filename = f"./{filename}"
@@ -3224,7 +3229,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
     else:
         animated_print(f"\033[41m{temp_output_phrase}\033[0m")
     if expecting_file:
-        max_size, autosync = cache_settings(
+        autosync, max_size = cache_settings(
             user, current_user, default_colour, print_logs, private_mode, error_colour, mode="read")
         sftp_recieve(user, default_colour, error_colour, autosync=autosync, max_size=max_size)
     if voice_message:
