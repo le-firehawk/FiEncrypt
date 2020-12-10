@@ -2594,8 +2594,10 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message):
         pass
 
 
-def sftp_recieve(user, default_colour, error_colour):
+def sftp_recieve(user, default_colour, error_colour, **kwargs):
     """Recieves file over socket"""
+    autosync = kwargs.get("autosync", False)
+    max_size = kwargs.get("max_size", "2GB")
     file_recipient = socket.socket()
     file_recipient.bind((get_own_ip(False, False).strip(), 15753))
     Colours(default_colour)
@@ -2627,6 +2629,39 @@ def sftp_recieve(user, default_colour, error_colour):
         sys.stdout.write("\033[K")
         if str(filesize).strip() == str(os.path.getsize(f"./cache/{filename}")).strip():
             animated_print(f"File {filename} saved to {os.getcwd()}/cache/{filename}")
+            if autosync:
+                animated_print("*** Autosync ***")
+                enter_home_directory()
+                if "gb" in max_size.lower():
+                    max_size = max_size.lower().split("gb")
+                    if "." in max_size[0]:
+                        max_size = float(max_size[0]) * 1073741824
+                    else:
+                        max_size = int(max_size[0]) * 1073741824
+                    max_size = int(max_size)
+                else:
+                    max_size = max_size.lower().split("mb")
+                    max_size = int(max_size[0]) * 1048576
+                cache_transfer_size = os.path.getsize(f"./cache/{filename}")
+                personal_cache_total_size = 0
+                for path, dirs, temp_files in os.walk(f"./{hash_current_user(get_current_user().lower().strip())}/files"):
+                    for temp_file in temp_files:
+                        personal_cache_total_size += os.path.getsize(
+                            f"./{hash_current_user(get_current_user().lower().strip())}/files/{temp_file}")
+                os.chdir(f"./{hash_current_user(get_current_user().lower().strip())}/files")
+                if pass_os == "win32":
+                    copy = "copy"
+                else:
+                    copy = "cp"
+                print(cache_transfer_size, personal_cache_total_size, max_size)
+                if (int(cache_transfer_size) + int(personal_cache_total_size)) > max_size:
+                    animated_print(
+                        f"{error_colour}WARNING: Size of {filename} would exceed max allocated size of your private cache!")
+                    Colours(default_colour)
+                else:
+                    os.system(f"{copy} ../../cache/{filename} {filename}")
+                    animated_print(f"****", speed=1)
+                    animated_print("Done!")
         else:
             animated_print(
                 f"{error_colour}WARNING: File corrupt or incomplete! Check {os.getcwd()}/cache/{filename}")
@@ -2926,6 +2961,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
             voice_message = False
     else:
         expecting_file = False
+        voice_message = False
     if temp_output_phrase.strip().count("$") >= 2:
         try:
             cached_output_phrase = temp_output_phrase
@@ -3188,7 +3224,9 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
     else:
         animated_print(f"\033[41m{temp_output_phrase}\033[0m")
     if expecting_file:
-        sftp_recieve(user, default_colour, error_colour)
+        max_size, autosync = cache_settings(
+            user, current_user, default_colour, print_logs, private_mode, error_colour, mode="read")
+        sftp_recieve(user, default_colour, error_colour, autosync=autosync, max_size=max_size)
     if voice_message:
         enter_home_directory()
         try:
@@ -3712,8 +3750,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, d
                     check_mailbox(user, 2, index, mailing, timestamp, error_colour,
                                   default_colour, display_initiate, print_logs, private_mode)
             except UnboundLocalError:
-                pass
-    # ?File is deleted once all messages are read, and then re-created
+                Colours(default_colour)
     hide_tree()
     mailing = False
     menu(user, display_initiate, print_logs,

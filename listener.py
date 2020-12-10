@@ -251,7 +251,7 @@ def main():
             exit()
         while True:
             enter_home_directory()
-            os.chdir(f"./{hash_current_user(username.lower())}_inbox")
+            os.chdir(f"./{hash_current_user(username.lower())}/inbox")
             try:
                 link.listen(10)
             except OSError:
