@@ -87,23 +87,22 @@ class Colours:
 
 class Contacts:
     """Allows MAC addresses to be saved locally and referred to when sending messages"""
-    # ?Staticmethods are used as no self object is required and because the call stack is disrupted through dynamic classes
-    @staticmethod
-    def main():
+
+    def __init__(self, user, current_user, print_logs, default_colour, error_colour, private_mode):
         """Gathers a list of all names of contacts present in the Contacts directory"""
-        contact_names = []
-        enter_home_directory()
-        os.chdir(f"./Contacts")
+        self.user, self.current_user, self.print_logs, self.default_colour, self.error_colour, self.private_mode = user, current_user, print_logs, default_colour, error_colour, private_mode
+        enter_home_directory(
+            next_step=f"./{hash_current_user(current_user.lower().strip())}/contacts")
+        self.contact_names = []
         for root, dirs, files in os.walk(f"."):
             for name in files:
-                contact_names.append(name.replace(".txt", ""))
-        return contact_names
+                self.contact_names.append(name.replace(".txt", ""))
 
-    @staticmethod
-    def check_for(contact_name):
+    def check_for(self, contact_name):
         """Checks for the name passed as a parameter against all identified names in Contacts directory"""
-        contact_names = Contacts.main()
-        for contact in contact_names:
+        for contact in self.contact_names:
+            enter_home_directory(
+                next_step=f"./{hash_current_user(current_user.lower().strip())}/contacts")
             if contact_name.lower() in contact.lower():
                 with open(f"./{contact}.txt", "r+") as contact_file:
                     contact_lines = contact_file.readlines()
@@ -118,14 +117,17 @@ class Contacts:
                 with open(f"./{contact}.txt", "r+") as contact_file:
                     contact_lines = contact_file.readlines()
                 if contact_name in contact_lines[1]:
+                    log(f"Contact Search: {contact_name} - {contact_lines}",
+                        "contactManager", self.current_user, self.print_logs)
                     return contact_lines[0], contact_lines[1], contact_lines[2], contact_lines[3]
+        log(f"Contact Search: {contact_name} - {[None, None, None, None]}",
+            "contactManager", self.current_user, self.print_logs)
         return None, None, None, None
 
-    @staticmethod
-    def add_ip(contact_name, ip):
+    def add_ip(self, contact_name, ip):
         """Locates a contact's file and appends the ip parameter into the relevant line of said file"""
-        enter_home_directory()
-        os.chdir(f"./Contacts")
+        enter_home_directory(
+            next_step=f"./{hash_current_user(current_user.lower().strip())}/contacts")
         with open(f"./{contact_name}.txt", "r+") as update_contact:
             contact_lines = update_contact.readlines()
             update_contact.seek(0)
@@ -136,35 +138,39 @@ class Contacts:
                 if i > 2 and contact_details.strip() != "" and contact_details != None:
                     contact_details = contact_details.replace("\n", "")
                     update_contact.write(f"{contact_details}")
+        log(f"Contact Updated: {contact_name}({contact_lines[1]}) New IP: {ip}",
+            "contactManager", self.current_user, self.print_logs)
 
-    @staticmethod
-    def add(contact_name, mac, details):
+    def add(self, contact_name, mac, details):
         """Adds a new contact file into the Contacts directory, with all details being written"""
-        enter_home_directory()
-        os.chdir(f"./Contacts")
+        enter_home_directory(
+            next_step=f"./{hash_current_user(current_user.lower().strip())}/contacts")
         with open(f"./{contact_name}.txt", "w+") as new_contact:
             new_contact.write(f"{contact_name}\n{mac}\n-\n{details}")
+        log(f"New Contact: {contact_name}({mac})",
+            "contactManager", self.current_user, self.print_logs)
 
-    @staticmethod
-    def remove(contact_name):
+    def remove(self, contact_name):
         """Deletes a contact's file, if the search returns a result"""
-        name, mac, ip, details = Contacts.check_for(contact_name)
+        enter_home_directory(
+            next_step=f"./{hash_current_user(current_user.lower().strip())}/contacts")
+        name, mac, ip, details = self.check_for(contact_name)
         if None in [name, mac, ip, details]:
             animated_print(f"Unable to locate contact to delete!")
         else:
             os.remove(f"./{name.strip()}.txt")
+            log(f"Contact Removed: {name}({mac})", "contactManager",
+                self.current_user, self.print_logs)
 
-    @staticmethod
-    def list_all():
+    def list_all(self):
         """Lists every contact name found within the Contacts directory"""
-        contact_names = Contacts.main()
-        if contact_names == []:
+        if self.contact_names == []:
             animated_print(f"No contacts found in FiEncrypt directory!")
         else:
-            for i, name in enumerate(contact_names):
+            for i, name in enumerate(self.contact_names):
                 animated_print(f"Contact {i+1}: ")
-                enter_home_directory()
-                os.chdir(f"./Contacts")
+                enter_home_directory(
+                    next_step=f"./{hash_current_user(current_user.lower().strip())}/contacts")
                 with open(f"./{name}.txt", "r+") as contact:
                     contact_lines = contact.readlines()
                     animated_print(
@@ -173,6 +179,8 @@ class Contacts:
                         if i > 2 and line != "\n":
                             spec_print = contact_lines[i].replace("\n", "")
                             animated_print(f"{spec_print}\n")
+        log(f"Contact Dump: {self.contact_names}",
+            "contactManager", self.current_user, self.print_logs)
 
 
 def display_license():
@@ -406,11 +414,17 @@ def set_home_directory(operating_system):
             return path, user
 
 
-def enter_home_directory():
+def enter_home_directory(**kwargs):
     """Changes the current directory to the base level of the FiEncrypt directory, for ease of reference to files within"""
+    next_step = kwargs.get("next_step", None)
     operating_system = pass_os()
     home_directory, user = set_home_directory(operating_system)
     os.chdir(home_directory)
+    if next_step != None:
+        try:
+            os.chdir(next_step)
+        except:
+            pass
     return home_directory, operating_system, user
 
 
@@ -456,7 +470,6 @@ def establish_tree():
         pass
     urllib.request.urlretrieve(
         "https://www.gnu.org/licenses/agpl-3.0.txt", f"./LICENSE")
-    os.mkdir(f"./Contacts")
     os.mkdir(f"./cache")
     if sys.platform == "win32":
         hide_tree()
@@ -517,6 +530,7 @@ def add_new_user():
     os.chdir(f"./{hash_current_user(username.lower())}")
     os.mkdir(f"./inbox")
     os.mkdir(f"./files")
+    os.mkdir(f"./contacts")
     with open(f"./inbox/messages.txt", "w+") as indox_file:
         pass
     animated_print(f"New user {username} successfully added to FiEncrypt!")
@@ -714,8 +728,10 @@ def privacy_input(string, state, **line_break):
 def contact_input(string):
     """Automatic check from the Contacts class for the name passed as input"""
     name = input(f"{string}: ")
+    contact_manager = Contacts(user, get_current_user().lower().strip(),
+                               print_logs, default_colour, error_colour, private_mode)
     if "." not in name:
-        return Contacts().check_for(name)
+        return contact_manager.check_for(name)
     else:
         return name
 
@@ -969,7 +985,9 @@ def get_recipient_ip(user, display_initiate, print_logs, default_colour, private
             target_name = ip[0].strip()
             ip = ip[1].strip()
             if "." not in ip:
-                target_name, target_mac, target_ip, details = Contacts.check_for(
+                contact_search = Contacts(user, get_current_user().lower().strip(
+                ), print_logs, default_colour, error_colour, private_mode)
+                target_name, target_mac, target_ip, details = contact_search.check_for(
                     ip)
                 target_name = target_name.replace("\n", "")
                 if target_ip != None:
@@ -982,7 +1000,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_colour, private
                     Colours(default_colour)
                     connected = False
                 else:
-                    Contacts.add_ip(target_name, ip)
+                    contact_search.add_ip(target_name, ip)
             else:
                 target_mac = None
     elif "@" in ip:
@@ -990,7 +1008,9 @@ def get_recipient_ip(user, display_initiate, print_logs, default_colour, private
         expected_user = ip[0].strip()
         ip = ip[1].strip()
         if "." not in ip:
-            target_name, target_mac, target_ip, details = Contacts.check_for(
+            contact_search = Contacts(user, get_current_user().lower().strip(
+            ), print_logs, default_colour, error_colour, private_mode)
+            target_name, target_mac, target_ip, details = contact_search.check_for(
                 ip)
             target_name = target_name.replace("\n", "")
             if target_ip != None:
@@ -1003,7 +1023,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_colour, private
                 Colours(default_colour)
                 connected = False
             else:
-                Contacts.add_ip(target_name, ip)
+                contact_search.add_ip(target_name, ip)
         validated = validate_foreign_user(ip, expected_user, print_logs)
         if not validated:
             animated_print(
@@ -1020,7 +1040,9 @@ def get_recipient_ip(user, display_initiate, print_logs, default_colour, private
     if "." not in ip:
         if ":" in ip:
             temp = ip
-            target_name, target_mac, target_ip, details = Contacts.check_for(
+            contact_search = Contacts(user, get_current_user().lower().strip(
+            ), print_logs, default_colour, error_colour, private_mode)
+            target_name, target_mac, target_ip, details = contact_search.check_for(
                 temp)
             target_name = target_name.replace("\n", "")
             if target_ip != None:
@@ -1033,10 +1055,12 @@ def get_recipient_ip(user, display_initiate, print_logs, default_colour, private
                 Colours(default_colour)
                 connected = False
             else:
-                Contacts.add_ip(target_name, ip)
+                contact_search.add_ip(target_name, ip)
         else:
             try:
-                target_name, mac, target_ip, details = Contacts.check_for(
+                contact_search = Contacts(user, get_current_user().lower().strip(
+                ), print_logs, default_colour, error_colour, private_mode)
+                target_name, mac, target_ip, details = contact_search.check_for(
                     ip)
                 target_name = target_name.replace("\n", "")
                 if mac.strip() == "":
@@ -1056,7 +1080,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_colour, private
                         Colours(default_colour)
                         connected = False
                     else:
-                        Contacts.add_ip(target_name, ip)
+                        contact_search.add_ip(target_name, ip)
             except ValueError:
                 animated_print(
                     f"{error_colour}WARNING: Invalid contact name entered!")
@@ -1765,24 +1789,29 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
         enter_home_directory()
         voice_file = f"./cache/voice_message.wav"
         with ignore_stderr():
-            voice_module = pyaudio.PyAudio()
-            chunk, FORMAT, channels, sample_rate, record_seconds = 1024, pyaudio.paInt16, 1, 44100, 15
-            stream = voice_module.open(format=FORMAT, channels=channels,
-                                       rate=sample_rate, input=True, output=True, frames_per_buffer=chunk)
-        frames = []
-        animated_print("Recording for 15 seconds")
-        for i in range(int((44100 / chunk) * record_seconds)):
-            data = stream.read(chunk, exception_on_overflow=False)
-            frames.append(data)
-        stream.stop_stream()
-        stream.close()
-        voice_module.terminate()
-        audio_out = wave.open(voice_file, "wb")
-        audio_out.setnchannels(channels)
-        audio_out.setsampwidth(voice_module.get_sample_size(FORMAT))
-        audio_out.setframerate(sample_rate)
-        audio_out.writeframes(b"".join(frames))
-        audio_out.close()
+            try:
+                voice_module = pyaudio.PyAudio()
+                chunk, FORMAT, channels, sample_rate, record_seconds = 1024, pyaudio.paInt16, 1, 44100, 15
+                stream = voice_module.open(format=FORMAT, channels=channels,
+                                           rate=sample_rate, input=True, output=True, frames_per_buffer=chunk)
+            except OSError:
+                animated_print(f"{error_colour}WARNING: Unable to detect microphone!")
+                Colours(default_colour)
+            else:
+                frames = []
+                animated_print("Recording for 15 seconds")
+                for i in range(int((44100 / chunk) * record_seconds)):
+                    data = stream.read(chunk, exception_on_overflow=False)
+                    frames.append(data)
+                stream.stop_stream()
+                stream.close()
+                voice_module.terminate()
+                audio_out = wave.open(voice_file, "wb")
+                audio_out.setnchannels(channels)
+                audio_out.setsampwidth(voice_module.get_sample_size(FORMAT))
+                audio_out.setframerate(sample_rate)
+                audio_out.writeframes(b"".join(frames))
+                audio_out.close()
     if message_text.count("\"\"") >= 2:
         temp_message_text = message_text.split("\"\"")
         if message_text.count("\"\"") == 2:
@@ -1994,7 +2023,9 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 except:
                     try:
                         if target_name != None and target_name.strip() != "":
-                            Contacts.add_ip(target_name, "-")
+                            contact_remove_ip = Contacts(user, get_current_user().lower(
+                            ).strip(), print_logs, default_colour, error_colour, private_mode)
+                            contact_remove_ip.add_ip(target_name, "-")
                         ip = mac_resolve(target_mac, print_logs)
                     except UnboundLocalError:
                         animated_print(
@@ -2011,7 +2042,9 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                                     menu(user, None, print_logs, default_colour,
                                          private_mode, error_colour, print_speed=0)
                                 temp = ip
-                                target_name, target_mac, target_ip, details = Contacts.check_for(
+                                contact_search = Contacts(user, get_current_user().lower().strip(
+                                ), print_logs, default_colour, error_colour, private_mode)
+                                target_name, target_mac, target_ip, details = contact_search.check_for(
                                     temp)
                                 target_name = target_name.replace("\n", "")
                                 if target_ip != None:
@@ -2024,10 +2057,12 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                                     Colours(default_colour)
                                     connected = False
                                 else:
-                                    Contacts.add_ip(target_name, ip)
+                                    contact_search.add_ip(target_name, ip)
                             else:
                                 try:
-                                    target_name, mac, target_ip, details = Contacts.check_for(
+                                    contact_search = Contacts(user, get_current_user().lower().strip(
+                                    ), print_logs, default_colour, error_colour, private_mode)
+                                    target_name, mac, target_ip, details = contact_search.check_for(
                                         ip)
                                     target_name = target_name.replace("\n", "")
                                     if mac.strip() == "":
@@ -2048,7 +2083,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                                             Colours(default_colour)
                                             connected = False
                                         else:
-                                            Contacts.add_ip(target_name, ip)
+                                            contact_search.add_ip(target_name, ip)
                                 except ValueError:
                                     animated_print(
                                         f"{error_colour}WARNING: Invalid contact name entered!")
@@ -2079,7 +2114,9 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 except:
                     try:
                         if target_name != None and target_name.strip() != "":
-                            Contacts.add_ip(target_name, "-")
+                            contact_remove_ip = Contacts(user, get_current_user().lower(
+                            ).strip(), print_logs, default_colour, error_colour, private_mode)
+                            contact_remove_ip.add_ip(target_name, "-")
                     except:
                         animated_print(f"Aborting...")
                         menu(user, None, print_logs, default_colour,
@@ -2094,7 +2131,9 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 except KeyboardInterrupt:
                     try:
                         if target_name != None and target_name.strip() != "":
-                            Contacts.add_ip(target_name, "-")
+                            contact_remove_ip = Contacts(user, get_current_user().lower(
+                            ).strip(), print_logs, default_colour, error_colour, private_mode)
+                            contact_remove_ip.add_ip(target_name, "-")
                     except:
                         pass
                     animated_print(f"Aborting...")
@@ -2103,7 +2142,9 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 except:
                     try:
                         if target_name != None and target_name.strip() != "":
-                            Contacts.add_ip(target_name, "-")
+                            contact_remove_ip = Contacts(user, get_current_user().lower(
+                            ).strip(), print_logs, default_colour, error_colour, private_mode)
+                            contact_remove_ip.add_ip(target_name, "-")
                         ip = mac_resolve(target_mac, print_logs)
                     except:
                         animated_print(
@@ -2118,14 +2159,18 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                         ip, target_mac, target_name = get_recipient_ip(user, display_initiate, print_logs,
                                                                        default_colour, private_mode, error_colour)
                     else:
-                        Contacts.add_ip(target_name, ip)
+                        contact_ip = Contacts(user, get_current_user().lower().strip(
+                        ), print_logs, default_colour, error_colour, private_mode)
+                        contact_ip.add_ip(target_name, ip)
                     if "." not in ip:
                         if ":" in ip:
                             if ip == None:
                                 menu(user, None, print_logs, default_colour,
                                      private_mode, error_colour, print_speed=0)
                             temp = ip
-                            target_name, target_mac, target_ip, details = Contacts.check_for(
+                            contact_search = Contacts(user, get_current_user().lower().strip(
+                            ), print_logs, default_colour, error_colour, private_mode)
+                            target_name, target_mac, target_ip, details = contact_search.check_for(
                                 temp)
                             target_name = target_name.replace("\n", "")
                             if target_ip != None:
@@ -2138,10 +2183,12 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                                 Colours(default_colour)
                                 connected = False
                             else:
-                                Contacts.add_ip(target_name, ip)
+                                contact_search.add_ip(target_name, ip)
                         else:
                             try:
-                                target_name, mac, target_ip, details = Contacts.check_for(
+                                contact_search = Contacts(user, get_current_user().lower().strip(
+                                ), print_logs, default_colour, error_colour, private_mode)
+                                target_name, mac, target_ip, details = contact_search.check_for(
                                     ip)
                                 target_name = target_name.replace("\n", "")
                                 if mac.strip() == "":
@@ -2162,7 +2209,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                                         Colours(default_colour)
                                         connected = False
                                     else:
-                                        Contacts.add_ip(target_name, ip)
+                                        contact_search.add_ip(target_name, ip)
                             except ValueError:
                                 animated_print(
                                     f"{error_colour}WARNING: Invalid contact name entered!")
@@ -2198,7 +2245,9 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 except:
                     try:
                         if target_name != None and target_name.strip() != "":
-                            Contacts.add_ip(target_name, "-")
+                            contact_remove_ip = Contacts(user, get_current_user().lower(
+                            ).strip(), print_logs, default_colour, error_colour, private_mode)
+                            contact_remove_ip.add_ip(target_name, "-")
                         ip = mac_resolve(target_mac, print_logs)
                     except:
                         animated_print(
@@ -2209,13 +2258,17 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                                                                        default_colour, private_mode, error_colour)
                     else:
                         try:
-                            Contacts.add_ip(target_name, ip)
+                            contact_ip = Contacts(user, get_current_user().lower().strip(
+                            ), print_logs, default_colour, error_colour, private_mode)
+                            contact_ip.add_ip(target_name, ip)
                         except UnboundLocalError:
                             pass
                     if "." not in ip:
                         if ":" in ip:
                             temp = ip
-                            target_name, target_mac, target_ip, details = Contacts.check_for(
+                            contact_search = Contacts(user, get_current_user().lower().strip(
+                            ), print_logs, default_colour, error_colour, private_mode)
+                            target_name, target_mac, target_ip, details = contact_search.check_for(
                                 temp)
                             target_name = target_name.replace("\n", "")
                             if target_ip != None:
@@ -2228,10 +2281,12 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                                 Colours(default_colour)
                                 connected = False
                             else:
-                                Contacts.add_ip(target_name, ip)
+                                contact_search.add_ip(target_name, ip)
                         else:
                             try:
-                                target_name, mac, target_ip, details = Contacts.check_for(
+                                contact_search = Contacts(user, get_current_user().lower().strip(
+                                ), print_logs, default_colour, error_colour, private_mode)
+                                target_name, mac, target_ip, details = contact_search.check_for(
                                     ip)
                                 target_name = target_name.replace("\n", "")
                                 if mac.strip() == "":
@@ -2252,7 +2307,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                                         Colours(default_colour)
                                         connected = False
                                     else:
-                                        Contacts.add_ip(target_name, ip)
+                                        contact_search.add_ip(target_name, ip)
                             except ValueError:
                                 animated_print(
                                     f"{error_colour}WARNING: Invalid contact name entered!")
@@ -2634,7 +2689,7 @@ def sftp_recieve(user, default_colour, error_colour, **kwargs):
         sys.stdout.write("\033[K")
         if str(filesize).strip() == str(os.path.getsize(f"./cache/{filename}")).strip():
             animated_print(f"File {filename} saved to {os.getcwd()}/cache/{filename}")
-            if autosync:
+            if autosync and filename.lower().strip() != "foreign_voice_message.wav" and filename.lower().strip() != "voice_message.wav":
                 animated_print("*** Autosync ***")
                 enter_home_directory()
                 if "gb" in max_size.lower():
@@ -2654,19 +2709,53 @@ def sftp_recieve(user, default_colour, error_colour, **kwargs):
                         personal_cache_total_size += os.path.getsize(
                             f"./{hash_current_user(get_current_user().lower().strip())}/files/{temp_file}")
                 os.chdir(f"./{hash_current_user(get_current_user().lower().strip())}/files")
-                if pass_os == "win32":
+                if pass_os() == "win32":
                     copy = "copy"
                 else:
                     copy = "cp"
-                print(cache_transfer_size, personal_cache_total_size, max_size)
                 if (int(cache_transfer_size) + int(personal_cache_total_size)) > max_size:
                     animated_print(
                         f"{error_colour}WARNING: Size of {filename} would exceed max allocated size of your private cache!")
                     Colours(default_colour)
                 else:
                     os.system(f"{copy} ../../cache/{filename} {filename}")
-                    animated_print(f"****", speed=1)
+                    animated_print(f"****", speed=0.5)
                     animated_print("Done!")
+                    time.sleep(1)
+                    for _ in range(2):
+                        sys.stdout.write("\033[F")
+                        sys.stdout.write("\033[K")
+            elif autosync:
+                animated_print(
+                    f"{error_colour}WARNING: Storing voice messages in your Private Cache is discouraged!")
+                Colours(default_colour)
+                override = privacy_input("Do you wish to proceed anyway? [Y|N]", 0)
+                if "y" in override.lower().strip():
+                    valid_name = False
+                    while not valid_name:
+                        new_name = privacy_input("Enter a new name for the voice message file", 0)
+                        if substring(new_name, ".", 0).lower().strip() != substring(filename, ".", 0).lower().strip():
+                            valid_name = True
+                            if pass_os() == "win32":
+                                copy = "copy"
+                            else:
+                                copy = "cp"
+                            os.system(
+                                f"{copy} ../../cache/{filename} {new_name.replace('.wav','').lower().strip()}.wav")
+                            animated_print(f"****", speed=0.5)
+                            animated_print("Done!")
+                            time.sleep(1)
+                            for _ in range(3):
+                                sys.stdout.write("\033[F")
+                                sys.stdout.write("\033[K")
+                        else:
+                            animated_print(f"{error_colour}WARNING: Names still match!")
+                            Colours(default_colour)
+                            time.sleep(2)
+                            for _ in range(2):
+                                sys.stdout.write("\033[F")
+                                sys.stdout.write("\033[K")
+
         else:
             animated_print(
                 f"{error_colour}WARNING: File corrupt or incomplete! Check {os.getcwd()}/cache/{filename}")
@@ -4175,11 +4264,13 @@ def manage_cache(user, current_user, default_colour, print_logs, private_mode, e
             else:
                 try:
                     for file in files:
-                        os.system(f"{copy} ../../cache/{file} {file}")
+                        if "voice_message.wav" not in file:
+                            os.system(f"{copy} ../../cache/{file} {file}")
                 except UnboundLocalError:
                     if old_files != None:
                         for file in old_files:
-                            os.system(f"{copy} ../../cache/{file} {file}")
+                            if "voice_message.wav" not in file:
+                                os.system(f"{copy} ../../cache/{file} {file}")
                         files = old_files
                     else:
                         animated_print(
@@ -4441,6 +4532,8 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
                                  default_colour, private_mode, error_colour, print_speed=0)
                         else:
                             contact_func = 0
+                    contact_manager = Contacts(user, get_current_user().lower(
+                    ).strip(), print_logs, default_colour, error_colour, private_mode)
                     if contact_func == 1:
                         new_name = privacy_input(
                             f"Enter contact name here", private_mode)
@@ -4448,17 +4541,17 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
                             f"Enter MAC address here (or leave blank)", private_mode)
                         new_details = privacy_input(
                             f"Enter any additional details here", private_mode)
-                        Contacts.add(new_name, new_ip, new_details)
+                        contact_manager.add(new_name, new_ip, new_details)
                         contact_func = 0
                     elif contact_func == 2:
                         target_name = privacy_input(
                             f"Enter name of contact to be removed", private_mode)
-                        Contacts.remove(target_name)
+                        contact_manager.remove(target_name)
                         contact_func = 0
                     elif contact_func == 3:
                         search = privacy_input(
                             f"Enter the contact name here", private_mode)
-                        result = Contacts.check_for(search)
+                        result = contact_manager.check_for(search)
                         if result != None:
                             animated_print(result)
                         else:
@@ -4466,7 +4559,7 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
                                 f"No contact matching {search} found!")
                         contact_func = 0
                     elif contact_func == 4:
-                        Contacts.list_all()
+                        contact_manager.list_all()
                         contact_func = 0
                     elif contact_func == 5:
                         menu(user, display_initiate, print_logs,
@@ -4498,6 +4591,8 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
                                  default_colour, private_mode, error_colour, print_speed=0)
                         else:
                             contact_func = 0
+                    contact_manager = Contacts(user, get_current_user().lower(
+                    ).strip(), print_logs, default_colour, error_colour, private_mode)
                     if contact_func == 1:
                         new_name = privacy_input(
                             f"Enter contact name here", private_mode)
@@ -4505,17 +4600,17 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
                             f"Enter MAC address here (or leave blank)", private_mode)
                         new_details = privacy_input(
                             f"Enter any additional details here", private_mode)
-                        Contacts.add(new_name, new_ip, new_details)
+                        contact_manager.add(new_name, new_ip, new_details)
                         contact_func = 0
                     elif contact_func == 2:
                         target_name = privacy_input(
                             f"Enter name of contact to be removed", private_mode)
-                        Contacts.remove(target_name)
+                        contact_manager.remove(target_name)
                         contact_func = 0
                     elif contact_func == 3:
                         search = privacy_input(
                             f"Enter the contact name here", private_mode)
-                        result = Contacts.check_for(search)
+                        result = contact_manager.check_for(search)
                         if result != None:
                             animated_print(result)
                         else:
@@ -4523,7 +4618,7 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
                                 f"No contact matching {search} found!")
                         contact_func = 0
                     elif contact_func == 4:
-                        Contacts.list_all()
+                        contact_manager.list_all()
                         contact_func = 0
                     elif contact_func == 5:
                         menu(user, display_initiate, print_logs,
