@@ -250,7 +250,7 @@ def apply_colour(default, error, reset):
     applied_default_colour, error_colour, reset_colour = default, error, reset
     if int(default.replace("\033[", "").replace("m", "")) / 10 != 4:
         print(f"{default}", end="")
-    elif error == True:
+    elif error:
         raise Exception("Invalid Colour!")
     else:
         pass
@@ -318,6 +318,7 @@ def maybe_quit():
         sys.stdout.write("\033[F")
         sys.stdout.write("\033[K")
         clear_cache()
+        log("FiEncrypt shutting down!", "moduleManager", get_current_user(), None)
         exit()
 
 
@@ -337,48 +338,65 @@ def pass_user():
 
 def hide_tree():
     """Applies hidden attribute to all files within the FiEncrypt directory (Windows only)"""
+    succes_count = 0
     if sys.platform == "win32":
         subprocess.check_call(
             ["attrib", "+H", f"../FiEncrypt"])
+        succes_count += 1
         subprocess.check_call(
             ["attrib", "+H", f"./Contacts"])
+        succes_count += 1
         subprocess.check_call(
             ["attrib", "+H", f"./config.txt"])
+        succes_count += 1
         subprocess.check_call(
             ["attrib", "+H", f"./logs.txt"])
+        succes_count += 1
         subprocess.check_call(
             ["attrib", "+H", f"./code.txt"])
+        succes_count += 1
         subprocess.check_call(
             ["attrib", "+H", f"./inbox.txt"])
+        succes_count += 1
         subprocess.check_call(
             ["attrib", "+H", f"./messagein.txt"])
+        succes_count += 1
         subprocess.check_call(
             ["attrib", "+H", f"./messageout.txt"])
+        succes_count += 1
         try:
             subprocess.check_call(
                 ["atrib", "+H", f"./anarchy2.ico"])
+            succes_count += 1
         finally:
             try:
                 subprocess.check_call(
                     ["attrib", "+H", f"./anarchy.png"])
+                succes_count += 1
             finally:
                 try:
                     subprocess.check_call(["attrib", "+H", f"./build"])
+                    succes_count += 1
                 finally:
                     try:
                         subprocess.check_call(["attrib", "+H", f"./cache"])
+                        succes_count += 1
                     finally:
                         try:
                             subprocess.check_call(["attrib", "+H", f"./dist"])
+                            succes_count += 1
                         finally:
                             try:
                                 subprocess.check_call(["attrib", "+H", f"./FiEncrypt.egg-info"])
+                                succes_count += 1
                             finally:
                                 try:
                                     subprocess.check_call(
                                         ["attrib", "+H", f"./{hash_current_user(get_current_user().lower().strip())}"])
+                                    succes_count += 1
                                 except:
                                     pass
+        log(f"Files hidden ({succes_count}/15)", "fileManager", get_current_user(), None)
 
 
 def set_home_directory(operating_system):
@@ -398,9 +416,11 @@ def set_home_directory(operating_system):
             path = f"{drive_letter}:/FiEncrypt"
             user = None
         if os.path.exists(path):
+            #log(f"Existing FiEncrypt directory found!", "fileManager", None, None)
             return path, user
         else:
             os.mkdir(path)
+            #log(f"New FiEncrypt directory created!", "fileManager", None, None)
             return path, user
     elif operating_system == "linux":
         file_path = os.getcwd()
@@ -408,9 +428,11 @@ def set_home_directory(operating_system):
         user = substring(user, f"/", 0)
         path = f"/home/{user}/FiEncrypt"
         if os.path.exists(path):
+            #log(f"Existing FiEncrypt directory found!", "fileManager", None, None)
             return path, user
         else:
             os.mkdir(path)
+            #log(f"New FiEncrypt directory created!", "fileManager", None, None)
             return path, user
 
 
@@ -423,8 +445,12 @@ def enter_home_directory(**kwargs):
     if next_step != None:
         try:
             os.chdir(next_step)
+            log(f"Home directory entered, stepped into {next_step}", "fileManager", None, None)
         except:
             pass
+    else:
+        pass
+        #log(f"Home directory entered", "fileManager", None, None)
     return home_directory, operating_system, user
 
 
@@ -471,6 +497,7 @@ def establish_tree():
     urllib.request.urlretrieve(
         "https://www.gnu.org/licenses/agpl-3.0.txt", f"./LICENSE")
     os.mkdir(f"./cache")
+    log("FiEncrypt directory structure established! ['./config.txt', './cache_settings.txt', './code.txt', './logs.txt', './messagein.txt', './messageout.txt', './CREDENTIALS.txt', './LICENSE', './cache']", "fileManager", get_current_user(), None)
     if sys.platform == "win32":
         hide_tree()
 
@@ -481,6 +508,7 @@ def clear_cache():
     try:
         shutil.rmtree(f"./cache")
         os.mkdir(f"./cache")
+        log("FiEncrypt public cache reset!", "fileManager", get_current_user(), None)
     except:
         pass
 
@@ -534,6 +562,8 @@ def add_new_user():
     with open(f"./inbox/messages.txt", "w+") as indox_file:
         pass
     animated_print(f"New user {username} successfully added to FiEncrypt!")
+    log(f"New user {username} added to FiEncrypt and personal file tree created!",
+        "fileManager", get_current_user, None)
 
 
 def validate_login(username, password):
@@ -553,9 +583,12 @@ def validate_login(username, password):
                 else:
                     valid_password = False
                 if valid_username and valid_password:
+                    log(f"Successful login to FiEncrypt", "loginManager", username, None)
                     return True
             else:
                 valid_username = False
+    log(f"Inavlid login to FiEncrypt",
+        "loginManager", username, None)
     return False
 
 
@@ -578,6 +611,7 @@ def get_own_ip(print_logs, private_mode):
                 "Enter your IP in dotted decimal format", private_mode)
     elif "win32" in pass_os():
         your_ip = socket.gethostbyname(socket.gethostname())
+    log(f"Host IP requested! IP: {your_ip}", "networkManager", get_current_user(), None)
     return your_ip
 
 
@@ -621,6 +655,8 @@ def mac_resolve(mac, print_logs):
                 if mac == None:
                     return None
                 elif mac.strip() in str(mapping['MAC']).strip():
+                    log(f"ARP Scan run for MAC {mac} on {IP_str[0]}.{IP_str[1]}.{i}.0/24 Result: {str(format(mapping['IP']))}",
+                        "networkManager", get_current_user(), None)
                     return str(format(mapping['IP']))
         if result == None:
             return None
@@ -631,6 +667,8 @@ def mac_resolve(mac, print_logs):
             if print_logs:
                 print(mapping)
             if mac.strip() in str(mapping['MAC']).strip():
+                log(f"ARP Scan run for MAC {mac} on {scan_ip} Result: {str(format(mapping['IP']))}", "networkManager", get_current_user(
+                ), None)
                 return str(format(mapping['IP']))
     return None
 
@@ -673,6 +711,7 @@ def get_current_user(**new_user):
             current_user = old_user
         except UnboundLocalError:
             current_user = None
+    #log(f"Current user requested!", "loginManager", current_user, None)
     return current_user
 
 
@@ -696,7 +735,10 @@ def get_foreign_user(**new_user):
         foreign_user = None
         return foreign_user
     else:
-        return foreign_user.replace("\n", "")
+        foreign_user = foreign_user.replace("\n", "")
+        log(f"Foreign user requested! Foreign user: {foreign_user}",
+            "networkManager", get_current_user(), None)
+        return foreign_user
 
 
 def privacy_input(string, state, **line_break):
@@ -787,10 +829,26 @@ def retrieve_config_settings():
 
 def log(string, log_type, user, display):
     """Records events in the log file based on paramters passed, also printing them to screen when display paramter is True"""
-    username = capitalize_user(get_current_user())
-    if username == None:
-        username = "Undefined"
-    log_entry = f"{datetime.datetime.now()}: {log_type} - {string}, Username: {username}"
+    if user == None:
+        try:
+            username = get_current_user()
+            if username == None:
+                raise NameError
+        except NameError:
+            username = "Undefined"
+    else:
+        username = user
+    if display == None:
+        if "FiEncrypt" in os.getcwd():
+            with open(f"./config.txt", "r") as config_file:
+                config_lines = config_file.read().split("\n")
+                if "debug_mode" in config_lines[2]:
+                    display = config_lines[2].split(" = ")
+                    display = to_boolean(display[0])
+        else:
+            display = False
+
+    log_entry = f"{datetime.datetime.now()}: {log_type} - {string}, Username: {username}, OS: {sys.platform}"
     if display:
         animated_print(log_entry)
     enter_home_directory()
@@ -1132,6 +1190,7 @@ def gnu_ip_resolve(print_logs, private_mode):
                 ip = ip[1].replace("'", "").replace(",", "")
             except:
                 pass
+    log(f"IP of GNU/Linux system requested! IP: {ip}", "networkManager", get_current_user(), None)
     return ip
 
 
@@ -1149,7 +1208,7 @@ def secretcode(user, current_user, default_colour, print_logs, private_mode, err
                 f"{error_colour}WARNING: Code format not valid!")
             Colours(default_colour)
             log("Secret Code Entered! Valid? False",
-                "sec_code", user, print_logs)
+                "encryptionManager", current_user, print_logs)
             secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_colour,
                        print_logs, private_mode, error_colour)
         else:
@@ -1159,7 +1218,7 @@ def secretcode(user, current_user, default_colour, print_logs, private_mode, err
             f"{error_colour}WARNING: Code format not valid!")
         Colours(default_colour)
         log("Secret Code Entered! Valid? False",
-            "sec_code", user, print_logs)
+            "encryptionManager", current_user, print_logs)
         secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_colour,
                    print_logs, private_mode, error_colour)
     temp = 0
@@ -1172,12 +1231,12 @@ def secretcode(user, current_user, default_colour, print_logs, private_mode, err
             f"{error_colour}WARNING: Incorrect secret code entered!")
         Colours(default_colour)
         log("Secret Code Entered! Valid? False",
-            "sec_code", user, print_logs)
+            "encryptionManager", current_user, print_logs)
         secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_colour,
                    print_logs, private_mode, error_colour)
     else:
         log("Secret Code Entered! Valid? True",
-            "sec_code", user, print_logs)
+            "encryptionManager", current_user, print_logs)
     if func == 1:
         animated_print("Config editor mode entered! Standby...")
         config_file = open(f"./config.txt", "r+")
@@ -1382,27 +1441,21 @@ def secretcode(user, current_user, default_colour, print_logs, private_mode, err
 def showcode(user, current_user, private_mode, print_logs, error_colour, default_colour):
     """Outputs the current encryption code in various forms, based on input parameters"""
     enter_home_directory()
-    if sys.platform.startswith("win32"):
-        log(f"New Directory: {str(os.getcwd())} OS: Windows",
-            "cwdchange", user, print_logs)
-    else:
-        log(f"New Directory: {str(os.getcwd())} OS: Linux",
-            "cwdchange", user, print_logs)
     with open(f"./code.txt", "r+") as temp_file:
         code = temp_file.read()
     if current_user != 1 and current_user != 2:
         animated_print(
             f"This is the current code saved in the code.txt file:")
-        if(code == ""):
+        if code == "":
             animated_print(
                 f"{error_colour}WARNING: No code present in the code.txt file! Either it has not been generated or manually overwritten!")
             Colours(default_colour)
         else:
             animated_print(code)
-        log(f"Code: {str(code)}", "exicode", user, print_logs)
+        log(f"Existing encryption requested!", "encryptionManager", current_user, print_logs)
         menu(user, None, print_logs, default_colour,
              private_mode, error_colour, print_speed=0)
-    elif(current_user == 2):
+    elif current_user == 2:
         pass
     else:
         try:
@@ -1411,11 +1464,10 @@ def showcode(user, current_user, private_mode, print_logs, error_colour, default
             return code, prefix, timestamp
         # TODO: Find a way to bypass the associated errors with not having a code saved in the file
         except:
-            animated_print(
-                f"{error_colour}WARNING! The latest version of this program requires a encryption code to be generated before any other function can run!")
-            Colours(default_colour)
-            randomcode(user, current_user, True, private_mode,
-                       print_logs, default_colour, error_colour)
+            randomcode(user, get_current_user().lower().strip(), True, private_mode,
+                       print_logs, default_colour, error_colour, auto_code=True)
+            showcode(
+                user, 1, private_mode, print_logs, error_colour, default_colour)
 
 
 def even_num():
@@ -1532,12 +1584,7 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
             randomcode(user, current_user, auto_request, private_mode,
                        print_logs, default_colour, error_colour, auto_code=auto_code)
         if "y" in lazy.lower():
-            if sys.platform.startswith("win32"):
-                log(f"New Directory: {str(os.getcwd())} OS: Windows",
-                    "cwdchange", user, print_logs)
-            else:
-                log(f"New Directory: {str(os.getcwd())} OS: Linux",
-                    "cwdchange", user, print_logs)
+            pass
         else:
             animated_print(str(
                 f"Current code as of {str(datetime.datetime.now())} is ${str(a)}_{str(rand_code)}_${b}#"))
@@ -1546,10 +1593,8 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
             code_file.seek(0)
             code_file.truncate()
             code_file.write(new_string)
-        log(f"New File: {str(code_file)} Type: Text File Access: Read & Write",
-            "newfile", user, print_logs)
-        log(f"Success?: Y. New Code: {str(new_string)}. Files updated: 1",
-            "newcode", user, print_logs)
+        log(f"New encryption code requested!",
+            "encryptionManager", current_user, print_logs)
         enter_home_directory()
         hide_tree()
         if not auto_code:
@@ -1563,10 +1608,10 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
                    print_logs, default_colour, error_colour, auto_code=auto_code)
 
 
-def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, auto_code, **poked):
+def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, auto_code, **kwargs):
     """Allows user to create and send an encrypted message"""
-    previous_message, poked, voice_message, outbound_file, manual = poked.get(
-        "message", ""), poked.get("poked", False), False, False, False
+    previous_message, poked, voice_message, outbound_file, manual, faulty_override, stored_message = kwargs.get(
+        "message", ""), kwargs.get("poked", False), False, False, False, kwargs.get("faulty", False), kwargs.get("stored_message", "")
     enter_home_directory()
     os.remove("./messageout.txt")
     with open("./messageout.txt", "w+") as message_file:
@@ -1586,8 +1631,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
         recipient_ip = recipient_ip
     except:
         recipient_ip = ""
-    if recipient_ip == "" or code2 == "":
-        #!Currently not functioning for extended encryption codes!
+    if (recipient_ip == "" or code2 == "") and not faulty_override:
         code2 = privacy_input(
             f"Enter the encryption code for the message here! Or, leave it blank for the auto-generated key", private_mode)
         if code2 == "EXIT" or code2 == None:
@@ -1604,6 +1648,8 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             manual = False
         else:
             manual = True
+    elif faulty_override:
+        code2 = code
     backup_code = code2
     poke = False
     love_sent = False
@@ -1676,18 +1722,21 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             Colours(default_colour)
     if conversation_mode and recipient_ip != "" and poked:
         try:
-            message_text = privacy_input(
-                f"How do you feel", private_mode, line_break=True)
+            if faulty_override and stored_message.strip() != "":
+                message_text = stored_message
+            else:
+                message_text = privacy_input(
+                    f"How do you feel", private_mode, line_break=True)
             if message_text == None:
                 Colours(default_colour)
                 menu(user, display_initiate, print_logs, default_colour,
                      private_mode, error_colour, print_speed=0)
-            while message_text.strip() == "" or message_text.strip() == " ":
+            while message_text.strip() == "":
                 animated_print(
                     f"{error_colour}WARNING: No message was entered!")
                 Colours(default_colour)
                 message_text = privacy_input(
-                    f"Enter a reply here", private_mode)
+                    f"How do you feel", private_mode)
             if message_text == None:
                 try:
                     link = socket.socket()
@@ -1720,13 +1769,16 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                  private_mode, error_colour, print_speed=0)
     elif conversation_mode and recipient_ip != "":
         try:
-            message_text = privacy_input(
-                f"Enter a reply here", private_mode, line_break=True)
+            if faulty_override and stored_message.strip() != "":
+                message_text = stored_message
+            else:
+                message_text = privacy_input(
+                    f"Enter a reply here", private_mode, line_break=True)
             if message_text == None:
                 Colours(default_colour)
                 menu(user, display_initiate, print_logs, default_colour,
                      private_mode, error_colour, print_speed=0)
-            while message_text.strip() == "" or message_text.strip() == " ":
+            while message_text.strip() == "":
                 animated_print(
                     f"{error_colour}WARNING: No message was entered!")
                 Colours(default_colour)
@@ -1763,13 +1815,16 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             menu(user, None, print_logs, default_colour,
                  private_mode, error_colour, print_speed=0)
     else:
-        message_text = privacy_input(
-            f"Enter your text here", private_mode, line_break=True)
+        if faulty_override and stored_message.strip() != "":
+            message_text = stored_message
+        else:
+            message_text = privacy_input(
+                f"Enter your text here", private_mode, line_break=True)
         if message_text == None:
             Colours(default_colour)
             menu(user, display_initiate, print_logs, default_colour,
                  private_mode, error_colour, print_speed=0)
-        while message_text.strip() == "" or message_text.strip() == " ":
+        while message_text.strip() == "":
             animated_print(
                 f"{error_colour}WARNING: No message was entered!")
             Colours(default_colour)
@@ -1898,19 +1953,11 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
         if len(message_text) < 1000:
             line_breaks = len(message_text) / 50
             if sys.platform.startswith("win32"):
-                log(
-                    f"New Directory: {str(os.getcwd())} OS: Windows", "cwdchange", user, print_logs)
                 # time.sleep(0.2)
                 # for k in range(1, int(line_breaks) + 2):
                 #    sys.stdout.write("\033[F")
                 # time.sleep(0.2)
                 animated_print(f"{temp_output_phrase}")
-            else:
-                log(
-                    f"New Directory: {str(os.getcwd())} OS: Linux", "cwdchange", user, print_logs)
-                # sys.stdout.write("\033[K")
-                # for k in range(1, int(line_breaks) + 2):
-                #    sys.stdout.write("\033[F")
             if print_logs:
                 animated_print(
                     f"{temp_output_phrase}{' ' * int(len(temp_output_phrase) / 60)}")
@@ -1922,29 +1969,27 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             animated_print(f"{scrambled_output_phrase}")
         sys.stdout.write("\033[K")
         output_file = open("./messageout.txt", "r+")
-        log(f"New File: {str(output_file)} Type: Text File",
-            "newfile", user, print_logs)
         for i in range(len(message_text)):
             if message_text[i] == output_phrase[i]:
                 if message_text[i].strip() != "" and output_phrase[i].strip() != "":
                     # ?It is really difficult to nail down what causes either @code_seg1 or 2 to equal zero, so I added this catcher instead
-                    animated_print(
-                        f"{error_colour}WARNING: Faulty encryption code! Reloading...")
+                    for _ in range(2):
+                        sys.stdout.write("\033[F")
+                        sys.stdout.write("\033[K")
                     output_file.close()
-                    Colours(default_colour)
                     randomcode(user, current_user, True, private_mode,
                                print_logs, default_colour, error_colour, auto_code=True)
                     code, prefix, timestamp = showcode(
                         user, 1, private_mode, print_logs, error_colour, default_colour)
                     newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, error_colour,
-                               default_colour, private_mode, print_logs, mailing, display_initiate, True)
+                               default_colour, private_mode, print_logs, mailing, display_initiate, True, faulty=True, stored_message=message_text)
             else:
                 pass
         else:
             output_file.write(scrambled_output_phrase)
             output_file.close()
-            log(f"New Encrypted Message! Success?: Y. Files created: 1",
-                "encrypt", user, print_logs)
+            log(f"New encrypted message successfully generated!",
+                "encryptionManager", current_user, print_logs)
             decrypt_code = showcode(
                 user, 2, private_mode, print_logs, error_colour, default_colour)
         try:
@@ -1998,8 +2043,8 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                         self_talk.write(scrambled_output_phrase)
                     talking_to_self = True
                     connected = True
-                    log(f"New message from {user} sent to {user}! Crazy? True",
-                        "encrypt", user, print_logs)
+                    log(f"Message sent to self... wtf?",
+                        "networkManager", current_user, print_logs)
                     if len(str(code2)) != 2 and not manual:
                         retrievemessage(
                             code, user, 2, backup_prefix, recipient_ip, link, timestamp, mailing, talking_to_self, default_colour, print_logs, private_mode, error_colour, None, display_initiate)
@@ -2574,8 +2619,10 @@ def validate_foreign_user(ip, expected_user, print_logs):
         validate_link.shutdown(socket.SHUT_RDWR)
         validate_link.close()
         if "true" in info.lower():
+            log("Foreign user succesfully validated!", "networkManager", get_current_user(), None)
             return True
         else:
+            log("Foreign user failed validation!", "networkManager", get_current_user(), None)
             return False
 
 
@@ -2635,6 +2682,8 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message):
                 progress.update(len(bytes_read))
         sys.stdout.write("\033[F")
         sys.stdout.write("\033[K")
+        log(f"File of size {filesize}B sent successfully!",
+            "networkManager", get_current_user(), None)
     except KeyboardInterrupt:
         animated_print(f"{error_colour}WARNING: File transfer interrupted!")
         Colours(default_colour)
@@ -3416,16 +3465,12 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
                 enter_home_directory()
                 code_file = open("./code.txt", "r")
                 # ?Logs event for when one of the key files is accessed. Values for this entry are static and send to the @log module
-                log(
-                    f"New File: {str(code_file)} Type: Text File.  Access: Read-Only", "newfile", user, print_logs)
                 lines = code_file.readlines()
                 if not manual:
                     text = code_file.read()
                     # TODO: Check all files that are used get properly closed as such
                     code_file.close()
                     code_file = open("./code.txt", "r+")
-                    log(
-                        f"New File: {str(code_file)} Type: Text File.  Access: Write", "newfile", user, print_logs)
                     code_file.seek(0)
                     for line in text.split('\n'):
                         if line != old_code.strip():
@@ -3434,7 +3479,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
                     files += 1
                     code_file.close()
                     log(
-                        f"Success?: {str(success.upper())}. Files removed: {str(files)}", "decrypt", user, print_logs)
+                        f"Message successfully decrypted!", "encryptionManager", current_user, print_logs)
                     animated_print(
                         f"The code used to decrypt this message will be deleted from local storage, for your security")
                 else:
@@ -3445,7 +3490,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
                          private_mode, error_colour, print_speed=0)
             else:
                 log(
-                    f"Success?: {str(success.upper())}. Files removed: {str(files)}", "decrypt", user, print_logs)
+                    f"Message not successfully decrypted!", "encryptionManager", current_user, print_logs)
                 animated_print(
                     f"That is unfortunate :( We will launch the encryption assistant momentarily")
                 #!Current unreliable
@@ -3494,8 +3539,8 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
         sys.stdout.write("\033[F")
         animated_print(f"Socket bound... {ip}:15753")
         # ?'serv1' refers to the log code for an inbound server being started, see @logs() module for more
-        log(f"Server started on {ip}:15753", "server_start",
-            user, print_logs)
+        log(f"Server started on {ip}:15753", "networkManager",
+            current_user, print_logs)
         animated_print("Listening on socket... ")
         sc, address = link.accept()
     except KeyboardInterrupt:
@@ -3662,8 +3707,8 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
         new_time += str(mns)
         date = f"{int(timer[1])}{int(timer[2][0:2])}"
         timestamp = f"{new_time}|{date}"
-        log("Message recieved over LAN/WLAN! Downloaded: True",
-            "mess_in", user, print_logs)
+        log("Encrypted message recieved!",
+            "networkManager", current_user, print_logs)
         try:
             try:
                 create_notification(recipient_ip)
@@ -3739,7 +3784,7 @@ def send_conversation_invite(user, current_user, default_colour, private_mode, e
             menu(user, None, print_logs, default_colour,
                  private_mode, error_colour, print_speed=0)
     log(f"Conversation invite sent to {dest_ip}",
-        "conv", user, print_logs)
+        "networkManager", current_user, print_logs)
     if target_name != None or target_name.strip() != "":
         content = f"Request:True Source_IP:{ip} Name:{current_user} Target:{target_name}"
     else:
@@ -3784,7 +3829,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, d
         # ?Due to the formatting of the mailbox entries made by listener.py, each message uses two lines, so the printed value is half the length
         animated_print(f"You have {int(len(letters)/2)} unread messages!\n")
         log(f"Mailbox accessed! Unread messages: {int(len(letters)/2)}",
-            "mail_check", user, print_logs)
+            "fileManager", current_user, print_logs)
         loop = 1
         index = [0]
         for i in range(1, len(letters), 2):
@@ -4172,6 +4217,7 @@ def cache_settings(user, current_user, default_colour, print_logs, private_mode,
             for line in old_cache_settings:
                 line = line.replace("\n", "").strip()
                 new_cache_file.write(f"{line}\n")
+        log("Cache settings updated!", "fileManager", get_current_user(), None)
 
 
 def manage_cache(user, current_user, default_colour, print_logs, private_mode, error_colour, **kwargs):
@@ -4425,8 +4471,8 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
                 if 'str' not in str(type(char)):
                     new_func += str(char)
             func = int(new_func)
-        log(f"Function run: {func} Valid? {func in range(1,14)}",
-            "execute_function", user, print_logs)
+        log(f"Function run: {func} Valid? {func in range(1,16)}",
+            "moduleManager", current_user, print_logs)
         # *Calls the appropiate function
         if func == 4:
             code, temp_file = randomcode(
@@ -4649,10 +4695,12 @@ def menu(user, display_initiate, print_logs, default_colour, private_mode, error
                 initiate()
             else:
                 clear_cache()
+                log("FiEncrypt shutting down!", "moduleManager", get_current_user(), None)
                 exit()
         elif func == 15:
             if display_initiate:
                 clear_cache()
+                log("FiEncrypt shutting down!", "moduleManager", get_current_user(), None)
                 exit()
         else:
             animated_print(f"Invalid Fuction!")
@@ -4695,8 +4743,8 @@ def login(display_initiate, user_account_name, error_colour, default_colour, pri
             username_input, password_input = None, None
             animated_print(
                 f"Incorrect Login! {attempts} attempts left! Try again!")
-            log(f"User: {str(current_user)} Success?: N. Attempts left: {str(attempts)}",
-                "login", current_user, print_logs)
+            log(f"Login attempt Success? False Attempts left: {str(attempts)}",
+                "loginManager", current_user, print_logs)
             attempts -= 1
 
 
@@ -4704,13 +4752,13 @@ def initiate():
     """Startup script for FiEncrypt"""
     ImportStructure("logic")
     ImportStructure("system")
-    log("--== FiEncrypt Warming Up! ==--", "", pass_user(), False)
-    log("Logic modules imported!", "module_start", pass_user(), False)
-    log("System modules imported!", "module_start", pass_user(), False)
+    log("--== FiEncrypt Warming Up! ==--", "", get_current_user(), False)
+    log("Logic modules imported!", "moduleManager", get_current_user(), False)
+    log("System modules imported!", "moduleManager", get_current_user(), False)
     ImportStructure("string")
-    log("String modules imported!", "module_start", pass_user(), False)
+    log("String modules imported!", "moduleManager", get_current_user(), False)
     ImportStructure("network")
-    log("Network modules imported!", "module_start", pass_user(), False)
+    log("Network modules imported!", "moduleManager", get_current_user(), False)
     home_directory, operating_system, user = enter_home_directory()
     print_logs, display_initiate, graphic_mode, private_mode, colour_enabled, default_colour, auto_code = retrieve_config_settings()
     error_colour = "\033[91m"
