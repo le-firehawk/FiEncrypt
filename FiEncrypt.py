@@ -2708,7 +2708,7 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message, code, p
                     filename = old_file_path
             except KeyboardInterrupt:
                 log(f"File transfer interrupted!", "networkManager", get_current_user(
-                ), print_logs)
+                ), None)
                 animated_print(f"{error_colour}WARNING: File transfer aborted!")
                 Colours(default_colour)
                 continue
@@ -3522,7 +3522,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
     if expecting_file:
         autosync, max_size = cache_settings(
             user, current_user, default_colour, print_logs, private_mode, error_colour, mode="read")
-        sftp_recieve(user, default_colour, error_colour, code, prefix, autosync=autosync,
+        sftp_recieve(user, default_colour, error_colour, old_code, prefix, autosync=autosync,
                      max_size=max_size, voice=voice_message)
         if voice_message:
             enter_home_directory()
