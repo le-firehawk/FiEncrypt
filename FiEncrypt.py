@@ -1893,6 +1893,10 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
         outbound_file = True
         if "\\v" in message_text.strip():
             voice_message = True
+            if message_text.lower().strip() == "\\v":
+                append_to_message = privacy_input(f"Enter additional text", private_mode)
+                if append_to_message.strip() != "":
+                    message_text = f"{message_text.strip()} {append_to_message}".strip()
         else:
             voice_message = False
     else:
@@ -2447,7 +2451,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                     sys.stdout.flush()
                     time.sleep(1)
             print("")
-            sftp_send(ip, default_colour, error_colour, voice_message)
+            sftp_send(ip, default_colour, error_colour, voice_message, code, prefix)
         if not skip and print_logs:
             animated_print(
                 f"Message {message.decode()} with decryption code {decrypt_code} successfully sent to {ip}!")
@@ -2660,11 +2664,37 @@ def to_boolean(state):
         return False
 
 
-def sftp_send(recipient_ip, default_colour, error_colour, voice_message):
+def sftp_send(recipient_ip, default_colour, error_colour, voice_message, code, prefix):
     """Sends file using unique socket"""
     alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
                 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
     valid_file = False
+    print(code, prefix)
+    try:
+        if len(prefix[0]) == 2:
+            code_seg1 = code[int(prefix[0][0]):int(prefix[0][1])]
+        elif len(prefix[0]) == 3:
+            code_seg1 = code[int(prefix[0][0]):int(prefix[0][1:3])]
+        elif len(prefix[0]) == 4:
+            code_seg1 = code[int(prefix[0][0:2]):int(prefix[0][1:3])]
+        code_seg1 = list(code_seg1)
+        code_seg1 = sum(map(int, code_seg1))
+        if len(prefix[1][0]) == 2:
+            code_seg2 = code[int(prefix[1][0][0]):int(prefix[1][0][1])]
+        elif len(prefix[1][0]) == 3:
+            code_seg2 = code[int(prefix[1][0][0]):int(prefix[1][0][1:3])]
+        elif len(prefix[1][0]) == 4:
+            code_seg2 = code[int(prefix[1][0][0:2]):int(prefix[1][0][1:3])]
+        code_seg2 = list(code_seg2)
+        code_seg2 = sum(map(int, code_seg2))
+        code3 = code
+        Colours(default_colour, force=True)
+    except:
+        code_seg1 = str(code_seg1)[::-1]
+        temp = code_seg2
+        code_seg2 = int(code_seg1)
+        code_seg1 = temp
+        Colours(default_colour)
     if get_foreign_user() == None or get_foreign_user().strip() == "":
         temp_foreign_user = recipient_ip
     else:
@@ -2690,10 +2720,38 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message):
             animated_print(f"{error_colour}WARNING: File not found!")
             Colours(default_colour)
             valid_file = False
+    decrypted_header, passs, encrypted_header = [], 0, ''
+    header = f"{filename}<SEPERATOR>{filesize}"
+    for i, k in enumerate(header):
+        if i < len(header) / 2 and len(str(code)) >= 4:
+            if len(str(code)) > 4:
+                code2 = code_seg1
+            else:
+                code3 = str(code)[0:2]
+                code2 = int(code3)
+        elif len(str(code3)) >= 4:
+            if len(str(code3)) > 4:
+                code2 = code_seg2
+            else:
+                code3 = str(code)[2:4]
+                code2 = int(code3)
+        decrypted_header.append(k)
+        decrypted_header[passs] = ord(k)
+        decrypted_header[passs] = int(
+            decrypted_header[passs]) + int(code2)
+        if decrypted_header[passs] < 32:
+            decrypted_header[passs] = int(
+                decrypted_header[passs]) + 95
+        elif decrypted_header[passs] > 126:
+            decrypted_header[passs] = int(
+                decrypted_header[passs]) - 95
+        passs += 1
+    for char in decrypted_header:
+        encrypted_header += chr(char)
     file_server = socket.socket()
     try:
         file_server.connect((recipient_ip.strip(), 15753))
-        file_server.send(f"{filename}<SEPERATOR>{filesize}".encode())
+        file_server.send(encrypted_header.encode())
         progress = tqdm.tqdm(
             range(filesize), f"Sending {os.path.basename(filename)}", unit="B", unit_scale=True, unit_divisor=1024)
         with open(filename, "rb") as f:
@@ -2730,14 +2788,20 @@ def sftp_recieve(user, default_colour, error_colour, **kwargs):
     """Recieves file over socket"""
     autosync = kwargs.get("autosync", False)
     max_size = kwargs.get("max_size", "2GB")
+    voice_message = kwargs.get("voice", False)
     file_recipient = socket.socket()
     file_recipient.bind((get_own_ip(False, False).strip(), 15753))
     Colours(default_colour)
-    animated_print(f"Awaiting file...")
+    if voice_message:
+        animated_print(f"New Voice Messge!")
+    else:
+        animated_print(f"Awaiting file...")
     try:
         file_recipient.listen(10)
         sc, address = file_recipient.accept()
         inbound = sc.recv(4096).decode()
+        print(inbound)
+        cont = input("")
         filename, filesize = inbound.split("<SEPERATOR>")
         filename = os.path.basename(filename)
         progress = tqdm.tqdm(range(int(filesize)),
@@ -2760,7 +2824,8 @@ def sftp_recieve(user, default_colour, error_colour, **kwargs):
         sys.stdout.write("\033[F")
         sys.stdout.write("\033[K")
         if str(filesize).strip() == str(os.path.getsize(f"./cache/{filename}")).strip():
-            animated_print(f"File {filename} saved to {os.getcwd()}/cache/{filename}")
+            if not voice_message:
+                animated_print(f"File {filename} saved to {os.getcwd()}/cache/{filename}")
             if autosync and filename.lower().strip() != "foreign_voice_message.wav" and filename.lower().strip() != "voice_message.wav":
                 animated_print("*** Autosync ***")
                 enter_home_directory()
@@ -2813,7 +2878,7 @@ def sftp_recieve(user, default_colour, error_colour, **kwargs):
                             else:
                                 copy = "cp"
                             os.system(
-                                f"{copy} ../../cache/{filename} {new_name.replace('.wav','').lower().strip()}.wav")
+                                f"{copy} ../../cache/{filename} {new_name.replace('.wav','').strip()}.wav")
                             animated_print(f"****", speed=0.5)
                             animated_print("Done!")
                             time.sleep(1)
@@ -2835,12 +2900,12 @@ def sftp_recieve(user, default_colour, error_colour, **kwargs):
 
     except OverflowError:
         log(f"File transfer overflow! File too large!", "networkManager", get_current_user(
-        ), print_logs)
+        ), None)
         animated_print(f"{error_colour}WARNING: File too large! Aborting...")
         Colours(default_colour)
     except KeyboardInterrupt:
         log(f"File transfer interrupted!", "networkManager", get_current_user(
-        ), print_logs)
+        ), None)
         animated_print(f"\n{error_colour}WARNING: Aborting file transfer...")
         Colours(default_colour)
     try:
@@ -3396,17 +3461,18 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
     if expecting_file:
         autosync, max_size = cache_settings(
             user, current_user, default_colour, print_logs, private_mode, error_colour, mode="read")
-        sftp_recieve(user, default_colour, error_colour, autosync=autosync, max_size=max_size)
-    if voice_message:
-        enter_home_directory()
-        try:
-            playsound(f"./cache/foreign_voice_message.wav")
-        except ValueError:
-            log("Voice message playback error!", "voiceManager", get_current_user(), print_logs)
-            animated_print(
-                f"{error_colour}WARNING: Unable to play voice message! Maybe {sys.platform} doesn't support PyAudio?")
-        except KeyboardInterrupt:
-            pass
+        sftp_recieve(user, default_colour, error_colour, autosync=autosync,
+                     max_size=max_size, voice=voice_message)
+        if voice_message:
+            enter_home_directory()
+            try:
+                playsound(f"./cache/foreign_voice_message.wav")
+            except ValueError:
+                log("Voice message playback error!", "voiceManager", get_current_user(), print_logs)
+                animated_print(
+                    f"{error_colour}WARNING: Unable to play voice message! Maybe {sys.platform} doesn't support PyAudio?")
+            except KeyboardInterrupt:
+                pass
     Colours(default_colour)
     # *@recipient_ip needs to be defined for the below if statement, if it is not, it gets set to blank
     try:
