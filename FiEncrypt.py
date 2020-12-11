@@ -3875,7 +3875,7 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
                     else:
                         temp_foreign_user += i
                 temp_foreign_user = temp_foreign_user.replace("\033[F", "").replace(
-                    "\033[K", "").replace("\n", "").replace(str(ord("\n")), "").replace(str(ord("\033[F")), "")
+                    "\033[K", "").replace("\n", "")
                 animated_print(f"Message from {temp_foreign_user} received!")
             else:
                 foreign_user = "Anonymous"
