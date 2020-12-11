@@ -251,6 +251,7 @@ def apply_colour(default, error, reset):
     if int(default.replace("\033[", "").replace("m", "")) / 10 != 4:
         print(f"{default}", end="")
     elif error:
+        log("Invalid Colour passed from config file!", "fileManager", get_current_user(), None)
         raise Exception("Invalid Colour!")
     else:
         pass
@@ -284,6 +285,7 @@ def animated_print(string, **kwargs):
         Colours(default_colour)
     except:
         print("\nCRASH! Restarting FiEncrypt!")
+        log("Unknown error during output!", "moduleManager", get_current_user(), None)
         initiate()
 
 
@@ -632,6 +634,7 @@ def arp_scan(ip):
             result.append({'IP': received.psrc, 'MAC': received.hwsrc})
         return result
     except KeyboardInterrupt:
+        log("ARP Scan aborted!", "networkManager", get_current_user(), None)
         return None
 
 
@@ -1548,6 +1551,8 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
         rand_code = int(code)
     # ?Will call the module from the start if any step above returns an error
     except ValueError:
+        log("Invalid Encryption code generated! Retrying...",
+            "encryptionManager", get_current_user(), None)
         randomcode(user, current_user, auto_request, private_mode,
                    print_logs, default_colour, error_colour, auto_code=auto_code)
     if not auto_request:
@@ -1576,6 +1581,8 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
         except ValueError:
             animated_print(
                 f"{error_colour}WARNING: With no code saved locally, auto-generated key functions will not work! {Colours(default_colour)}")
+            log("Code override ordered... leaving blank!",
+                "encryptionManager", get_current_user(), None)
             menu(user, None, print_logs, default_colour,
                  private_mode, error_colour, print_speed=0)
     try:
@@ -1604,6 +1611,8 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
         else:
             pass
     except UnboundLocalError:
+        log("Invalid Encryption code generated! Retrying...",
+            "encryptionManager", get_current_user(), None)
         randomcode(user, current_user, auto_request, private_mode,
                    print_logs, default_colour, error_colour, auto_code=auto_code)
 
@@ -1765,6 +1774,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 link.close()
             except:
                 pass
+            log("Server channel shutting down!", "networkManager", get_current_user(), print_logs)
             menu(user, None, print_logs, default_colour,
                  private_mode, error_colour, print_speed=0)
     elif conversation_mode and recipient_ip != "":
@@ -1796,6 +1806,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                     link.close()
                 except:
                     pass
+                log("Server channel shutting down!", "networkManager", get_current_user(), print_logs)
                 newmessage(code, user, "", link, prefix, date, talking_to_self,
                            error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, message=previous_message)
         # *When the exit exits, the other client they have a TCP connection to automatically recieves the exit code, triggering their connection to close as well
@@ -1812,6 +1823,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 link.close()
             except:
                 pass
+            log("Server channel shutting down!", "networkManager", get_current_user(), print_logs)
             menu(user, None, print_logs, default_colour,
                  private_mode, error_colour, print_speed=0)
     else:
@@ -1852,6 +1864,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
             except OSError:
                 animated_print(f"{error_colour}WARNING: Unable to detect microphone!")
                 Colours(default_colour)
+                log("Unable to detect microphone!", "voiceManager", get_current_user(), print_logs)
             else:
                 frames = []
                 animated_print("Recording for 15 seconds")
@@ -2059,6 +2072,8 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                     connected = True
                     mailbox = False
             except ConnectionRefusedError:
+                log(f"Message delivery refused! Redirecting to {ip}'s mailbox!", "networkManager", get_current_user(
+                ), print_logs)
                 connected = False
                 try:
                     link.connect((ip, 19507))
@@ -2151,6 +2166,8 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 animated_print(
                     f"{error_colour}WARNING: Keyboard Interrupt! Attempting to deliver message!")
                 Colours(default_colour)
+                log(f"Message delivery override! Redirecting to {ip}'s mailbox!", "networkManager", get_current_user(
+                ), print_logs)
                 try:
                     link.connect((ip, 19507))
                     connected = True
@@ -2168,6 +2185,8 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                              private_mode, error_colour, print_speed=0)
             except TimeoutError:
                 connected = False
+                log(f"Message delivery timeout! Redirecting to {ip}'s mailbox!", "networkManager", get_current_user(
+                ), print_logs)
                 try:
                     link.connect((ip, 19507))
                     connected = True
@@ -2273,6 +2292,8 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                     if recipient_ip != None:
                         recipient_ip = ip.strip().replace("\n", "")
             except OSError:
+                log(f"Message delivery OSError! Redirecting to {ip}'s mailbox!", "networkManager", get_current_user(
+                ), print_logs)
                 connected = False
                 if ip == None:
                     pass
@@ -2655,6 +2676,8 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message):
             try:
                 filename = input(f"Enter path of file to send to {temp_foreign_user}: ")
             except KeyboardInterrupt:
+                log(f"File transfer interrupted!", "networkManager", get_current_user(
+                ), print_logs)
                 animated_print(f"{error_colour}WARNING: File transfer aborted!")
                 Colours(default_colour)
                 continue
@@ -2811,9 +2834,13 @@ def sftp_recieve(user, default_colour, error_colour, **kwargs):
             Colours(default_colour)
 
     except OverflowError:
+        log(f"File transfer overflow! File too large!", "networkManager", get_current_user(
+        ), print_logs)
         animated_print(f"{error_colour}WARNING: File too large! Aborting...")
         Colours(default_colour)
     except KeyboardInterrupt:
+        log(f"File transfer interrupted!", "networkManager", get_current_user(
+        ), print_logs)
         animated_print(f"\n{error_colour}WARNING: Aborting file transfer...")
         Colours(default_colour)
     try:
@@ -3375,6 +3402,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
         try:
             playsound(f"./cache/foreign_voice_message.wav")
         except ValueError:
+            log("Voice message playback error!", "voiceManager", get_current_user(), print_logs)
             animated_print(
                 f"{error_colour}WARNING: Unable to play voice message! Maybe {sys.platform} doesn't support PyAudio?")
         except KeyboardInterrupt:
@@ -3544,6 +3572,7 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
         animated_print("Listening on socket... ")
         sc, address = link.accept()
     except KeyboardInterrupt:
+        log("Server channel terminated!", "networkManager", get_current_user(), print_logs)
         animated_print("\nServer Terminated!")
         try:
             sc.close()
@@ -3562,6 +3591,7 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
     try:
         info = sc.recv(1024)
     except ConnectionResetError:
+        log("Server channel reset!", "networkManager", get_current_user(), print_logs)
         animated_print(
             f"{error_colour}Connection reset by peer!")
         Colours(default_colour)
@@ -3613,6 +3643,8 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
                 info = message[1]
             message = message[0]
         except IndexError:
+            log("Invalid message recieved! Server channel restarting",
+                "networkManager", get_current_user(), print_logs)
             animated_print(
                 f"{error_colour}WARNING: {message} recieved but not valid! Restarting Server!")
             Colours(default_colour)
@@ -3759,6 +3791,8 @@ def send_conversation_invite(user, current_user, default_colour, private_mode, e
             link.connect((dest_ip, 19507))
             connected = True
         except ConnectionRefusedError:
+            log(f"Invite delivery refused!", "networkManager", get_current_user(
+            ), print_logs)
             connected = False
             animated_print(
                 f"{error_colour}WARNING: Connection to recipient unexpectedly terminated! Try again!")
@@ -3766,6 +3800,8 @@ def send_conversation_invite(user, current_user, default_colour, private_mode, e
             menu(user, None, print_logs, default_colour,
                  private_mode, error_colour, print_speed=0)
         except TimeoutError:
+            log(f"Invite delivery timeout!", "networkManager", get_current_user(
+            ), print_logs)
             connected = False
             animated_print(
                 f"{error_colour}WARNING: Unable to obtain a response from recipient address! Try again!")
@@ -3773,6 +3809,8 @@ def send_conversation_invite(user, current_user, default_colour, private_mode, e
             send_conversation_invite(user, current_user, default_colour,
                                      private_mode, error_colour, print_logs, display_initiate)
         except OSError:
+            log(f"Invite delivery OSError!", "networkManager", get_current_user(
+            ), print_logs)
             connected = False
             animated_print(
                 f"{error_colour}WARNING: Unable to obtain a response from recipient address! Try again!")
@@ -3780,6 +3818,8 @@ def send_conversation_invite(user, current_user, default_colour, private_mode, e
             send_conversation_invite(user, current_user, default_colour,
                                      private_mode, error_colour, print_logs, display_initiate)
         except KeyboardInterrupt:
+            log(f"Invite delivery interrupted!", "networkManager", get_current_user(
+            ), print_logs)
             animated_print(f"\nAborting!")
             menu(user, None, print_logs, default_colour,
                  private_mode, error_colour, print_speed=0)
@@ -3859,6 +3899,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, d
                 message[1][1][0] = get_foreign_user(new_user=message[1][1][0])
                 animated_print(f"Message from {message[1][1][0].capitalize()}")
             except IndexError:
+                log("Corrupted message in mailbox!", "mailManager", get_current_user(), print_logs)
                 animated_print(
                     f"{error_colour}WARNING: Message {i} contains corrupted format! This message will be removed!")
                 Colours(default_colour)
