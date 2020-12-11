@@ -2664,12 +2664,10 @@ def to_boolean(state):
         return False
 
 
-def sftp_send(recipient_ip, default_colour, error_colour, voice_message, code, prefix):
+def sftp_send(recipient_ip, default_colour, error_colour, voice_message, code, prefix, **kwargs):
     """Sends file using unique socket"""
-    alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
-                'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
-    valid_file = False
-    print(code, prefix)
+    alphabet, valid_file, old_file_path = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
+                                           'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'], False, kwargs.get("file_path", None)
     try:
         if len(prefix[0]) == 2:
             code_seg1 = code[int(prefix[0][0]):int(prefix[0][1])]
@@ -2704,7 +2702,10 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message, code, p
             filename = "cache/voice_message.wav"
         else:
             try:
-                filename = input(f"Enter path of file to send to {temp_foreign_user}: ")
+                if old_file_path == None:
+                    filename = input(f"Enter path of file to send to {temp_foreign_user}: ")
+                else:
+                    filename = old_file_path
             except KeyboardInterrupt:
                 log(f"File transfer interrupted!", "networkManager", get_current_user(
                 ), print_logs)
@@ -2752,6 +2753,10 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message, code, p
     try:
         file_server.connect((recipient_ip.strip(), 15753))
         file_server.send(encrypted_header.encode())
+        accepted = file_server.recv(4096).decode()
+        print(accepted)
+        if not accepted:
+            pass
         progress = tqdm.tqdm(
             range(filesize), f"Sending {os.path.basename(filename)}", unit="B", unit_scale=True, unit_divisor=1024)
         with open(filename, "rb") as f:
@@ -2784,11 +2789,35 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message, code, p
         pass
 
 
-def sftp_recieve(user, default_colour, error_colour, **kwargs):
+def sftp_recieve(user, default_colour, error_colour, code, prefix, **kwargs):
     """Recieves file over socket"""
-    autosync = kwargs.get("autosync", False)
-    max_size = kwargs.get("max_size", "2GB")
-    voice_message = kwargs.get("voice", False)
+    autosync, max_size, voice_message, encrypted_header, decrypted_header, passs = kwargs.get(
+        "autosync", False), kwargs.get("max_size", "2GB"), kwargs.get("voice", False), [], "", 0
+    try:
+        if len(prefix[0]) == 2:
+            code_seg1 = code[int(prefix[0][0]): int(prefix[0][1])]
+        elif len(prefix[0]) == 3:
+            code_seg1 = code[int(prefix[0][0]): int(prefix[0][1:3])]
+        elif len(prefix[0]) == 4:
+            code_seg1 = code[int(prefix[0][0:2]): int(prefix[0][1:3])]
+        code_seg1 = list(code_seg1)
+        code_seg1 = sum(map(int, code_seg1))
+        if len(prefix[1][0]) == 2:
+            code_seg2 = code[int(prefix[1][0][0]): int(prefix[1][0][1])]
+        elif len(prefix[1][0]) == 3:
+            code_seg2 = code[int(prefix[1][0][0]): int(prefix[1][0][1:3])]
+        elif len(prefix[1][0]) == 4:
+            code_seg2 = code[int(prefix[1][0][0:2]): int(prefix[1][0][1:3])]
+        code_seg2 = list(code_seg2)
+        code_seg2 = sum(map(int, code_seg2))
+        code3 = code
+        Colours(default_colour, force=True)
+    except:
+        temp = code_seg2
+        code_seg2 = int(str(code_seg1)[::-1])
+        code_seg1 = temp
+        code3 = code
+        Colours(default_colour)
     file_recipient = socket.socket()
     file_recipient.bind((get_own_ip(False, False).strip(), 15753))
     Colours(default_colour)
@@ -2802,7 +2831,38 @@ def sftp_recieve(user, default_colour, error_colour, **kwargs):
         inbound = sc.recv(4096).decode()
         print(inbound)
         cont = input("")
-        filename, filesize = inbound.split("<SEPERATOR>")
+        for i, k in enumerate(inbound):
+            if i < len(inbound) / 2 and len(str(code3)) >= 4:
+                if len(str(code3)) > 4:
+                    code = code_seg1
+                else:
+                    code3 = str(code)[0: 2]
+                    code = int(code3)
+            elif len(str(code3)) >= 4:
+                if len(str(code3)) > 4:
+                    code = code_seg2
+                else:
+                    code3 = str(code)[2: 4]
+                    code = int(code3)
+            encrypted_header.append(k)
+            encrypted_header[passs] = ord(k)
+            encrypted_header[passs] = int(
+                encrypted_header[passs] - code)
+            if encrypted_header[passs] < 32:
+                encrypted_header[passs] = int(
+                    encrypted_header[passs]) + 95
+            elif encrypted_header[passs] > 126:
+                encrypted_header[passs] = int(
+                    encrypted_header[passs]) - 95
+            passs += 1
+        for char in encrypted_header:
+            decrypted_header += chr(char)
+        try:
+            filename, filesize = decrypted_header.split("<SEPERATOR>")
+        except ValueError:
+            sc.send(False.encode())
+        else:
+            sc.send(True.encode())
         filename = os.path.basename(filename)
         progress = tqdm.tqdm(range(int(filesize)),
                              f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
