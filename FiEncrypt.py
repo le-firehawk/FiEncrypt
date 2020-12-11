@@ -2793,6 +2793,7 @@ def sftp_recieve(user, default_colour, error_colour, code, prefix, **kwargs):
     """Recieves file over socket"""
     autosync, max_size, voice_message, encrypted_header, decrypted_header, passs = kwargs.get(
         "autosync", False), kwargs.get("max_size", "2GB"), kwargs.get("voice", False), [], "", 0
+    print(code, prefix)
     try:
         if len(prefix[0]) == 2:
             code_seg1 = code[int(prefix[0][0]): int(prefix[0][1])]
@@ -3521,7 +3522,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
     if expecting_file:
         autosync, max_size = cache_settings(
             user, current_user, default_colour, print_logs, private_mode, error_colour, mode="read")
-        sftp_recieve(user, default_colour, error_colour, autosync=autosync,
+        sftp_recieve(user, default_colour, error_colour, code, prefix, autosync=autosync,
                      max_size=max_size, voice=voice_message)
         if voice_message:
             enter_home_directory()
