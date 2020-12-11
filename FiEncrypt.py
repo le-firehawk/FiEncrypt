@@ -2753,8 +2753,7 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message, code, p
     try:
         file_server.connect((recipient_ip.strip(), 15753))
         file_server.send(encrypted_header.encode())
-        accepted = to_boolean(file_server.recv(4096).decode())
-        print(accepted)
+        accepted = to_boolean(file_server.recv(1024).decode())
         if accepted:
             progress = tqdm.tqdm(
                 range(filesize), f"Sending {os.path.basename(filename)}", unit="B", unit_scale=True, unit_divisor=1024)
@@ -2794,7 +2793,6 @@ def sftp_recieve(user, default_colour, error_colour, code, prefix, **kwargs):
     """Recieves file over socket"""
     autosync, max_size, voice_message, encrypted_header, decrypted_header, passs = kwargs.get(
         "autosync", False), kwargs.get("max_size", "2GB"), kwargs.get("voice", False), [], "", 0
-    print(code, prefix)
     try:
         if len(prefix[0]) == 2:
             code_seg1 = code[int(prefix[0][0]): int(prefix[0][1])]
@@ -2831,7 +2829,6 @@ def sftp_recieve(user, default_colour, error_colour, code, prefix, **kwargs):
         file_recipient.listen(10)
         sc, address = file_recipient.accept()
         inbound = sc.recv(4096).decode()
-        print(inbound)
         cont = input("")
         for i, k in enumerate(inbound):
             if i < len(inbound) / 2 and len(str(code3)) >= 4:
@@ -2865,100 +2862,100 @@ def sftp_recieve(user, default_colour, error_colour, code, prefix, **kwargs):
             sc.send(str(False).encode())
         else:
             sc.send(str(True).encode())
-        filename = os.path.basename(filename)
-        progress = tqdm.tqdm(range(int(filesize)),
-                             f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
-        enter_home_directory()
-        if filename == "voice_message.wav":
-            filename = "foreign_voice_message.wav"
-        with open(f"./cache/{filename}", "wb") as f:
-            for _ in progress:
-                bytes_read = sc.recv(4096)
-                if not bytes_read:
-                    break
-                f.write(bytes_read)
-                progress.update(len(bytes_read))
-        file_extension = filename.split(".")
-        file_extension = file_extension[1]
-        if file_extension.lower() in ["png", "jpg", "jpeg", "bmp", "ico"]:
-            cached_image = Image.open(f"./cache/{filename}")
-            cached_image.show()
-        sys.stdout.write("\033[F")
-        sys.stdout.write("\033[K")
-        if str(filesize).strip() == str(os.path.getsize(f"./cache/{filename}")).strip():
-            if not voice_message:
-                animated_print(f"File {filename} saved to {os.getcwd()}/cache/{filename}")
-            if autosync and filename.lower().strip() != "foreign_voice_message.wav" and filename.lower().strip() != "voice_message.wav":
-                animated_print("*** Autosync ***")
-                enter_home_directory()
-                if "gb" in max_size.lower():
-                    max_size = max_size.lower().split("gb")
-                    if "." in max_size[0]:
-                        max_size = float(max_size[0]) * 1073741824
-                    else:
-                        max_size = int(max_size[0]) * 1073741824
-                    max_size = int(max_size)
-                else:
-                    max_size = max_size.lower().split("mb")
-                    max_size = int(max_size[0]) * 1048576
-                cache_transfer_size = os.path.getsize(f"./cache/{filename}")
-                personal_cache_total_size = 0
-                for path, dirs, temp_files in os.walk(f"./{hash_current_user(get_current_user().lower().strip())}/files"):
-                    for temp_file in temp_files:
-                        personal_cache_total_size += os.path.getsize(
-                            f"./{hash_current_user(get_current_user().lower().strip())}/files/{temp_file}")
-                os.chdir(f"./{hash_current_user(get_current_user().lower().strip())}/files")
-                if pass_os() == "win32":
-                    copy = "copy"
-                else:
-                    copy = "cp"
-                if (int(cache_transfer_size) + int(personal_cache_total_size)) > max_size:
-                    animated_print(
-                        f"{error_colour}WARNING: Size of {filename} would exceed max allocated size of your private cache!")
-                    Colours(default_colour)
-                else:
-                    os.system(f"{copy} ../../cache/{filename} {filename}")
-                    animated_print(f"****", speed=0.5)
-                    animated_print("Done!")
-                    time.sleep(1)
-                    for _ in range(2):
-                        sys.stdout.write("\033[F")
-                        sys.stdout.write("\033[K")
-            elif autosync:
-                animated_print(
-                    f"{error_colour}WARNING: Storing voice messages in your Private Cache is discouraged!")
-                Colours(default_colour)
-                override = privacy_input("Do you wish to proceed anyway? [Y|N]", 0)
-                if "y" in override.lower().strip():
-                    valid_name = False
-                    while not valid_name:
-                        new_name = privacy_input("Enter a new name for the voice message file", 0)
-                        if substring(new_name, ".", 0).lower().strip() != substring(filename, ".", 0).lower().strip():
-                            valid_name = True
-                            if pass_os() == "win32":
-                                copy = "copy"
-                            else:
-                                copy = "cp"
-                            os.system(
-                                f"{copy} ../../cache/{filename} {new_name.replace('.wav','').strip()}.wav")
-                            animated_print(f"****", speed=0.5)
-                            animated_print("Done!")
-                            time.sleep(1)
-                            for _ in range(3):
-                                sys.stdout.write("\033[F")
-                                sys.stdout.write("\033[K")
+            filename = os.path.basename(filename)
+            progress = tqdm.tqdm(range(int(filesize)),
+                                 f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
+            enter_home_directory()
+            if filename == "voice_message.wav":
+                filename = "foreign_voice_message.wav"
+            with open(f"./cache/{filename}", "wb") as f:
+                for _ in progress:
+                    bytes_read = sc.recv(4096)
+                    if not bytes_read:
+                        break
+                    f.write(bytes_read)
+                    progress.update(len(bytes_read))
+            file_extension = filename.split(".")
+            file_extension = file_extension[1]
+            if file_extension.lower() in ["png", "jpg", "jpeg", "bmp", "ico"]:
+                cached_image = Image.open(f"./cache/{filename}")
+                cached_image.show()
+            sys.stdout.write("\033[F")
+            sys.stdout.write("\033[K")
+            if str(filesize).strip() == str(os.path.getsize(f"./cache/{filename}")).strip():
+                if not voice_message:
+                    animated_print(f"File {filename} saved to {os.getcwd()}/cache/{filename}")
+                if autosync and filename.lower().strip() != "foreign_voice_message.wav" and filename.lower().strip() != "voice_message.wav":
+                    animated_print("*** Autosync ***")
+                    enter_home_directory()
+                    if "gb" in max_size.lower():
+                        max_size = max_size.lower().split("gb")
+                        if "." in max_size[0]:
+                            max_size = float(max_size[0]) * 1073741824
                         else:
-                            animated_print(f"{error_colour}WARNING: Names still match!")
-                            Colours(default_colour)
-                            time.sleep(2)
-                            for _ in range(2):
-                                sys.stdout.write("\033[F")
-                                sys.stdout.write("\033[K")
-
-        else:
-            animated_print(
-                f"{error_colour}WARNING: File corrupt or incomplete! Check {os.getcwd()}/cache/{filename}")
-            Colours(default_colour)
+                            max_size = int(max_size[0]) * 1073741824
+                        max_size = int(max_size)
+                    else:
+                        max_size = max_size.lower().split("mb")
+                        max_size = int(max_size[0]) * 1048576
+                    cache_transfer_size = os.path.getsize(f"./cache/{filename}")
+                    personal_cache_total_size = 0
+                    for path, dirs, temp_files in os.walk(f"./{hash_current_user(get_current_user().lower().strip())}/files"):
+                        for temp_file in temp_files:
+                            personal_cache_total_size += os.path.getsize(
+                                f"./{hash_current_user(get_current_user().lower().strip())}/files/{temp_file}")
+                    os.chdir(f"./{hash_current_user(get_current_user().lower().strip())}/files")
+                    if pass_os() == "win32":
+                        copy = "copy"
+                    else:
+                        copy = "cp"
+                    if (int(cache_transfer_size) + int(personal_cache_total_size)) > max_size:
+                        animated_print(
+                            f"{error_colour}WARNING: Size of {filename} would exceed max allocated size of your private cache!")
+                        Colours(default_colour)
+                    else:
+                        os.system(f"{copy} ../../cache/{filename} {filename}")
+                        animated_print(f"****", speed=0.5)
+                        animated_print("Done!")
+                        time.sleep(1)
+                        for _ in range(2):
+                            sys.stdout.write("\033[F")
+                            sys.stdout.write("\033[K")
+                elif autosync:
+                    animated_print(
+                        f"{error_colour}WARNING: Storing voice messages in your Private Cache is discouraged!")
+                    Colours(default_colour)
+                    override = privacy_input("Do you wish to proceed anyway? [Y|N]", 0)
+                    if "y" in override.lower().strip():
+                        valid_name = False
+                        while not valid_name:
+                            new_name = privacy_input(
+                                "Enter a new name for the voice message file", 0)
+                            if substring(new_name, ".", 0).lower().strip() != substring(filename, ".", 0).lower().strip():
+                                valid_name = True
+                                if pass_os() == "win32":
+                                    copy = "copy"
+                                else:
+                                    copy = "cp"
+                                os.system(
+                                    f"{copy} ../../cache/{filename} {new_name.replace('.wav','').strip()}.wav")
+                                animated_print(f"****", speed=0.5)
+                                animated_print("Done!")
+                                time.sleep(1)
+                                for _ in range(3):
+                                    sys.stdout.write("\033[F")
+                                    sys.stdout.write("\033[K")
+                            else:
+                                animated_print(f"{error_colour}WARNING: Names still match!")
+                                Colours(default_colour)
+                                time.sleep(2)
+                                for _ in range(2):
+                                    sys.stdout.write("\033[F")
+                                    sys.stdout.write("\033[K")
+            else:
+                animated_print(
+                    f"{error_colour}WARNING: File corrupt or incomplete! Check {os.getcwd()}/cache/{filename}")
+                Colours(default_colour)
 
     except OverflowError:
         log(f"File transfer overflow! File too large!", "networkManager", get_current_user(
@@ -3100,19 +3097,47 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
         times = []
         date = timestamp.split("|")
         date = date[1]
-        # ?The timestamp user backwards values on top of ASCII offsets to increase their security
+        months, rd_dates, st_dates, nd_dates, th_dates = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], [
+            "3", "23"], ["1", "21", "31"], ["2", "22"], ["4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "24", "25", "26", "27", "28", "29", "30"]
         if len(date) == 3:
-            if date[1] == "0":
-                date = f"{date[2:3]}/{date[0:2]}"
+            if date[0] == "0":
+                date = f"{date[-1]}/{date[0:len(date)-1]}"
+            elif date[-2] == "0":
+                date = f"{date[-1]}/0{date[0]}"
             else:
-                date = f"{date[1:3]}/{date[0][::-1]}"
+                date = f"{date[0]}/{date[0:len(date)-1]}"
         elif len(date) == 4:
-            if date[1] == "0":
-                date = f"{date[2:4]}/{date[0:2]}"
+            if date[0] == "0" and date[2] == "0":
+                date = f"{date[3]}/0{date[1]}"
+            elif date[0] == "0":
+                date = f"{date[2:len(date)]}/0{date[1]}"
+            elif date[2] == "0":
+                date = f"{date[len(date)]}/{date[0:2]}"
             else:
-                date = f"{date[2:4]}/{date[0:2][::-1]}"
+                date = f"{date[-2:len(date)]}/{date[0:2]}"
         elif len(date) == 2:
-            date = f"{date[1]}/{date[0][::-1]}"
+            date = f"{date[0]}/{date[-1]}"
+        else:
+            date = "Date: Unknown"
+        if date != "Date: Unknown":
+            day, month = date.split("/")
+            pure_day, pure_month = day, month
+            try:
+                month = months[int(month)-1]
+            except IndexError:
+                month = months[0]
+            if day in rd_dates:
+                day = f"{day}rd"
+            elif day in st_dates:
+                day = f"{day}st"
+            elif day in nd_dates:
+                day = f"{day}nd"
+            elif day in th_dates:
+                day = f"{day}th"
+            if int(pure_day) <= 31 and int(pure_day) > 0 and int(pure_month) <= 12 and int(pure_month) > 0:
+                date = f"{day} of {month}"
+            else:
+                date = "Date: Unknown"
         timestamp = timestamp.split("A")
         timestamp[0] = timestamp[0].replace("$", "")
         timestamp[1] = timestamp[1].split("|")
@@ -3132,7 +3157,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, ti
                 animated_print(
                     f"{error_colour}WARNING: Irregularity detected in the decrypted timestamp! It may be wrong!")
                 Colours(default_colour)
-                hrs = int(timestamp[0][:: -1]) - int(time_decode)
+                hrs = int(timestamp[0][::-1]) - int(time_decode)
                 hrs = int(f"0{hrs}")
         if int(hrs) <= 12:
             suffix = "AM"
@@ -3747,6 +3772,9 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
             link.close()
             sc.close()
             animated_print(f"Foreign user validated!")
+            for _ in range(7):
+                sys.stdout.write("\033[F")
+                sys.stdout.write("\033[K")
             server_recieve(user, code, current_user, link, recipient_ip, timestamp, prefix,
                            date, default_colour, print_logs, private_mode, error_colour, display_initiate)
         else:
@@ -3846,7 +3874,8 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
                         pass
                     else:
                         temp_foreign_user += i
-                temp_foreign_user = temp_foreign_user.replace("\033[F", "").replace("\033[K", "")
+                temp_foreign_user = temp_foreign_user.replace("\033[F", "").replace(
+                    "\033[K", "").replace("\n", "").replace(ord("\n"), "").replace(ord("\033[F"), "")
                 animated_print(f"Message from {temp_foreign_user} received!")
             else:
                 foreign_user = "Anonymous"
@@ -4910,6 +4939,9 @@ def login(display_initiate, user_account_name, error_colour, default_colour, pri
         elif not access:
             current_user = username_input
             username_input, password_input = None, None
+            for _ in range(2):
+                sys.stdout.write("\033[F")
+                sys.stdout.write("\033[K")
             animated_print(
                 f"Incorrect Login! {attempts} attempts left! Try again!")
             log(f"Login attempt Success? False Attempts left: {str(attempts)}",
