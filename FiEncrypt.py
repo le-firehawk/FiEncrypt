@@ -2753,23 +2753,24 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message, code, p
     try:
         file_server.connect((recipient_ip.strip(), 15753))
         file_server.send(encrypted_header.encode())
-        accepted = file_server.recv(4096).decode()
+        accepted = to_boolean(file_server.recv(4096).decode())
         print(accepted)
-        if not accepted:
-            pass
-        progress = tqdm.tqdm(
-            range(filesize), f"Sending {os.path.basename(filename)}", unit="B", unit_scale=True, unit_divisor=1024)
-        with open(filename, "rb") as f:
-            for _ in progress:
-                bytes_read = f.read(4096)
-                if not bytes_read:
-                    break
-                file_server.sendall(bytes_read)
-                progress.update(len(bytes_read))
-        sys.stdout.write("\033[F")
-        sys.stdout.write("\033[K")
-        log(f"File of size {filesize}B sent successfully!",
-            "networkManager", get_current_user(), None)
+        if accepted:
+            progress = tqdm.tqdm(
+                range(filesize), f"Sending {os.path.basename(filename)}", unit="B", unit_scale=True, unit_divisor=1024)
+            with open(filename, "rb") as f:
+                for _ in progress:
+                    bytes_read = f.read(4096)
+                    if not bytes_read:
+                        break
+                    file_server.sendall(bytes_read)
+                    progress.update(len(bytes_read))
+            sys.stdout.write("\033[F")
+            sys.stdout.write("\033[K")
+            log(f"File of size {filesize}B sent successfully!",
+                "networkManager", get_current_user(), None)
+        else:
+            print("not accepted!")
     except KeyboardInterrupt:
         animated_print(f"{error_colour}WARNING: File transfer interrupted!")
         Colours(default_colour)
@@ -2861,9 +2862,9 @@ def sftp_recieve(user, default_colour, error_colour, code, prefix, **kwargs):
         try:
             filename, filesize = decrypted_header.split("<SEPERATOR>")
         except ValueError:
-            sc.send(False.encode())
+            sc.send(str(False).encode())
         else:
-            sc.send(True.encode())
+            sc.send(str(True).encode())
         filename = os.path.basename(filename)
         progress = tqdm.tqdm(range(int(filesize)),
                              f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
