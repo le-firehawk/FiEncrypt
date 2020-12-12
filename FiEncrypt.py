@@ -1027,11 +1027,11 @@ def create_notification(ip, name):
         )
 
 
-def get_recipient_ip(user, display_initiate, print_logs, default_colour, private_mode, error_colour, **args):
+def get_recipient_ip(user, display_initiate, print_logs, default_colour, private_mode, error_colour, link, **kwargs):
     """Obtains the desired IP, MAC, or contact name that a message is to be sent to. Calls arp_scan() and mac_resolve() modules as appropiate"""
     target_mac, target_name = None, None
-    is_invite = args.get("is_invite", False)
-    confirm_ip = args.get("confirm_ip", None)
+    is_invite = kwargs.get("is_invite", False)
+    confirm_ip = kwargs.get("confirm_ip", None)
     if confirm_ip == None:
         ip = privacy_input(
             "Enter the IP, MAC address or contact name of the recipient", private_mode)
@@ -1085,7 +1085,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_colour, private
                 connected = False
             else:
                 contact_search.add_ip(target_name, ip)
-        validated = validate_foreign_user(ip, expected_user, print_logs)
+        validated, sc, link = validate_foreign_user(ip, expected_user, print_logs, link)
         if not validated:
             animated_print(
                 f"{error_colour}WARNING: Unable to verify if recipient is {expected_user}!")
@@ -1096,7 +1096,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_colour, private
                 pass
             else:
                 get_recipient_ip(user, display_initiate, print_logs,
-                                 default_colour, private_mode, error_colour)
+                                 default_colour, private_mode, error_colour, link)
         time.sleep(8)
     if "." not in ip:
         if ":" in ip:
@@ -1148,21 +1148,21 @@ def get_recipient_ip(user, display_initiate, print_logs, default_colour, private
                 Colours(default_colour)
                 connected = False
                 get_recipient_ip(user, display_initiate, print_logs,
-                                 default_colour, private_mode, error_colour)
+                                 default_colour, private_mode, error_colour, link)
             except TypeError:
                 animated_print(
                     f"{error_colour}WARNING: Invalid contact details!")
                 Colours(default_colour)
                 connected = False
                 get_recipient_ip(user, display_initiate, print_logs,
-                                 default_colour, private_mode, error_colour)
+                                 default_colour, private_mode, error_colour, link)
             except AttributeError:
                 animated_print(
                     f"{error_colour}WARNING: Invalid contact details!")
                 Colours(default_colour)
                 connected = False
                 get_recipient_ip(user, display_initiate, print_logs,
-                                 default_colour, private_mode, error_colour)
+                                 default_colour, private_mode, error_colour, link)
     valid_vars = check_vars(ip, target_mac, target_name)
     return valid_vars[0], valid_vars[1], valid_vars[2]
 
@@ -1744,32 +1744,32 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                     f"How do you feel", private_mode)
             if message_text == None:
                 try:
-                    link = socket.socket()
-                    link.connect((recipient_ip, 15753))
                     link.send(str("\\exit").encode())
-                    try:
-                        link.shutdown(socket.SHUT_RDWR)
-                    except:
-                        pass
-                    link.close()
                 except:
-                    pass
+                    try:
+                        link = socket.socket()
+                        link.connect((recipient_ip, 15753))
+                        link.send(str("\\exit").encode())
+                        link.shutdown(socket.SHUT_RDWR)
+                        link.close()
+                    except:
+                        link.close()
                 newmessage(code, user, "", link, prefix, date, talking_to_self,
                            error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, message=previous_message)
         # *When the exit exits, the other client they have a TCP connection to automatically recieves the exit code, triggering their connection to close as well
         except KeyboardInterrupt:
             animated_print(f"\nKilling server channel!")
             try:
-                link = socket.socket()
-                link.connect((recipient_ip, 15753))
                 link.send(str("\\exit").encode())
-                try:
-                    link.shutdown(socket.SHUT_RDWR)
-                except:
-                    pass
-                link.close()
             except:
-                pass
+                try:
+                    link = socket.socket()
+                    link.connect((recipient_ip, 15753))
+                    link.send(str("\\exit").encode())
+                    link.shutdown(socket.SHUT_RDWR)
+                    link.close()
+                except:
+                    link.close()
             log("Server channel shutting down!", "networkManager", get_current_user(), print_logs)
             menu(user, None, print_logs, default_colour,
                  private_mode, error_colour, print_speed=0)
@@ -1792,16 +1792,16 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                     f"Enter a reply here", private_mode)
             if message_text == None:
                 try:
-                    link = socket.socket()
-                    link.connect((recipient_ip, 15753))
                     link.send(str("\\exit").encode())
-                    try:
-                        link.shutdown(socket.SHUT_RDWR)
-                    except:
-                        pass
-                    link.close()
                 except:
-                    pass
+                    try:
+                        link = socket.socket()
+                        link.connect((recipient_ip, 15753))
+                        link.send(str("\\exit").encode())
+                        link.shutdown(socket.SHUT_RDWR)
+                        link.close()
+                    except:
+                        link.close()
                 log("Server channel shutting down!", "networkManager", get_current_user(), print_logs)
                 newmessage(code, user, "", link, prefix, date, talking_to_self,
                            error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, message=previous_message)
@@ -1809,16 +1809,16 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
         except KeyboardInterrupt:
             animated_print(f"\nKilling server channel!")
             try:
-                link = socket.socket()
-                link.connect((recipient_ip, 15753))
                 link.send(str("\\exit").encode())
-                try:
-                    link.shutdown(socket.SHUT_RDWR)
-                except:
-                    pass
-                link.close()
             except:
-                pass
+                try:
+                    link = socket.socket()
+                    link.connect((recipient_ip, 15753))
+                    link.send(str("\\exit").encode())
+                    link.shutdown(socket.SHUT_RDWR)
+                    link.close()
+                except:
+                    link.close()
             log("Server channel shutting down!", "networkManager", get_current_user(), print_logs)
             menu(user, None, print_logs, default_colour,
                  private_mode, error_colour, print_speed=0)
@@ -2033,7 +2033,8 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
         menu(user, None, print_logs, default_colour,
              private_mode, error_colour, print_speed=0)
     elif "y" in host:
-        link = socket.socket()
+        if link == None:
+            link = socket.socket()
         connected = False
         talking_to_self = False
         while not connected:
@@ -2042,7 +2043,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                     ip = recipient_ip
                 elif recipient_ip == "":
                     ip, target_mac, target_name = get_recipient_ip(user, display_initiate, print_logs,
-                                                                   default_colour, private_mode, error_colour)
+                                                                   default_colour, private_mode, error_colour, None)
                 ip = ip.strip().replace("\n", "")
                 if recipient_ip != None:
                     recipient_ip = ip.strip().replace("\n", "")
@@ -2068,7 +2069,13 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                         retrievemessage(
                             code, user, 2, backup_prefix, recipient_ip, link, timestamp, mailing, talking_to_self, default_colour, print_logs, private_mode, error_colour, None, display_initiate)
                 else:
-                    link.connect((recipient_ip, 15753))
+                    print(link)
+                    try:
+                        link.connect((recipient_ip, 15753))
+                    except:
+                        link.close()
+                        link = socket.socket()
+                        link.connect((recipient_ip, 15753))
                     connected = True
                     mailbox = False
             except ConnectionRefusedError:
@@ -2076,6 +2083,8 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 ), print_logs)
                 connected = False
                 try:
+                    link.close()
+                    link = socket.socket()
                     link.connect((ip, 19507))
                     connected = True
                     mailbox = True
@@ -2092,7 +2101,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                             f"{error_colour}WARNING: Unable to reach the host! Try a different address!")
                         Colours(default_colour)
                         ip, target_mac, target_name = get_recipient_ip(user, display_initiate, print_logs,
-                                                                       default_colour, private_mode, error_colour)
+                                                                       default_colour, private_mode, error_colour, None)
                         if ip == None or ip.strip() == "":
                             menu(user, None, print_logs, default_colour,
                                  private_mode, error_colour, print_speed=0)
@@ -2169,6 +2178,8 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 log(f"Message delivery override! Redirecting to {ip}'s mailbox!", "networkManager", get_current_user(
                 ), print_logs)
                 try:
+                    link.close()
+                    link = socket.socket()
                     link.connect((ip, 19507))
                     connected = True
                     mailbox = True
@@ -2188,6 +2199,8 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 log(f"Message delivery timeout! Redirecting to {ip}'s mailbox!", "networkManager", get_current_user(
                 ), print_logs)
                 try:
+                    link.close()
+                    link = socket.socket()
                     link.connect((ip, 19507))
                     connected = True
                     mailbox = True
@@ -2221,7 +2234,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                         ip = None
                     if ip == None or ip.strip() == "":
                         ip, target_mac, target_name = get_recipient_ip(user, display_initiate, print_logs,
-                                                                       default_colour, private_mode, error_colour)
+                                                                       default_colour, private_mode, error_colour, None)
                     else:
                         contact_ip = Contacts(user, get_current_user().lower().strip(
                         ), print_logs, default_colour, error_colour, private_mode)
@@ -2300,6 +2313,8 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                 else:
                     ip = ip.replace("\n", "")
                 try:
+                    link.close()
+                    link = socket.socket()
                     link.connect((ip, 19507))
                     connected = True
                     mailbox = True
@@ -2321,7 +2336,7 @@ def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, er
                     Colours(default_colour)
                     if ip == None or ip.strip() == "":
                         ip, target_mac, target_name = get_recipient_ip(user, display_initiate, print_logs,
-                                                                       default_colour, private_mode, error_colour)
+                                                                       default_colour, private_mode, error_colour, None)
                     else:
                         try:
                             contact_ip = Contacts(user, get_current_user().lower().strip(
@@ -2574,72 +2589,67 @@ def decode_foreign_user(code, prefix, user, default_colour):
     return decrypted_foreign_user
 
 
-def validate_foreign_user(ip, expected_user, print_logs):
+def validate_foreign_user(ip, expected_user, print_logs, reply_link):
     """When someone declares the name of a desired recipient, that string is compared to the user curretly logged in, returning True/False"""
-    reply_link = socket.socket()
     try:
-        reply_link.connect((ip.strip(), 15753))
+        try:
+            reply_link.send(
+                f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
+        except:
+            reply_link = socket.socket()
+            reply_link.connect((ip.strip(), 15753))
+            reply_link.send(
+                f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
     except ConnectionRefusedError:
         try:
+            reply_link = socket.socket()
             reply_link.connect((ip.strip(), 19507))
+            reply_link.send(
+                f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
         except ConnectionRefusedError:
-            return False
-    reply_link.send(
-        f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
-    validate_link = socket.socket()
+            return False, None, None
     try:
-        validate_link.bind((get_own_ip(False, False), 15754))
-        reply_link.shutdown(socket.SHUT_RDWR)
-        reply_link.close()
-        validate_link.listen(10)
-        sc, address = validate_link.accept()
-    except OSError:
+        info = reply_link.recv(1024)
+    except:
         try:
-            reply_link.shutdown(socket.SHUT_RDWR)
             reply_link.close()
             reply_link = socket.socket()
-            reply_link.bind((get_own_ip(False, False), 15754))
+            reply_link.bind((get_own_ip(False, False), 15753))
             reply_link.listen(10)
             sc, address = reply_link.accept()
+            info = sc.recv(1024)
         except OSError:
             print(f"\033[91mWARNING: Unable to startup network listener!{applied_default_colour}")
             if print_logs:
                 raise Exception(
                     f"Unable to bind to {get_own_ip(False, False)}/listen on socket 15754!")
             else:
-                return False
-    info = sc.recv(1024)
+                return False, None, None
     info = info.decode()
-    sc.close()
-    validate_link.shutdown(socket.SHUT_RDWR)
-    validate_link.close()
     if "true" in info.lower():
-        return True
+        return True, sc, reply_link
     else:
         reply_link = socket.socket()
         try:
             reply_link.connect((ip.strip(), 19507))
         except ConnectionRefusedError:
-            return False
+            return False, None, None
         reply_link.send(
             f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
         reply_link.shutdown(socket.SHUT_RDWR)
         reply_link.close()
         validate_link = socket.socket()
-        validate_link.bind((get_own_ip(False, False), 15754))
+        validate_link.bind((get_own_ip(False, False), 15753))
         validate_link.listen(10)
         sc, address = validate_link.accept()
         info = sc.recv(1024)
         info = info.decode()
-        sc.close()
-        validate_link.shutdown(socket.SHUT_RDWR)
-        validate_link.close()
         if "true" in info.lower():
             log("Foreign user succesfully validated!", "networkManager", get_current_user(), None)
-            return True
+            return True, sc, validate_link
         else:
             log("Foreign user failed validation!", "networkManager", get_current_user(), None)
-            return False
+            return False, sc, validate_link
 
 
 def get_auto_code():
@@ -3711,7 +3721,13 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
             sys.stdout.write("\033[K")
             sys.stdout.write("\033[F")
         animated_print("Socket bound... ")
-        link.listen(10)
+        print(link)
+        try:
+            link.listen(10)
+        except:
+            link = socket.socket()
+            link.bind((ip, 15753))
+            link.listen(10)
         time.sleep(2)
         sys.stdout.write("\033[F")
         animated_print(f"Socket bound... {ip}:15753")
@@ -3768,22 +3784,22 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
         message[0] = message[0][0]
         reply_ip = message[1]
         if expected_user.strip().lower() == capitalize_user(get_current_user()).strip().lower():
-            sc.connect((reply_ip.strip(), 15754))
+            sc.connect((reply_ip.strip(), 15753))
             sc.send(str(True).encode())
             animated_print(f"Foreign user validated!")
             for _ in range(7):
                 sys.stdout.write("\033[F")
                 sys.stdout.write("\033[K")
             server_recieve(user, code, current_user, link, recipient_ip, timestamp, prefix,
-                           date, default_colour, print_logs, private_mode, error_colour, display_initiate, repeat_link=link, repeat_sc=sc)
+                           date, default_colour, print_logs, private_mode, error_colour, display_initiate)
         else:
-            sc.connect((reply_ip.strip(), 15754))
+            sc.connect((reply_ip.strip(), 15753))
             sc.send(str(False).encode())
             animated_print(
                 f"{error_colour}WARNING: Foreign user validation failed!")
             Colours(default_colour)
             server_recieve(user, code, current_user, link, recipient_ip, timestamp, prefix,
-                           date, default_colour, print_logs, private_mode, error_colour, display_initiate, repeat_link=link, repeat_sc=sc)
+                           date, default_colour, print_logs, private_mode, error_colour, display_initiate)
     else:
         try:
             if "\\exit" in message or "\\poke" in message:
@@ -3800,12 +3816,6 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
             server_recieve(user, code, current_user, link, recipient_ip, timestamp, prefix,
                            date, default_colour, print_logs, private_mode, error_colour, display_initiate)
         print("Done!")
-    sc.close()
-    try:
-        link.shutdown(socket.SHUT_RDWR)
-    except:
-        pass
-    link.close()
     info = info.split(" | ")
     try:
         message = message.decode()
@@ -3907,7 +3917,7 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
                 f"Message from {foreign_user.capitalize()} recieved!")
             foreign_user = get_foreign_user(new_user=foreign_user)
 
-            retrievemessage(code, user, 2, prefix, recipient_ip, link, timestamp, False, False,
+            retrievemessage(code, user, 2, prefix, recipient_ip, sc, timestamp, False, False,
                             default_colour, print_logs, private_mode, error_colour, None, display_initiate)
         except KeyboardInterrupt:
             menu(user, display_initiate, print_logs,
@@ -3928,7 +3938,7 @@ def send_conversation_invite(user, current_user, default_colour, private_mode, e
         ip = socket.gethostbyname(socket.gethostname())
     try:
         dest_ip, target_mac, target_name = get_recipient_ip(user, display_initiate, print_logs,
-                                                            default_colour, private_mode, error_colour, is_invite=True)
+                                                            default_colour, private_mode, error_colour, None, is_invite=True)
         dest_ip = dest_ip.strip()
     except KeyboardInterrupt:
         print("")
@@ -4073,7 +4083,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, d
                     code, prefix, timestamp = showcode(capitalize_user(get_current_user()), 1, private_mode,
                                                        print_logs, error_colour, default_colour)
                     ip, target_mac, target_name = get_recipient_ip(
-                        user, display_initiate, print_logs, default_colour, private_mode, error_colour, confirm_ip=f"{message[1][1][0]}@{message[1][1][1]}")
+                        user, display_initiate, print_logs, default_colour, private_mode, error_colour, None, confirm_ip=f"{message[1][1][0]}@{message[1][1][1]}")
                     newmessage(code, user, message[1][1][1], None, prefix, None,
                                False, error_colour, default_colour, private_mode, print_logs, False, display_initiate, False)
                 else:
