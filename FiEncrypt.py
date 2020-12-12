@@ -1613,7 +1613,7 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
                    print_logs, default_colour, error_colour, auto_code=auto_code)
 
 
-def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, auto_code, **kwargs):
+def newmessage(code, user, recipient_ip, dep_link, prefix, date, talking_to_self, error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, auto_code, **kwargs):
     """Allows user to create and send an encrypted message"""
     previous_message, poked, voice_message, outbound_file, manual, faulty_override, stored_message = kwargs.get(
         "message", ""), kwargs.get("poked", False), False, False, False, kwargs.get("faulty", False), kwargs.get("stored_message", "")
@@ -2971,7 +2971,7 @@ def sftp_recieve(user, default_colour, error_colour, code, prefix, file_recipien
         pass
 
 
-def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, timestamp, mailing, talking_to_self, default_colour, print_logs, private_mode, error_colour, index, display_initiate, link):
+def retrievemessage(old_code, user, current_user, prefix, recipient_ip, dep_link, timestamp, mailing, talking_to_self, default_colour, print_logs, private_mode, error_colour, index, display_initiate, link):
     """Recieves message from other FiEncrypt user, or yourself (loopback), decrypts and displays it"""
     # ?Names such as @old_code are used to seperate the various states the string is put into during decryption
     try:
