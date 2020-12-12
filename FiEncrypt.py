@@ -1551,6 +1551,8 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
         rand_code = int(code)
     # ?Will call the module from the start if any step above returns an error
     except ValueError:
+        log("Invalid Encryption code generated! Retrying...",
+            "encryptionManager", get_current_user(), None)
         randomcode(user, current_user, auto_request, private_mode,
                    print_logs, default_colour, error_colour, auto_code=auto_code)
     if not auto_request:
@@ -1609,11 +1611,13 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
         else:
             pass
     except UnboundLocalError:
+        log("Invalid Encryption code generated! Retrying...",
+            "encryptionManager", get_current_user(), None)
         randomcode(user, current_user, auto_request, private_mode,
                    print_logs, default_colour, error_colour, auto_code=auto_code)
 
 
-def newmessage(code, user, recipient_ip, dep_link, prefix, date, talking_to_self, error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, auto_code, **kwargs):
+def newmessage(code, user, recipient_ip, link, prefix, date, talking_to_self, error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, auto_code, **kwargs):
     """Allows user to create and send an encrypted message"""
     previous_message, poked, voice_message, outbound_file, manual, faulty_override, stored_message = kwargs.get(
         "message", ""), kwargs.get("poked", False), False, False, False, kwargs.get("faulty", False), kwargs.get("stored_message", "")
@@ -2430,6 +2434,11 @@ def newmessage(code, user, recipient_ip, dep_link, prefix, date, talking_to_self
         else:
             packet = message_text
         link.send(packet.encode())
+        try:
+            link.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+        link.close()
         if outbound_file:
             if voice_message:
                 for i in range(8):
@@ -2442,7 +2451,7 @@ def newmessage(code, user, recipient_ip, dep_link, prefix, date, talking_to_self
                     sys.stdout.flush()
                     time.sleep(1)
             print("")
-            sftp_send(ip, default_colour, error_colour, voice_message, code, prefix, link)
+            sftp_send(ip, default_colour, error_colour, voice_message, code, prefix)
         if not skip and print_logs:
             animated_print(
                 f"Message {message.decode()} with decryption code {decrypt_code} successfully sent to {ip}!")
@@ -2482,7 +2491,7 @@ def newmessage(code, user, recipient_ip, dep_link, prefix, date, talking_to_self
             user, 1, private_mode, print_logs, error_colour, default_colour)
         # ?In conversation mode, an inbound server will automatically be started, so the user can recieve the message promptly
         server_recieve(user, code, user, link, recipient_ip, timestamp, backup_prefix,
-                       date, default_colour, print_logs, private_mode, error_colour, display_initiate, repeat_link=link)
+                       date, default_colour, print_logs, private_mode, error_colour, display_initiate)
     elif poke and conversation_mode and "y" in host:
         if auto_code:
             randomcode(user, current_user, True, private_mode,
@@ -2491,7 +2500,7 @@ def newmessage(code, user, recipient_ip, dep_link, prefix, date, talking_to_self
             user, 1, private_mode, print_logs, error_colour, default_colour)
         # ?In conversation mode, an inbound server will automatically be started, so the user can recieve the message promptly
         server_recieve(user, code, user, link, recipient_ip, timestamp, backup_prefix,
-                       date, default_colour, print_logs, private_mode, error_colour, display_initiate, repeat_link=link)
+                       date, default_colour, print_logs, private_mode, error_colour, display_initiate)
     elif love_sent and conversation_mode and "y" in host:
         if auto_code:
             randomcode(user, current_user, True, private_mode,
@@ -2500,7 +2509,7 @@ def newmessage(code, user, recipient_ip, dep_link, prefix, date, talking_to_self
             user, 1, private_mode, print_logs, error_colour, default_colour)
         # ?In conversation mode, an inbound server will automatically be started, so the user can recieve the message promptly
         server_recieve(user, code, user, link, recipient_ip, timestamp, backup_prefix,
-                       date, default_colour, print_logs, private_mode, error_colour, display_initiate, repeat_link=link)
+                       date, default_colour, print_logs, private_mode, error_colour, display_initiate)
     else:
         if auto_code:
             randomcode(user, current_user, True, private_mode,
@@ -2655,7 +2664,7 @@ def to_boolean(state):
         return False
 
 
-def sftp_send(recipient_ip, default_colour, error_colour, voice_message, code, prefix, file_server, **kwargs):
+def sftp_send(recipient_ip, default_colour, error_colour, voice_message, code, prefix, **kwargs):
     """Sends file using unique socket"""
     alphabet, valid_file, old_file_path = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
                                            'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'], False, kwargs.get("file_path", None)
@@ -2740,13 +2749,10 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message, code, p
         passs += 1
     for char in decrypted_header:
         encrypted_header += chr(char)
+    file_server = socket.socket()
     try:
-        try:
-            file_server.send(encrypted_header.encode())
-        except:
-            file_server = socket.socket()
-            file_server.connect((recipient_ip.strip(), 15753))
-            file_server.send(encrypted_header.encode())
+        file_server.connect((recipient_ip.strip(), 15753))
+        file_server.send(encrypted_header.encode())
         accepted = to_boolean(file_server.recv(1024).decode())
         if accepted:
             progress = tqdm.tqdm(
@@ -2783,7 +2789,7 @@ def sftp_send(recipient_ip, default_colour, error_colour, voice_message, code, p
         pass
 
 
-def sftp_recieve(user, default_colour, error_colour, code, prefix, file_recipient, **kwargs):
+def sftp_recieve(user, default_colour, error_colour, code, prefix, **kwargs):
     """Recieves file over socket"""
     autosync, max_size, voice_message, encrypted_header, decrypted_header, passs = kwargs.get(
         "autosync", False), kwargs.get("max_size", "2GB"), kwargs.get("voice", False), [], "", 0
@@ -2812,21 +2818,18 @@ def sftp_recieve(user, default_colour, error_colour, code, prefix, file_recipien
         code_seg1 = temp
         code3 = code
         Colours(default_colour)
+    file_recipient = socket.socket()
+    file_recipient.bind((get_own_ip(False, False).strip(), 15753))
     Colours(default_colour)
     if voice_message:
         animated_print(f"New Voice Messge!")
     else:
         animated_print(f"Awaiting file...")
     try:
-        try:
-            sc, address = file_recipient.accept()
-            inbound = sc.recv(4096).decode()
-        except:
-            file_recipient = socket.socket()
-            file_recipient.bind((get_own_ip(False, False).strip(), 15753))
-            file_recipient.listen(10)
-            sc, address = file_recipient.accept()
-            inbound = sc.recv(4096).decode()
+        file_recipient.listen(10)
+        sc, address = file_recipient.accept()
+        inbound = sc.recv(4096).decode()
+        cont = input("")
         for i, k in enumerate(inbound):
             if i < len(inbound) / 2 and len(str(code3)) >= 4:
                 if len(str(code3)) > 4:
@@ -2971,7 +2974,7 @@ def sftp_recieve(user, default_colour, error_colour, code, prefix, file_recipien
         pass
 
 
-def retrievemessage(old_code, user, current_user, prefix, recipient_ip, dep_link, timestamp, mailing, talking_to_self, default_colour, print_logs, private_mode, error_colour, index, display_initiate, link):
+def retrievemessage(old_code, user, current_user, prefix, recipient_ip, link, timestamp, mailing, talking_to_self, default_colour, print_logs, private_mode, error_colour, index, display_initiate):
     """Recieves message from other FiEncrypt user, or yourself (loopback), decrypts and displays it"""
     # ?Names such as @old_code are used to seperate the various states the string is put into during decryption
     try:
@@ -3132,7 +3135,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, dep_link
             elif day in th_dates:
                 day = f"{day}th"
             if int(pure_day) <= 31 and int(pure_day) > 0 and int(pure_month) <= 12 and int(pure_month) > 0:
-                date = f"{day} of {month}, {substring(str(datetime.datetime.now()), '-', 0)}"
+                date = f"{day} of {month}"
             else:
                 date = "Date: Unknown"
         timestamp = timestamp.split("A")
@@ -3545,7 +3548,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, dep_link
     if expecting_file:
         autosync, max_size = cache_settings(
             user, current_user, default_colour, print_logs, private_mode, error_colour, mode="read")
-        sftp_recieve(user, default_colour, error_colour, old_code, prefix, link, autosync=autosync,
+        sftp_recieve(user, default_colour, error_colour, old_code, prefix, autosync=autosync,
                      max_size=max_size, voice=voice_message)
         if voice_message:
             enter_home_directory()
@@ -3684,12 +3687,9 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, dep_link
                        error_colour, default_colour, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase)
 
 
-def server_recieve(user, code, current_user, link, recipient_ip, timestamp, prefix, date, default_colour, print_logs, private_mode, error_colour, display_initiate, **kwargs):
+def server_recieve(user, code, current_user, link, recipient_ip, timestamp, prefix, date, default_colour, print_logs, private_mode, error_colour, display_initiate):
     """Opens server to recieve and interpret message"""
     print("Server warming up... ", end="")
-    repeat_link, repeat_sc = kwargs.get("repeat_link", None), kwargs.get("repeat_sc", None)
-    if repeat_link != None:
-        link, sc = repeat_link, repeat_sc
     enter_home_directory()
     if sys.platform.startswith("linux"):
         ip = gnu_ip_resolve(print_logs, private_mode)
@@ -3703,13 +3703,17 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
         ip = socket.gethostbyname(socket.gethostname())
     try:
         print("Done!")
-        if repeat_link == None:
-            link = socket.socket()
-            animated_print("Socket opened... ")
-            link.bind((ip, 15753))
-            time.sleep(1)
-            sys.stdout.write("\033[K")
-            sys.stdout.write("\033[F")
+        try:
+            link.shutdown(socket.SHUT_RDWR)
+            link.close()
+        except:
+            pass
+        link = socket.socket()
+        animated_print("Socket opened... ")
+        link.bind((ip, 15753))
+        time.sleep(1)
+        sys.stdout.write("\033[K")
+        sys.stdout.write("\033[F")
         animated_print("Socket bound... ")
         link.listen(10)
         time.sleep(2)
@@ -3744,15 +3748,6 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
         animated_print(
             f"{error_colour}Connection reset by peer!")
         Colours(default_colour)
-        try:
-            sc.close()
-        except:
-            pass
-        try:
-            link.shutdown(socket.SHUT_RDWR)
-        except:
-            pass
-        link.close()
         menu(user, display_initiate, print_logs,
              default_colour, private_mode, error_colour, print_speed=0)
     print("Recieving information... ", end="\n\n")
@@ -3768,22 +3763,34 @@ def server_recieve(user, code, current_user, link, recipient_ip, timestamp, pref
         message[0] = message[0][0]
         reply_ip = message[1]
         if expected_user.strip().lower() == capitalize_user(get_current_user()).strip().lower():
-            sc.connect((reply_ip.strip(), 15754))
-            sc.send(str(True).encode())
+            verify_link = socket.socket()
+            verify_link.connect((reply_ip.strip(), 15754))
+            verify_link.send(str(True).encode())
+            verify_link.shutdown(socket.SHUT_RDWR)
+            verify_link.close()
+            link.shutdown(socket.SHUT_RDWR)
+            link.close()
+            sc.close()
             animated_print(f"Foreign user validated!")
             for _ in range(7):
                 sys.stdout.write("\033[F")
                 sys.stdout.write("\033[K")
             server_recieve(user, code, current_user, link, recipient_ip, timestamp, prefix,
-                           date, default_colour, print_logs, private_mode, error_colour, display_initiate, repeat_link=link, repeat_sc=sc)
+                           date, default_colour, print_logs, private_mode, error_colour, display_initiate)
         else:
-            sc.connect((reply_ip.strip(), 15754))
-            sc.send(str(False).encode())
+            verify_link = socket.socket()
+            verify_link.connect((reply_ip.strip(), 15754))
+            verify_link.send(str(False).encode())
+            verify_link.shutdown(socket.SHUT_RDWR)
+            verify_link.close()
+            link.shutdown(socket.SHUT_RDWR)
+            link.close()
+            sc.close()
             animated_print(
                 f"{error_colour}WARNING: Foreign user validation failed!")
             Colours(default_colour)
             server_recieve(user, code, current_user, link, recipient_ip, timestamp, prefix,
-                           date, default_colour, print_logs, private_mode, error_colour, display_initiate, repeat_link=link, repeat_sc=sc)
+                           date, default_colour, print_logs, private_mode, error_colour, display_initiate)
     else:
         try:
             if "\\exit" in message or "\\poke" in message:
