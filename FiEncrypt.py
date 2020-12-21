@@ -1,5 +1,5 @@
 import contextlib
-from scapy.all import *
+from scapy import *
 # FiEncrypt, property of le_firehawk is pure Python, peer-to-peer communication software intended for personal use only.
 # Copyright (C) 2020 le_firehawk
 
@@ -20,14 +20,11 @@ from scapy.all import *
 # along with this program.  If not, see <https://www.gnu.org/licenses/agpl-3.0.html>
 
 
-# Placed above due to import * only working at module level
-
-
 class ImportStructure:
     """Staggered approach for importing modules by category, can be called at any time"""
 
-    def __init__(self, bracket):
-        if bracket == "logic":
+    def __init__(self, import_set):
+        if import_set == "logic":
             # By declaring modules as global variables, they can be accessed as normal
             global math, time, random, datetime, notification
             import math
@@ -35,7 +32,7 @@ class ImportStructure:
             import random
             import datetime
             from plyer import notification
-        elif bracket == "system":
+        elif import_set == "system":
             global os, sys, shutil, subprocess, zipfile, ctypes, hashlib, Image, pyaudio, wave, playsound
             import os
             import sys
@@ -48,11 +45,11 @@ class ImportStructure:
             import pyaudio
             import wave
             from playsound import playsound
-        elif bracket == "string":
+        elif import_set == "string":
             global getpass, textwrap
             import getpass
             import textwrap
-        elif bracket == "network":
+        elif import_set == "network":
             global urllib, socket, netifaces, tqdm
             import urllib.request as urllib
             import socket
@@ -61,7 +58,7 @@ class ImportStructure:
                 import netifaces
             except:
                 pass
-        elif bracket == "gui":
+        elif import_set == "gui":
             global gui
             import PySimpleGUI as gui
 
@@ -69,9 +66,8 @@ class ImportStructure:
 class Colours:
     """Manages application of colour codes for the standard out"""
 
-    def __init__(self, colour, **force_apply):
-        force_apply = force_apply.get("force", False)
-        self.error, self.reset = "\033[91m", "\033[0m"
+    def __init__(self, colour, **kwargs):
+        force_apply, self.error, self.reset = "\033[91m", "\033[0m", kwargs.get("force", False)
         if colour == None:
             self.default_colour = parse_colours("\033[0m")
         else:
@@ -90,10 +86,9 @@ class Contacts:
 
     def __init__(self, user, current_user, print_logs, default_colour, error_colour, private_mode):
         """Gathers a list of all names of contacts present in the Contacts directory"""
-        self.user, self.current_user, self.print_logs, self.default_colour, self.error_colour, self.private_mode = user, current_user, print_logs, default_colour, error_colour, private_mode
+        self.user, self.current_user, self.print_logs, self.default_colour, self.error_colour, self.private_mode, self.contact_names = user, current_user, print_logs, default_colour, error_colour, private_mode, []
         enter_home_directory(
             next_step=f"./{hash_current_user(current_user.lower().strip())}/contacts")
-        self.contact_names = []
         for root, dirs, files in os.walk(f"."):
             for name in files:
                 self.contact_names.append(name.replace(".txt", ""))
@@ -314,11 +309,9 @@ def maybe_quit():
         except KeyboardInterrupt:
             quit = "y"
     if quit == None:
-        sys.stdout.write("\033[F")
-        sys.stdout.write("\033[K")
+        sys.stdout.write("\033[F"), sys.stdout.write("\033[K")
     elif "y" in quit.lower():
-        sys.stdout.write("\033[F")
-        sys.stdout.write("\033[K")
+        sys.stdout.write("\033[F"), sys.stdout.write("\033[K")
         clear_cache()
         log("FiEncrypt shutting down!", "moduleManager", get_current_user(), None)
         exit()
@@ -406,7 +399,7 @@ def set_home_directory(operating_system):
     if operating_system == "win32":
         file_path = sys.argv[0].split(":\\")
         if ".py" in str(file_path):
-            file_path[1] = file_path[1].replace("\\\listener.py", "")
+            file_path[1] = file_path[1].replace("\\\FiEncrypt.py", "")
             if file_path[1].endswith(f":"):
                 file_path[1] = file_path[1].replace(":", "")
         drive_letter = file_path[0]
@@ -440,8 +433,8 @@ def set_home_directory(operating_system):
 
 def enter_home_directory(**kwargs):
     """Changes the current directory to the base level of the FiEncrypt directory, for ease of reference to files within"""
-    next_step = kwargs.get("next_step", None)
-    operating_system = pass_os()
+    next_step, operating_system = kwargs.get(
+        "next_step", None), pass_os()
     home_directory, user = set_home_directory(operating_system)
     os.chdir(home_directory)
     if next_step != None:
@@ -474,7 +467,6 @@ def check_debug_mode():
 def establish_tree():
     """Creates the FiEncrypt directory, with AGPLv3 license being downloaded and a config file with default settings created"""
     import urllib.request
-    from stat import S_IREAD, S_IRGRP, S_IROTH
     display_license()
     with open(f"./config.txt", "w+") as config_file:
         default_config = ["# FiEncrypt", "[config.txt]", "debug_mode = False",
@@ -1006,7 +998,7 @@ def create_notification(ip, name):
     if pass_os() == "win32":
         src = f"./anarchy2.ico"
     elif pass_os() == "linux":
-        src = f"./anarchy.png"
+        src = f". /anarchy.png"
     with open(f"./inbox.txt", "r+") as mailbox:
         letters = mailbox.readlines()
     if int(len(letters)) / 2 == 0:
@@ -4939,9 +4931,14 @@ def login(display_initiate, user_account_name, error_colour, default_colour, pri
         elif not access:
             current_user = username_input
             username_input, password_input = None, None
-            for _ in range(2):
-                sys.stdout.write("\033[F")
-                sys.stdout.write("\033[K")
+            if int(attempts) < 3:
+                for _ in range(3):
+                    sys.stdout.write("\033[F")
+                    sys.stdout.write("\033[K")
+            else:
+                for _ in range(2):
+                    sys.stdout.write("\033[F")
+                    sys.stdout.write("\033[K")
             animated_print(
                 f"Incorrect Login! {attempts} attempts left! Try again!")
             log(f"Login attempt Success? False Attempts left: {str(attempts)}",
