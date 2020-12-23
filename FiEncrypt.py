@@ -1859,7 +1859,11 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 sc.send(str("\\exit").encode())
             except:
                 pass
-            sc.close()
+            finally:
+                try:
+                    sc.close()
+                except:
+                    pass
             menu(user, display_initiate, print_logs, default_colour,
                  private_mode, error_colour, print_speed=0)
         while message_text.strip() == "":
@@ -1957,6 +1961,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
         passs2 = 0
         passs = 0
         output_phrase = ''
+        if private_mode:
+            current_user = "Anonymous"
+        else:
+            current_user = get_current_user()
         encrypted_current_user = ''
         for i, k in enumerate(message_text):
             if i < len(message_text) / 2 and len(str(code3)) >= 4:
@@ -2005,7 +2013,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
         for l in decrypted_current_user:
             encrypted_current_user += chr(l)
         if private_mode:
-            encrypted_current_user = ""
+            current_user = get_current_user()
         animated_print(f"Encrypting...")
         temp_message_text = textwrap.fill(message_text, width=50)
         # Used to print unencrypted message, but presented too many issues with printing flow
@@ -2149,8 +2157,8 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         animated_print(
                             f"{error_colour}WARNING: Unable to reach the host! Try a different address!")
                         Colours(default_colour)
-                        ip, target_mac, target_name = get_recipient_ip(user, display_initiate, print_logs,
-                                                                       default_colour, private_mode, error_colour, None, message=scrambled_output_phrase)
+                        ip, target_mac, target_name, empty_sc = get_recipient_ip(user, display_initiate, print_logs,
+                                                                                 default_colour, private_mode, error_colour, None, message=scrambled_output_phrase)
                         if ip == None or ip.strip() == "":
                             menu(user, None, print_logs, default_colour,
                                  private_mode, error_colour, print_speed=0)
@@ -2280,8 +2288,8 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     except UnboundLocalError:
                         ip = None
                     if ip == None or ip.strip() == "":
-                        ip, target_mac, target_name = get_recipient_ip(user, display_initiate, print_logs,
-                                                                       default_colour, private_mode, error_colour, None, message=scrambled_output_phrase)
+                        ip, target_mac, target_name, empty_sc = get_recipient_ip(user, display_initiate, print_logs,
+                                                                                 default_colour, private_mode, error_colour, None, message=scrambled_output_phrase)
                     else:
                         contact_ip = Contacts(user, get_current_user().lower().strip(
                         ), print_logs, default_colour, error_colour, private_mode)
@@ -2381,8 +2389,8 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             f"{error_colour}WARNING: Unable to reach the host! Try a different address!")
                     Colours(default_colour)
                     if ip == None or ip.strip() == "":
-                        ip, target_mac, target_name = get_recipient_ip(user, display_initiate, print_logs,
-                                                                       default_colour, private_mode, error_colour, None, message=scrambled_output_phrase)
+                        ip, target_mac, target_name, empty_sc = get_recipient_ip(user, display_initiate, print_logs,
+                                                                                 default_colour, private_mode, error_colour, None, message=scrambled_output_phrase)
                     else:
                         try:
                             contact_ip = Contacts(user, get_current_user().lower().strip(
@@ -2468,7 +2476,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             content.close()
         elif mailbox:
             if sys.platform.startswith("linux"):
-                ip = gnu_ip_resolve(print_logs, private_mode)
+                your_ip = gnu_ip_resolve(print_logs, private_mode)
                 if your_ip == "":
                     your_ip = privacy_input(
                         "Enter your IP in dotted decimal format", private_mode)
@@ -2494,7 +2502,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             try:
                 link.send(packet.encode())
             except:
-                error_link(packet.encode())
+                error_link.send(packet.encode())
         else:
             sc.send(packet.encode())
         try:
@@ -3985,6 +3993,20 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             print(f"{'-'*(i*2)}> {i*20}%")
             time.sleep(0.5)
     info = info.decode()
+    if to_boolean(info):
+        for _ in range(2):
+            sys.stdout.write("\033[F")
+            sys.stdout.write("\033[K")
+        animated_print("Message left!")
+        try:
+            sc.close()
+        finally:
+            try:
+                link.close()
+            except:
+                pass
+        menu(user, None, print_logs, default_colour,
+             private_mode, error_colour, print_speed=0)
     message = info.split(" |||| ")
     if "\\user_confirm" in message[0]:
         message[0] = message[0].split("=")
@@ -4220,8 +4242,8 @@ def send_conversation_invite(user, current_user, default_colour, private_mode, e
     elif sys.platform.startswith("win32"):
         ip = socket.gethostbyname(socket.gethostname())
     try:
-        dest_ip, target_mac, target_name = get_recipient_ip(user, display_initiate, print_logs,
-                                                            default_colour, private_mode, error_colour, None, is_invite=True)
+        dest_ip, target_mac, target_name, empty_sc = get_recipient_ip(user, display_initiate, print_logs,
+                                                                      default_colour, private_mode, error_colour, None, is_invite=True)
         dest_ip = dest_ip.strip()
     except KeyboardInterrupt:
         print("")
@@ -4268,10 +4290,10 @@ def send_conversation_invite(user, current_user, default_colour, private_mode, e
                  private_mode, error_colour, print_speed=0)
     log(f"Conversation invite sent to {dest_ip}",
         "networkManager", current_user, print_logs)
-    if target_name != None or target_name.strip() != "":
-        content = f"Request:True Source_IP:{ip} Name:{current_user} Target:{target_name}"
+    if target_name != None:
+        content = f"Request:True | Source_IP:{ip} | Name:{current_user} |||| Target:{target_name}"
     else:
-        content = f"Request:True Source_IP:{ip} Name:{current_user}"
+        content = f"Request:True | Source_IP:{ip} | Name:{current_user}"
     packet = content.encode()
     link.send(packet)
     try:
@@ -4365,9 +4387,9 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_colour, d
                 if "y" in reply.lower():
                     code, prefix, timestamp = showcode(capitalize_user(get_current_user()), 1, private_mode,
                                                        print_logs, error_colour, default_colour)
-                    ip, target_mac, target_name = get_recipient_ip(
+                    ip, target_mac, target_name, temp_sc = get_recipient_ip(
                         user, display_initiate, print_logs, default_colour, private_mode, error_colour, None, confirm_ip=f"{message[1][1][0]}@{message[1][1][1]}")
-                    newmessage(code, user, message[1][1][1], None, prefix, None,
+                    newmessage(code, user, message[1][1][1], temp_sc, prefix, None,
                                False, error_colour, default_colour, private_mode, print_logs, False, display_initiate, False)
                 else:
                     check_mailbox(user, 2, index, mailing, timestamp, error_colour,

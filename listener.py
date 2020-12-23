@@ -237,11 +237,10 @@ def main():
         print(f"Link bound to {ip}:19507")
         print(f"Messages not recieved by FiEncrypt will be saved to mailbox!")
         print(f"You can view mailbox through function 9 on FiEncrypt!")
-        max_letters = 0
+        max_letters, request = 0, False
         try:
             link = socket.socket()
             link.bind((ip, 19507))
-            link.listen(10)
         except KeyboardInterrupt:
             print(F"\nFiEncrypt Listener shutting down! You will no longer have messages saved to your mailbox!")
             exit()
@@ -253,12 +252,14 @@ def main():
             enter_home_directory()
             os.chdir(f"./{hash_current_user(username.lower())}/inbox")
             try:
-                link.listen(10)
+                link.listen(100)
             except OSError:
                 pass
             try:
                 sc, address = link.accept()
+                print("connected")
                 info = sc.recv(1024)
+                print(info)
             except OSError:
                 pass
             except KeyboardInterrupt:
@@ -271,108 +272,120 @@ def main():
                 main()
             try:
                 message = info.decode()
-                try:
-                    message = message.split(" | ")
-                    message[2] = message[2].split(" |||| ")
-                    message[0] = message[0].split(":")
-                    message[1] = message[1].split(":")
-                    message[2][0] = message[2][0].split(":")
-                except:
-                    message = info.decode()
-                    message = message.split(" |||| ")
-                if "request" in info.decode().lower():
-                    message = info.decode()
-                    message = message.split(" ")
-                    ip = message[1].split(":")
-                    ip = ip[1]
-                    name = message[2].split(":")
-                    name = name[1]
-                    if "True" in message[0] and "target" not in message[len(message)-1].lower():
-                        notification.notify(
-                            title='Conversation Request!',
-                            message=f'{name.capitalize()} has invited you to a conversation! \nUse IP {ip}!',
-                            app_name='FiEncrypt',
-                            app_icon=src,
-                            timeout=50
-                        )
-                    elif "target" in message[len(message)-1].lower():
-                        recipient_name = message[len(message)-1].split(":")
-                        recipient_name = recipient_name[1]
-                        notification.notify(
-                            title='Conversation Request!',
-                            message=f'{name.capitalize()} has invited {recipient_name} to a conversation! \nUse IP {ip}!',
-                            app_name='FiEncrypt',
-                            app_icon=src,
-                            timeout=50
-                        )
-                    else:
-                        pass
-                elif "\\\\user_confirm" in message[0] or "\\user_confirm" in message[0]:
-                    message[0] = message[0].split("=")
-                    expected_user = message[0][1]
-                    message[0] = message[0][0]
-                    reply_ip = message[1]
-                    if expected_user.strip().lower() == get_current_user().strip().lower():
+                message = message.split(" | ")
+                print(message)
+                if len(message) == 3:
+                    if "request" in message[0].lower():
+                        if "True" in message[0] and "target" not in message[-1].lower():
+                            request = True
+                            ip = message[1].split(":")
+                            ip = ip[1].strip()
+                            name = message[2].split(":")
+                            name = name[1].strip()
+                            if name == "" or name == "Anonymous":
+                                name = "Anonymous"
+                            notification.notify(
+                                title='Conversation Request!',
+                                message=f'{name} has invited you to a conversation! \nUse IP {ip}!',
+                                app_name='FiEncrypt',
+                                app_icon=src,
+                                timeout=50
+                            )
+                        elif "target" in message[-1].lower() and "True" in message[0]:
+                            request = True
+                            ip = message[1].split(":")
+                            ip = ip[1].strip()
+                            message[2] = message[2].split(" |||| ")
+                            name = message[2][0].split(":")
+                            name = name[1].strip()
+                            recipient_name = message[2][1].split(":")
+                            recipient_name = recipient_name[1].strip()
+                            notification.notify(
+                                title='Conversation Request!',
+                                message=f'{name.capitalize()} has invited {recipient_name} to a conversation! \nUse IP {ip}!',
+                                app_name='FiEncrypt',
+                                app_icon=src,
+                                timeout=50
+                            )
+                        elif "False" in message[0]:
+                            request = False
+                            ip = message[1].split(":")
+                            ip = ip[1].strip()
+                            message[2] = message[2].split(" |||| ")
+                            name = message[2][0].split(":")
+                            name = name[1].strip()
+                            if name == "":
+                                name = "Anonymous"
+                            code = message[2][2].strip()
+                            message = message[2][1].strip()
+                            notification.notify(
+                                title='New Message!',
+                                message=f'{name.capitalize()} has sent you a message! Check your FiEncrypt inbox!',
+                                app_name='FiEncrypt',
+                                app_icon=src,
+                                timeout=50
+                            )
+                elif len(message) == 1:
+                    message = message[0].split(" |||| ")
+                    target_ip = message[1].strip()
+                    target_user = message[0].split("=")
+                    target_user = target_user[1]
+                    if target_user.strip().lower() == get_current_user().strip().lower():
                         sc.send(str(True).encode())
-                        # verify_link.shutdown(socket.SHUT_RDWR)
-                        # try:
-
                         info = sc.recv(1024)
                         message = info.decode()
+                        print(message)
                         if message.strip() != "\\exit":
+                            request = False
                             message = message.split(" | ")
-                            message[2] = message[2].split(" |||| ")
-                            message[0] = message[0].split(":")
-                            message[1] = message[1].split(":")
-                            message[2][0] = message[2][0].split(":")
+                            ip = target_ip
+                            message[0] = message[0].split(" |||| ")
+                            code = message[0][1].strip()
+                            name = message[1].strip()
+                            if name == "":
+                                name = "Anonymous"
+                            message = message[0][0].strip()
+                            notification.notify(
+                                title='New Message!',
+                                message=f'{name.capitalize()} has sent you a message! Check your FiEncrypt inbox!',
+                                app_name='FiEncrypt',
+                                app_icon=src,
+                                timeout=50
+                            )
+                            sc.send(str(True).encode())
                         else:
                             sc.close()
-                            try:
-                                link.bind((ip, 19507))
-                            except:
-                                link = socket.socket()
-                                link.bind((ip, 19507))
-                            link.listen(10)
-                            sc, address = link.accept()
-                            message = sc.recv(1024)
                     else:
                         sc.send(str(False).encode())
                         sc.close()
-                    print(message)
                 else:
                     print(message)
-                with open(f"./messages.txt", "r+") as mailbox:
-                    letters = mailbox.readlines()
-                    private_mode = get_privacy_mode()
-                    for i, line in enumerate(letters):
-                        try:
-                            line = int(line)
-                            max_letters = len(letters)
-                        except ValueError:
-                            pass
-                    if str(message[2][1]).startswith("b'") or str(message[2][1]).startswith("b\"") or str(message[2][1]).startswith("b\\"):
-                        message[2][1] = message[2][1][2:int(len(message[2][1]))]
-                        message[2][1] = message[2][1][0:int(len(message[2][1])-1)]
-                    elif str(message[2][1]).startswith("b\\'"):
-                        message[2][1] = message[2][1][3:int(len(message[2][1]))]
-                        message[2][1] = message[2][1][0:int(len(message[2][1])-2)]
-                    if str(message[2][2]).startswith("b'") or str(message[2][2]).startswith("b\""):
-                        message[2][2] = message[2][2][2:int(len(message[2][2]))]
-                        message[2][2] = message[2][2][0:int(len(message[2][2])-1)]
-                    if private_mode or message[2][0][1].strip() == "":
-                        message[2][0][1] = "Anonymous"
-                    mailbox.write(
-                        f"{max_letters}\n{message[2][1]} - {message[2][2]} From: {message[2][0][1]}@{message[1][1]}\n")
-                    hide_tree()
-                notification.notify(
-                    title='New Message!',
-                    message=f'{message[2][0][1].capitalize()} has sent you a message! Check your FiEncrypt inbox!',
-                    app_name='FiEncrypt',
-                    app_icon=src,
-                    timeout=50
-                )
+                if not request:
+                    with open(f"./messages.txt", "r+") as mailbox:
+                        letters = mailbox.readlines()
+                        private_mode = get_privacy_mode()
+                        for i, line in enumerate(letters):
+                            try:
+                                line = int(line)
+                                max_letters = len(letters)
+                            except ValueError:
+                                pass
+                        if str(message).startswith("b'") or str(message).startswith("b\"") or str(message).startswith("b\\"):
+                            message = message[2:int(len(message))]
+                            message = message[0:int(len(message)-1)]
+                        elif str(message).startswith("b\\'"):
+                            message = message[3:int(len(message))]
+                            message = message[0:int(len(message)-2)]
+                        if str(message).startswith("b'") or str(message).startswith("b\""):
+                            message = message[2:int(len(message))]
+                            message = message[0:int(len(message)-1)]
+                        if private_mode:
+                            name = "Anonymous"
+                        mailbox.write(
+                            f"{max_letters}\n{message} - {code} From: {name}@{ip}\n")
+                        hide_tree()
             except:
-                pass
+                raise
         sc.close()
         try:
             link.shutdown(socket.SHUT_RDWR)
