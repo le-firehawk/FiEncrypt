@@ -313,37 +313,30 @@ def main():
                     message[0] = message[0][0]
                     reply_ip = message[1]
                     if expected_user.strip().lower() == get_current_user().strip().lower():
-                        verify_link = socket.socket()
-                        time.sleep(4)
-                        verify_link.connect((reply_ip.strip(), 15754))
-                        verify_link.send(str(True).encode())
+                        sc.send(str(True).encode())
                         # verify_link.shutdown(socket.SHUT_RDWR)
-                        verify_link.close()
                         # try:
-                        #link.bind((ip, 19507))
-                        # except:
-                        #     link = socket.socket()
-                        #     link.bind((ip, 19507))
-                        #     print("bound!")
-                        link.listen(10)
-                        try:
-                            sc, address = link.accept()
-                            info = sc.recv(1024)
-                        except:
-                            pass
+
+                        info = sc.recv(1024)
                         message = info.decode()
-                        message = message.split(" | ")
-                        message[2] = message[2].split(" |||| ")
-                        message[0] = message[0].split(":")
-                        message[1] = message[1].split(":")
-                        message[2][0] = message[2][0].split(":")
-                        sc.close()
+                        if message.strip() != "\\exit":
+                            message = message.split(" | ")
+                            message[2] = message[2].split(" |||| ")
+                            message[0] = message[0].split(":")
+                            message[1] = message[1].split(":")
+                            message[2][0] = message[2][0].split(":")
+                        else:
+                            sc.close()
+                            try:
+                                link.bind((ip, 19507))
+                            except:
+                                link = socket.socket()
+                                link.bind((ip, 19507))
+                            link.listen(10)
+                            sc, address = link.accept()
+                            message = sc.recv(1024)
                     else:
-                        verify_link = socket.socket()
-                        verify_link.connect((reply_ip.strip(), 15754))
-                        verify_link.send(str(False).encode())
-                        verify_link.shutdown(socket.SHUT_RDWR)
-                        verify_link.close()
+                        sc.send(str(False).encode())
                         sc.close()
                     print(message)
                 else:
@@ -382,8 +375,8 @@ def main():
                 pass
         sc.close()
         try:
-            verify_link.shutdown(socket.SHUT_RDWR)
-            verify_link.close()
+            link.shutdown(socket.SHUT_RDWR)
+            link.close()
         except OSError:
             pass
 
