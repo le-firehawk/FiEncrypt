@@ -257,9 +257,7 @@ def main():
                 pass
             try:
                 sc, address = link.accept()
-                print("connected")
                 info = sc.recv(1024)
-                print(info)
             except OSError:
                 pass
             except KeyboardInterrupt:
@@ -273,7 +271,6 @@ def main():
             try:
                 message = info.decode()
                 message = message.split(" | ")
-                print(message)
                 if len(message) == 3:
                     if "request" in message[0].lower():
                         if "True" in message[0] and "target" not in message[-1].lower():
@@ -300,13 +297,16 @@ def main():
                             name = name[1].strip()
                             recipient_name = message[2][1].split(":")
                             recipient_name = recipient_name[1].strip()
-                            notification.notify(
-                                title='Conversation Request!',
-                                message=f'{name.capitalize()} has invited {recipient_name} to a conversation! \nUse IP {ip}!',
-                                app_name='FiEncrypt',
-                                app_icon=src,
-                                timeout=50
-                            )
+                            try:
+                                notification.notify(
+                                    title='Conversation Request!',
+                                    message=f'{name.capitalize()} has invited {recipient_name} to a conversation! \nUse IP {ip}!',
+                                    app_name='FiEncrypt',
+                                    app_icon=src,
+                                    timeout=50
+                                )
+                            except:
+                                pass
                         elif "False" in message[0]:
                             request = False
                             ip = message[1].split(":")
@@ -318,13 +318,16 @@ def main():
                                 name = "Anonymous"
                             code = message[2][2].strip()
                             message = message[2][1].strip()
-                            notification.notify(
-                                title='New Message!',
-                                message=f'{name.capitalize()} has sent you a message! Check your FiEncrypt inbox!',
-                                app_name='FiEncrypt',
-                                app_icon=src,
-                                timeout=50
-                            )
+                            try:
+                                notification.notify(
+                                    title='New Message!',
+                                    message=f'{name.capitalize()} has sent you a message! Check your FiEncrypt inbox!',
+                                    app_name='FiEncrypt',
+                                    app_icon=src,
+                                    timeout=50
+                                )
+                            except:
+                                pass
                 elif len(message) == 1:
                     message = message[0].split(" |||| ")
                     target_ip = message[1].strip()
@@ -334,7 +337,6 @@ def main():
                         sc.send(str(True).encode())
                         info = sc.recv(1024)
                         message = info.decode()
-                        print(message)
                         if message.strip() != "\\exit":
                             request = False
                             message = message.split(" | ")
@@ -345,13 +347,16 @@ def main():
                             if name == "":
                                 name = "Anonymous"
                             message = message[0][0].strip()
-                            notification.notify(
-                                title='New Message!',
-                                message=f'{name.capitalize()} has sent you a message! Check your FiEncrypt inbox!',
-                                app_name='FiEncrypt',
-                                app_icon=src,
-                                timeout=50
-                            )
+                            try:
+                                notification.notify(
+                                    title='New Message!',
+                                    message=f'{name.capitalize()} has sent you a message! Check your FiEncrypt inbox!',
+                                    app_name='FiEncrypt',
+                                    app_icon=src,
+                                    timeout=50
+                                )
+                            except:
+                                pass
                             sc.send(str(True).encode())
                         else:
                             sc.close()
