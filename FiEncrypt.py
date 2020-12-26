@@ -6458,92 +6458,95 @@ def login(display_initiate, user_account_name, error_color, default_color, print
         "attempts", 3)
     if saved_attempts <= 3:
         attempts = saved_attempts
-    if graphic_mode:
-        while username_input == None or username_input.strip() == "" or password_input == None or password_input.strip() == "":
-            layout = [[gui.Text("Welcome to FiEncrypt! Enter your credientials below!")], [gui.Text("Username"), gui.InputText(
-                key="username")], [gui.Text("Password"), gui.InputText(key="password", password_char="*")], [gui.Button("Login"), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-            window = gui.Window(title="FiEncrypt", layout=layout,
-                                margins=(100, 50), font="Courier 20")
-            event, values = window.read()
-            if event == "Login":
-                username_input = values.get("username", None)
-                password_input = values.get("password", None)
-                if username_input == None or username_input.strip() == "":
-                    gui.Popup("Username cannot be blank!", title="Warning",
-                              text_color="red", font="Courier 15")
-                elif password_input == None or password_input.strip() == "":
-                    gui.Popup("Password cannot be blank!", title="Warning",
-                              text_color="red", font="Courier 15")
-            elif event == "Cancel":
+    while not access:
+        if graphic_mode:
+            while username_input == None or username_input.strip() == "" or password_input == None or password_input.strip() == "":
+                layout = [[gui.Text("Welcome to FiEncrypt! Enter your credientials below!")], [gui.Text("Username"), gui.InputText(
+                    key="username")], [gui.Text("Password"), gui.InputText(key="password", password_char="*")], [gui.Button("Login"), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                window = gui.Window(title="FiEncrypt", layout=layout,
+                                    margins=(100, 50), font="Courier 20")
+                event, values = window.read()
+                if event == "Login":
+                    username_input = values.get("username", None)
+                    password_input = values.get("password", None)
+                    if username_input == None or username_input.strip() == "":
+                        gui.Popup("Username cannot be blank!", title="Warning",
+                                  text_color="red", font="Courier 15")
+                    elif password_input == None or password_input.strip() == "":
+                        gui.Popup("Password cannot be blank!", title="Warning",
+                                  text_color="red", font="Courier 15")
+                elif event == "Cancel":
+                    window.close()
+                    maybe_quit()
                 window.close()
-                maybe_quit()
-            window.close()
-    else:
-        animated_print(
-            f"Welcome to FiEncrypt! Enter your credientials below!")
-        while not access:
+        else:
+            animated_print(
+                f"Welcome to FiEncrypt! Enter your credientials below!")
             while username_input == None or username_input.strip() == "":
                 username_input = privacy_input(f"Username", is_private())
                 if username_input == None or username_input.strip() == "":
                     animated_print(
                         f"{error_color}WARNING: Username cannot be blank!")
                     Colors(default_color)
+                else:
+                    break
             while password_input == None or password_input.strip() == "":
                 password_input = privacy_input(f"Password", 1)
                 if password_input == None or password_input.strip() == "":
                     animated_print(
                         f"{error_color}WARNING: Password cannot be blank!")
                     Colors(default_color)
-    access = validate_login(username_input, password_input)
-    if attempts == 0:
-        if graphic_mode:
-            gui.Popup("0 Attempts left! Game over brother!",
-                      title="Warning", text_color="red", font="Courier 15")
-        else:
-            animated_print(f"0 Attempts left! Game over brother!")
-        self_terminate(True)
-    elif access:
-        if graphic_mode:
-            if private_mode:
-                gui.Popup(f"Access granted! Welcome @Anonymous!",
-                          title="FiEncrypt - Access Granted!", font="Courier 15")
+                else:
+                    break
+        access = validate_login(username_input, password_input)
+        if attempts == 0:
+            if graphic_mode:
+                gui.Popup("0 Attempts left! Game over brother!",
+                          title="Warning", text_color="red", font="Courier 15")
             else:
+                animated_print(f"0 Attempts left! Game over brother!")
+            self_terminate(True)
+        elif access:
+            if graphic_mode:
+                if private_mode:
+                    gui.Popup(f"Access granted! Welcome @Anonymous!",
+                              title="FiEncrypt - Access Granted!", font="Courier 15")
+                else:
+                    gui.Popup(
+                        f"Access granted! Welcome @{capitalize_user(username_input)}", title="FiEncrypt - Access Granted!", font="Courier 15")
+            else:
+                if private_mode:
+                    animated_print(f"Access granted! Welcome @Anonymous!")
+                else:
+                    animated_print(f"Access granted! Welcome @{capitalize_user(username_input)}")
+            current_user = get_current_user(new_user=username_input)
+            menu(pass_user(), display_initiate, print_logs,
+                 default_color, private_mode, error_color, auto_code=auto_code)
+            current_user = username_input
+            username_input, password_input = None, None
+            if int(attempts) < 3:
+                for _ in range(3):
+                    sys.stdout.write("\033[F")
+                    sys.stdout.write("\033[K")
+            else:
+                for _ in range(2):
+                    sys.stdout.write("\033[F")
+                    sys.stdout.write("\033[K")
+            if graphic_mode:
                 gui.Popup(
-                    f"Access granted! Welcome @{capitalize_user(username_input)}", title="FiEncrypt - Access Granted!", font="Courier 15")
-        else:
-            if private_mode:
-                animated_print(f"Access granted! Welcome @Anonymous!")
+                    f"Incorrect Login! {attempts} attempts left! Try again!", title="Warning", text_color="red", font="Courier 15")
+                try:
+                    window.close()
+                except:
+                    pass
+                login(display_initiate, user_account_name, error_color, default_color,
+                      print_logs, private_mode, auto_code, attempts=attempts-1)
             else:
-                animated_print(f"Access granted! Welcome @{capitalize_user(username_input)}")
-        current_user = get_current_user(new_user=username_input)
-        menu(pass_user(), display_initiate, print_logs,
-             default_color, private_mode, error_color, auto_code=auto_code)
-    elif not access:
-        current_user = username_input
-        username_input, password_input = None, None
-        if int(attempts) < 3:
-            for _ in range(3):
-                sys.stdout.write("\033[F")
-                sys.stdout.write("\033[K")
-        else:
-            for _ in range(2):
-                sys.stdout.write("\033[F")
-                sys.stdout.write("\033[K")
-        if graphic_mode:
-            gui.Popup(
-                f"Incorrect Login! {attempts} attempts left! Try again!", title="Warning", text_color="red", font="Courier 15")
-            try:
-                window.close()
-            except:
-                pass
-            login(display_initiate, user_account_name, error_color, default_color,
-                  print_logs, private_mode, auto_code, attempts=attempts-1)
-        else:
-            animated_print(
-                f"Incorrect Login! {attempts} attempts left! Try again!")
-        log(f"Login attempt Success? False Attempts left: {str(attempts)}",
-            "loginManager", current_user, print_logs)
-        attempts -= 1
+                animated_print(
+                    f"Incorrect Login! {attempts} attempts left! Try again!")
+            log(f"Login attempt Success? False Attempts left: {str(attempts)}",
+                "loginManager", current_user, print_logs)
+            attempts -= 1
 
 
 def initiate():
