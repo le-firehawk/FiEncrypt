@@ -1,4 +1,4 @@
-from scapy import *
+from scapy.all import *
 import contextlib
 # FiEncrypt, property of le_firehawk is pure Python, peer-to-peer communication software intended for personal use only.
 # Copyright (C) 2020 le_firehawk
