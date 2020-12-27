@@ -2108,8 +2108,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     temp_display_name = get_foreign_user()
                     if temp_display_name == None:
                         temp_display_name = recipient_ip
+                    enter_home_directory()
+                    os.chdir("./cache")
                     layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Text(
-                        prev_message_temp, font="Courier 20")], [gui.Text("Media")], [gui.Image(filename=image_name) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        prev_message_temp, font="Courier 20")], [gui.Text("Media")], [gui.Image(filename=f"./{image_name}") for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title="FiEncrypt - Conversation",
                                         layout=layout, margins=(100, 50))
                     event, values = window.read()
@@ -2126,8 +2128,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 if graphic_mode:
                     gui.Popup("No message was entered!", title="Warning",
                               text_color="red", font="Courier 15")
+                    enter_home_directory()
+                    os.chdir("./cache")
                     layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Text(
-                        prev_message_temp, font="Courier 20")], [gui.Text("Media")], [gui.Image(filename=image_name) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        prev_message_temp, font="Courier 20")], [gui.Text("Media")], [gui.Image(filename=f"./{image_name}") for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title="FiEncrypt - Conversation",
                                         layout=layout, margins=(100, 50))
                     event, values = window.read()
@@ -2194,8 +2198,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             images.append(messages[4])
                     except:
                         pass
+                enter_home_directory()
+                os.chdir("./cache")
                 layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [
-                    gui.Text(prev_message_temp)], [gui.Text("Media")], [gui.Image(filename=image_name) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    gui.Text(prev_message_temp)], [gui.Text("Media")], [gui.Image(filename=f"./{image_name}") for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title="FiEncrypt - Conversation",
                                     layout=layout, margins=(100, 50))
 
@@ -2219,8 +2225,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     temp_display_name = get_foreign_user()
                     if temp_display_name == None:
                         temp_display_name = recipient_ip
+                    enter_home_directory()
+                    os.chdir("./cache")
                     layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Text(
-                        prev_message_temp, font="Courier 20")], [gui.Text("Media")], [gui.Image(filename=image_name) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        prev_message_temp, font="Courier 20")], [gui.Text("Media")], [gui.Image(filename=f"./{image_name}", size=(10, 5)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title="FiEncrypt - Conversation",
                                         layout=layout, margins=(100, 50))
                     event, values = window.read()
@@ -2242,8 +2250,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 if graphic_mode:
                     gui.Popup("No message was entered!", title="Warning",
                               text_color="red", font="Courier 15")
+                    enter_home_directory()
+                    os.chdir("./cache")
                     layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Text(
-                        prev_message_temp, font="Courier 20")], [gui.Text("Media")], [gui.Image(filename=image_name) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        prev_message_temp, font="Courier 20")], [gui.Text("Media")], [gui.Image(filename=f"./{image_name}") for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title="FiEncrypt - Conversation",
                                         layout=layout, margins=(100, 50))
                     event, values = window.read()
@@ -2285,8 +2295,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 temp_display_name = get_foreign_user()
                 if temp_display_name == None:
                     temp_display_name = recipient_ip
+                enter_home_directory()
+                os.chdir("./cache")
                 layout = [[gui.Text(f"New Conversation", font="Courier 30", text_color="red")], [gui.Text(
-                    prev_message_temp, font="Courier 20")], [gui.Text("Media")], [gui.Image(filename=image_name) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    prev_message_temp, font="Courier 20")], [gui.Text("Media")], [gui.Image(filename=f"./{image_name}") for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title="FiEncrypt - New Conversation",
                                     layout=layout, margins=(100, 50))
                 event, values = window.read()
@@ -2313,8 +2325,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             if graphic_mode:
                 gui.Popup("No message was entered!", title="Warning",
                           text_color="red", font="Courier 15")
+                enter_home_directory()
+                os.chdir("./cache")
                 layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Text(
-                    prev_message_temp, font="Courier 20")], [gui.Text("Media")], [gui.Image(filename=image_name) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    prev_message_temp, font="Courier 20")], [gui.Text("Media")], [gui.Image(filename=f"./{image_name}") for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title="FiEncrypt - Conversation",
                                     layout=layout, margins=(100, 50))
                 event, values = window.read()
@@ -2377,8 +2391,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         images.append(messages[4])
                 except:
                     pass
+            enter_home_directory()
+            os.chdir("./cache")
             layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [
-                gui.Text(prev_message_temp)], [gui.Text("Media")], [gui.Image(filename=image_name) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                gui.Text(prev_message_temp)], [gui.Text("Media")], [gui.Image(filename=f"./{image_name}") for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title="FiEncrypt - Conversation",
                                 layout=layout, margins=(100, 50))
         elif graphic_mode:
@@ -2425,14 +2441,17 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         images.append(messages[4])
                 except:
                     pass
+            enter_home_directory()
+            os.chdir("./cache")
             layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [
-                gui.Text(prev_message_temp)], [gui.Text("Media")], [gui.Image(filename=image_name) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                gui.Text(prev_message_temp)], [gui.Text("Media")], [gui.Image(filename=f"./{image_name}") for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title="FiEncrypt - New Conversation",
                                 layout=layout, margins=(100, 50))
     try:
         window.close()
     except:
         pass
+    enter_home_directory()
     if message_text.strip() == "\\exit" and recipient_ip != "":
         skip = True
         mailbox = False
@@ -3628,6 +3647,13 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                             Colors(default_color)
                         valid_file = False
                 if valid_file:
+                    if pass_os() == "win32":
+                        copy = "copy"
+                    else:
+                        copy = "cp"
+                    temp_path = os.getcwd()
+                    enter_home_directory()
+                    os.system(f"{copy} {filename} ./cache/{os.path.basename(filename)}")
                     decrypted_header, passs, encrypted_header, header = [
                     ], 0, '', f"{filename}<SEPERATOR>{filesize}"
                     for i, k in enumerate(header):
@@ -4621,12 +4647,16 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
                         images.append(messages[4])
                 except:
                     pass
+            enter_home_directory()
+            os.chdir("./cache")
             layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [
-                gui.Text(prev_message_temp)], [gui.Text("Media")], [gui.Image(filename=image_name) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                gui.Text(prev_message_temp)], [gui.Text("Media")], [gui.Image(filename=f"./{image_name}") for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title="FiEncrypt - Conversation",
                                 layout=layout, margins=(100, 50))
         else:
             current_user = get_current_user().strip().lower()
+            enter_home_directory()
+            os.chdir("./cache")
             layout = [[gui.Text(f"New message!", font="Courier 30", text_color="red")], [gui.Text(f"From: {temp_display_name}")], [
                 gui.Text(temp_timestamp)], [gui.Text(temp_output_phrase)], [gui.Button("Reply"), gui.Button("Delete")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title="FiEncrypt - Mailbox",
@@ -4856,8 +4886,10 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                         images.append(messages[4])
                 except:
                     pass
+            enter_home_directory()
+            os.chdir("./cache")
             layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [
-                gui.Text(prev_message_temp)], [gui.Text("Media")], [gui.Image(filename=image_name) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                gui.Text(prev_message_temp)], [gui.Text("Media")], [gui.Image(filename=f"./{image_name}") for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title="FiEncrypt - Conversation",
                                 layout=layout, margins=(100, 50), finalize=True)
         temp_popup = gui.Window(title="FiEncrypt - Inbound Server",
