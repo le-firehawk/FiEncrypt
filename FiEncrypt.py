@@ -1013,35 +1013,53 @@ def get_poked(foreign_user, **poke_num):
                       title="FiEncrypt - Poke", font="Courier 20")
     else:
         for poke in range(pokes):
-            for i in range(10):
-                print(f"{' '  * (10 - i)}{line1}")
-                print(f"{' ' * (10 - i)}{line2}")
-                print(f"{' ' * (10 - i)}{line3}")
-                print(f"{' ' * (10 - i)}{line4}")
-                if 10 - i == 1:
-                    print(f"\\{line5}")
-                    print(f"/{line6}")
-                else:
-                    print(f"{' ' * (10 - i)}{line5}")
-                    print(f"{' ' * (10 - i)}{line6}")
-                print(f"{' ' * (10 - i)}{line7}")
-                print(f"{' ' * (10 - i)}{line8}")
-                print(f"{' ' * (10 - i)}{line9}")
-                print(f"{' ' * (10 - i)}{line10}")
-                print(f"{' ' * (10 - i)}{line11}")
-                print(f"{' ' * (10 - i)}{line12}")
-                print(f"{' ' * (10 - i)}{line13}")
-                print(f"{' ' * (10 - i)}{line14}")
-                print(f"{' ' * (10 - i)}{line15}")
-                print(f"{' ' * (10 - i)}{line16}")
-                time.sleep(0.05)
-                if 10 - i <= 1 and poke == (pokes - 1):
-                    pass
-                else:
-                    for i in range(16):
-                        sys.stdout.write("\033[F")
-                        sys.stdout.write("\033[K")
-            time.sleep(0.5)
+            if pass_os() != "win32":
+                for i in range(10):
+                    print(f"{' '  * (10 - i)}{line1}")
+                    print(f"{' ' * (10 - i)}{line2}")
+                    print(f"{' ' * (10 - i)}{line3}")
+                    print(f"{' ' * (10 - i)}{line4}")
+                    if 10 - i == 1:
+                        print(f"\\{line5}")
+                        print(f"/{line6}")
+                    else:
+                        print(f"{' ' * (10 - i)}{line5}")
+                        print(f"{' ' * (10 - i)}{line6}")
+                    print(f"{' ' * (10 - i)}{line7}")
+                    print(f"{' ' * (10 - i)}{line8}")
+                    print(f"{' ' * (10 - i)}{line9}")
+                    print(f"{' ' * (10 - i)}{line10}")
+                    print(f"{' ' * (10 - i)}{line11}")
+                    print(f"{' ' * (10 - i)}{line12}")
+                    print(f"{' ' * (10 - i)}{line13}")
+                    print(f"{' ' * (10 - i)}{line14}")
+                    print(f"{' ' * (10 - i)}{line15}")
+                    print(f"{' ' * (10 - i)}{line16}")
+                    time.sleep(0.05)
+                    if 10 - i <= 1 and poke == (pokes - 1):
+                        pass
+                    else:
+                        for i in range(16):
+                            sys.stdout.write("\033[F")
+                            sys.stdout.write("\033[K")
+                time.sleep(0.5)
+            else:
+                print(f"{line1}")
+                print(f"{line2}")
+                print(f"{line3}")
+                print(f"{line4}")
+                print(f"{line5}")
+                print(f"{line6}")
+                print(f"{line7}")
+                print(f"{line8}")
+                print(f"{line9}")
+                print(f"{line10}")
+                print(f"{line11}")
+                print(f"{line12}")
+                print(f"{line13}")
+                print(f"{line14}")
+                print(f"{line15}")
+                print(f"{line16}")
     if capitalize_user(get_current_user()).strip().lower() == foreign_user.strip().lower():
         if graphic_mode:
             gui.Popup("You have poked yourself... Don't you think that is a little weird?",
@@ -3871,19 +3889,38 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                 temp_popup = gui.Window(layout=[[gui.Text("Recieving file...")]],
                                         title="Alert", font="Courier 20", finalize=True)
                 with ignore_stdout():
-                    progress = tqdm.tqdm(range(int(filesize)),
-                                         f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
+                    try:
+                        progress = tqdm.tqdm(range(int(filesize)),
+                                             f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
+                    except OSError:
+                        fallback = True
+                    else:
+                        fallback = False
             enter_home_directory()
             if filename == "voice_message.wav":
                 filename = "foreign_voice_message.wav"
-            with open(f"./cache/{filename}", "wb") as f:
-                for _ in progress:
-                    bytes_read = file_recipient.recv(4096)
-                    if not bytes_read:
-                        break
-                    f.write(bytes_read)
-                    if not graphic_mode:
-                        progress.update(len(bytes_read))
+            with open(f"./cache/{filename}", "wb") as inbound_file:
+                try:
+                    if not fallback:
+                        print(progress)
+                        for _ in progress:
+                            bytes_read = file_recipient.recv(4096)
+                            if not bytes_read:
+                                break
+                            inbound_file.write(bytes_read)
+                            if not graphic_mode:
+                                progress.update(len(bytes_read))
+                    else:
+                        try:
+                            for _ in int(filesize / 1024):
+                                bytes_read = file_recipient.recv(4096)
+                                inbound_file.write(bytes_read)
+                        except:
+                            pass
+                except:
+                    for _ in int(filesize / 1024):
+                        bytes_read = file_recipient.recv(4096)
+                        inbound_file.write(bytes_read)
             if graphic_mode:
                 temp_popup.close()
             file_extension = filename.split(".")
@@ -5667,7 +5704,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
             conversation_mode = False
         if "graphic" in config_lines[8].lower():
             graphic_mode = config_lines[8].split(" = ")
-            graphic_mode = graphic_mode[1]
+            graphic_mode = to_boolean(graphic_mode[1].strip())
         else:
             graphic_mode = False
         if "private" in config_lines[9].lower():
