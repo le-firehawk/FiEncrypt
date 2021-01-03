@@ -609,7 +609,7 @@ def add_new_user():
         while hash_pass != hashlib.sha256(confirm_password).hexdigest():
             confirm_password = privacy_input("Enter password again", 1).encode("utf-8")
             if hash_pass != hashlib.sha256(confirm_password).hexdigest():
-                print(f"Passwords do not match!")
+                animated_print(f"Passwords do not match!")
     if valid_username:
         hash = username + password
         hash = hash.encode("utf-8")
@@ -706,10 +706,7 @@ def arp_scan(ip):
         # ?The / between Ether and ARP joins both in their relative state(s)
         request = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=ip)
         # ?Verbose set to 0 to prevent the .* output during ARP scan (does not work on windows!)
-        if pass_os() != "win32":
-            ans, unans = srp(request, timeout=.5, retry=0, verbose=0)
-        else:
-            return None
+        ans, unans = srp(request, timeout=.5, retry=0, verbose=0)
         result = []
         for sent, received in ans:
             # ?Using dictionaries allows the check in @mac_resolve() function to search by 'IP' or 'MAC'
@@ -717,6 +714,9 @@ def arp_scan(ip):
         return result
     except KeyboardInterrupt:
         log("ARP Scan aborted!", "networkManager", get_current_user(), None)
+        return None
+    except:
+        log("ARP Scan failed!", "networkManager", get_current_user(), None)
         return None
 
 
@@ -735,6 +735,10 @@ def mac_resolve(mac, print_logs):
         for i in range(254):
             result = arp_scan(
                 f"{IP_str[0]}.{IP_str[1]}.{i}.0/24")
+            if result == None:
+                if graphic_mode:
+                    gui.Popup(f"ARP Resolution unavailable on {pass_os()}!", title="Warning", font="Courier 20", text_color="red")
+                return None
             for mapping in result:
                 # ?Strips both results to avoid rampant fucking spaces from affecting the comparison query lol
                 if mac == None:
@@ -1112,8 +1116,8 @@ def you_are_loved(foreign_user, **hearts):
         heart_range = hearts + 1
     if graphic_mode:
         for heart in range(heart_range-1):
-            gui.Window(layout=[[gui.Text(f"{line1}\n{line2}\n{line3}\n{line4}\n{line5}\n{line6}\n{line7}\n{line8}")], [gui.Button("OK", bind_return_key=True)]],
-                       title="FiEncrypt - You Are Loved", font="Courier 20", text_color="purple", finalize=True)
+            gui.Window(layout=[[gui.Text(f"{line1}\n{line2}\n{line3}\n{line4}\n{line5}\n{line6}\n{line7}\n{line8}", text_color="purple")], [gui.Button("OK", bind_return_key=True)]],
+                       title="FiEncrypt - You Are Loved", font="Courier 20", finalize=True)
     else:
         for heart in range(heart_range):
             print(f"\033[35m{line1 * heart}")
@@ -1405,7 +1409,7 @@ def gnu_ip_resolve(print_logs, private_mode):
             if graphic_mode:
                 graphic_interfaces += f"{i}. {interface}\n"
             else:
-                print(f"{i}. {interface}")
+                animated_print(f"{i}. {interface}")
         if graphic_mode:
             layout = [[gui.Text(graphic_interfaces)], [gui.Text("Select one of these"), gui.InputText(key="chosen_interface"), gui.Button(
                 "Select", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
@@ -1960,6 +1964,8 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     try:
                         while temp_list[j] != " ":
                             j += 1
+                            if j >= i + 5:
+                                break
                         if messages[2].strip().lower() == get_current_user().strip().lower():
                             temp_list.insert(j, "\n\t\t\t\t")
                         else:
@@ -1972,7 +1978,6 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 message_to_show = ""
                 for char in temp_list:
                     message_to_show += char
-                message_to_show += "\n"
             if messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
                 prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
             elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]):
@@ -2241,7 +2246,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     enter_home_directory()
                     os.chdir("./cache")
                     layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        prev_message_temp)]], scrollable=True, size=(1000, 500))], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title="FiEncrypt - Conversation",
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     event, values = window.read()
@@ -2261,7 +2266,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     enter_home_directory()
                     os.chdir("./cache")
                     layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        prev_message_temp)]], scrollable=True, size=(1000, 500))], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title="FiEncrypt - Conversation",
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     event, values = window.read()
@@ -2361,7 +2366,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 enter_home_directory()
                 os.chdir("./cache")
                 layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                    prev_message_temp)]], scrollable=True, size=(1000, 500))], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title="FiEncrypt - Conversation",
                                     layout=layout, margins=(100, 50), font="Courier 20")
 
@@ -2388,7 +2393,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     enter_home_directory()
                     os.chdir("./cache")
                     layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        prev_message_temp)]], scrollable=True, size=(1000, 500))], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title="FiEncrypt - Conversation",
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     event, values = window.read()
@@ -2413,7 +2418,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     enter_home_directory()
                     os.chdir("./cache")
                     layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        prev_message_temp)]], scrollable=True, size=(1000, 500))], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title="FiEncrypt - Conversation",
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     event, values = window.read()
@@ -2489,7 +2494,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 enter_home_directory()
                 os.chdir("./cache")
                 layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                    prev_message_temp)]], scrollable=True, size=(1000, 500))], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title="FiEncrypt - Conversation",
                                     layout=layout, margins=(100, 50), font="Courier 20")
                 event, values = window.read()
@@ -2585,7 +2590,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             enter_home_directory()
             os.chdir("./cache")
             layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                prev_message_temp)]], scrollable=True, size=(1000, 500))], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title="FiEncrypt - Conversation",
                                 layout=layout, margins=(100, 50), font="Courier 20")
         elif graphic_mode:
@@ -2665,7 +2670,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             enter_home_directory()
             os.chdir("./cache")
             layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                prev_message_temp)]], scrollable=True, size=(1000, 500))], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title="FiEncrypt - Conversation",
                                 layout=layout, margins=(100, 50), font="Courier 20")
     try:
@@ -3745,6 +3750,8 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                 f"Enter path of file to send to {temp_foreign_user}", 0)
                     else:
                         filename = old_file_path
+                    if pass_os() == "win32":
+                        filename = filename.replace("\\", "/")
                 except KeyboardInterrupt:
                     log(f"File transfer interrupted!", "networkManager", get_current_user(
                     ), None)
@@ -3754,6 +3761,8 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                     else:
                         animated_print(f"{error_color}WARNING: File transfer aborted!")
                         Colors(default_color)
+                    file_link.close()
+                    sc.close()
             integrity, return_value = private_file_integrity(filename)
             if not integrity:
                 final_file, valid_file = True, False
@@ -3816,7 +3825,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                 else:
                                     animated_print(f"{error_color}WARNING: Inavlid login!")
                                     colors(default_color)
-                    if filename.strip().endswith("/"):
+                    if filename.strip().endswith("/") or filename.strip().endswith("\\"):
                         final_file = False
                         while not final_file:
                             options, option_type, graphic_options = [], [], ""
@@ -3844,7 +3853,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                     option_type.append(parse_size(os.path.getsize(
                                         filename+options[i]), options[i]))
                             if graphic_mode:
-                                layout = [[gui.Text(graphic_options)], [gui.Text("Select one of these"), gui.InputText(key="file_choice"), gui.Button(
+                                layout = [[gui.Column([[gui.Text(graphic_options)]], scrollable=True, size=(800, 600))], [gui.Text("Select one of these"), gui.InputText(key="file_choice"), gui.Button(
                                     "Send", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                                 window = gui.Window(title="FiEncrypt - File Transfer",
                                                     layout=layout, margins=(100, 50), font="Courier 20")
@@ -3904,7 +3913,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                     animated_print(f"{i+1}. {option}", speed=0)
                                 file_choice = privacy_input(f"Select one of these files", 0)
                             else:
-                                layout = [[gui.Text(graphic_options)], [gui.Text("Select one of these files"), gui.InputText(key="filename"), gui.Button(
+                                layout = [[gui.Column([[gui.Text(graphic_options)]], scrollable=True, size=(800, 600))], [gui.Text("Select one of these files"), gui.InputText(key="filename"), gui.Button(
                                     "Send", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                                 window = gui.Window(title="FiEncrypt - File Transfer",
                                                     layout=layout, margins=(100, 50), font="Courier 20")
@@ -4001,6 +4010,8 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                     else:
                                         animated_print(f"{error_color}WARNING: Pipe Broken!")
                                         Colors(default_color)
+                                    file_link.close()
+                                    sc.close()
                             if graphic_mode:
                                 temp_window.close()
                             else:
@@ -4017,6 +4028,8 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                         else:
                             animated_print(f"{error_color}WARNING: File transfer interrupted!")
                             Colors(default_color)
+                        file_link.close()
+                        sc.close()
                     except OverflowError:
                         if graphic_mode:
                             gui.Popup("File too large! Aborting...", title="Warning",
@@ -4024,6 +4037,8 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                         else:
                             animated_print(f"{error_color}WARNING: File too large! Aborting...")
                             Colors(default_color)
+                        file_link.close()
+                        sc.close()
                     except ConnectionResetError:
                         if graphic_mode:
                             if foreign_user != None:
@@ -4040,6 +4055,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                 animated_print(
                                     f"{error_color}WARNING: Peer has reset the conenction!")
                             Colors(default_color)
+                        file_link.close()
                         sc.close()
                     file_extension = os.path.basename(filename).split(".")
                     file_extension = file_extension[1]
@@ -4048,6 +4064,8 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                             attach_image = True
                         else:
                             attach_image = False
+                    file_link.close()
+                    sc.close()
                     return attach_image, os.path.basename(filename)
 
 
@@ -4165,6 +4183,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                     else:
                         animated_print(f"{error_color}WARNING: File transfer failed!")
                         Colors(default_color)
+                    file_recipient.close()
             if graphic_mode:
                 temp_popup.close()
             file_extension = filename.split(".")
@@ -4344,11 +4363,13 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
         else:
             animated_print(f"{error_color}WARNING: File too large! Aborting...")
             Colors(default_color)
+        file_recipient.close()
     except KeyboardInterrupt:
         log(f"File transfer interrupted!", "networkManager", get_current_user(
         ), None)
         animated_print(f"\n{error_color}WARNING: Aborting file transfer...")
         Colors(default_color)
+        file_recipient.close()
     try:
         file_recipient.close()
     except:
@@ -5038,7 +5059,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
             os.chdir("./cache")
             if temp_display_name.strip() != "":
                 layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                    prev_message_temp)]], scrollable=True, size=(1000, 500))], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             else:
                 layout = [[gui.Text(f"Decrypted Message!", font="Courier 30", text_color="red")], [gui.Text(f"From: UNKNOWN")], [
                     gui.Text(temp_timestamp)], [gui.Text(temp_output_phrase)], [gui.Button("Delete", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
@@ -5344,11 +5365,9 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             enter_home_directory()
             os.chdir("./cache")
             layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                prev_message_temp)]], scrollable=True, size=(1000, 500))], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                prev_message_temp)], [gui.Text("...")]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title="FiEncrypt - Conversation",
                                 layout=layout, margins=(100, 50), font="Courier 20", finalize=True)
-        temp_popup = gui.Window(title="FiEncrypt - Inbound Server",
-                                layout=[[gui.Text("Awaiting Message")]], margins=(100, 50), font="Courier 20", finalize=True)
     enter_home_directory()
     if sys.platform.startswith("linux"):
         ip = gnu_ip_resolve(print_logs, private_mode)
@@ -5380,6 +5399,10 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
         if not silent and not graphic_mode:
             animated_print(f"Socket bound... {ip}:15753")
             animated_print("Listening on socket... ")
+        elif graphic_mode:
+            time.sleep(1)
+            temp_popup = gui.Window(title="FiEncrypt - Inbound Server",
+                                    layout=[[gui.Text("Awaiting Message")]], margins=(100, 50), font="Courier 20", finalize=True)
         log(f"Server started on {ip}:15753", "networkManager",
             current_user, print_logs)
         if temp_sc == None:
@@ -5412,10 +5435,10 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
         sys.stdout.write("\033[K")
         sys.stdout.write("\033[F")
         animated_print("Connection established!")
-    elif graphic_mode:
-        temp_popup.close()
     try:
         info = sc.recv(1024)
+        if graphic_mode:
+            temp_popup.close()
     except KeyboardInterrupt:
         log("Server channel terminated!", "networkManager", get_current_user(), print_logs)
         animated_print("\nServer Terminated!")
@@ -5436,6 +5459,31 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             connection_window.close()
         except:
             pass
+        menu(user, None, print_logs, default_color,
+             private_mode, error_color, print_speed=0)
+    except ConnectionAbortedError:
+        log("Server channel terminated!", "networkManager", get_current_user(), print_logs)
+        try:
+            sc.close()
+        except:
+            pass
+        try:
+            link.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+        try:
+            link.close()
+        except:
+            pass
+        if graphic_mode:
+            gui.Popup("Server Connection Aborted!", title="Warning", font="Courier 20", text_color="red")
+            try:
+                window.close()
+                connection_window.close()
+            except:
+                pass
+        else:
+            animated_print("Server Connection Aborted!")
         menu(user, None, print_logs, default_color,
              private_mode, error_color, print_speed=0)
     except ConnectionResetError:
@@ -7566,7 +7614,7 @@ def login(display_initiate, user_account_name, error_color, default_color, print
                         sys.stdout.write("\033[K")
                 animated_print(
                     f"{error_color}WARNING: Incorrect Login! {attempts} attempts left! Try again!")
-                colors(default_color)
+                Colors(default_color)
             log(f"Login attempt Success? False Attempts left: {str(attempts)}",
                 "loginManager", username_input, print_logs)
             username_input, password_input = None, None
