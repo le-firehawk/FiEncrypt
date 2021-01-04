@@ -52,9 +52,10 @@ class ImportStructure:
             import wave
             from playsound import playsound
         elif import_set == "string":
-            global getpass, textwrap
+            global getpass, textwrap, tl
             import getpass
             import textwrap
+            from textblob import TextBlob as tl
         elif import_set == "network":
             global urllib, socket, netifaces, tqdm
             import urllib.request as urllib
@@ -160,7 +161,8 @@ class Contacts:
         name, mac, ip, details = self.check_for(contact_name)
         if None in [name, mac, ip, details]:
             if not graphic_mode:
-                animated_print(f"Unable to locate contact to delete!")
+                animated_print(f"WARNING: Unable to locate contact to delete!",
+                               error=True, reset=True)
         else:
             os.remove(f"./{name.strip()}.txt")
             log(f"Contact Removed: {name}({mac})", "contactManager",
@@ -169,7 +171,8 @@ class Contacts:
     def list_all(self):
         """Lists every contact name found within the Contacts directory"""
         if self.contact_names == []:
-            animated_print(f"No contacts found in FiEncrypt directory!")
+            animated_print(f"WARNING: No contacts found in FiEncrypt directory!",
+                           error=True, reset=True)
         else:
             for i, name in enumerate(self.contact_names):
                 animated_print(f"Contact {i+1}: ")
@@ -187,6 +190,22 @@ class Contacts:
                                 animated_print(f"{spec_print}\n")
         log(f"Contact Dump: {self.contact_names}",
             "contactManager", self.current_user, self.print_logs)
+
+
+class Translate:
+    def __init__(self, lang):
+        self.lang = lang
+
+    def translate(self, string, **kwargs):
+        self.temp_lang = kwargs.get("lang", self.lang)
+        self.translate_object = tl(string)
+        try:
+            if self.temp_lang.strip().lower() != "en" and self.temp_lang.strip().lower() != "english":
+                return self.translate_object.translate(to=self.temp_lang)
+            else:
+                return string
+        except:
+            return string
 
 
 def display_license():
@@ -265,6 +284,19 @@ def parse_colors(color):
         return "\033[0m"
 
 
+def parse_region(lang, **kwargs):
+    order = kwargs.get("order", 0)
+    languages = {"en": "English", "de": "German", "zh": "Chinese", "cs": "Czech", "es": "Spanish", "af": "Afrikaans", "sq": "Albanian", "am": "Amharic", "ar": "Arabic", "hy": "Armenian", "az": "Azerbaijani", "eu": "Basque", "be": "Belarusian", "bn": "Bengali", "bs": "Bosnian", "bg": "Bulgarian", "my": "Burmese", "ca": "Catalan", "ny": "Chichewa", "co": "Corsican", "hr": "Croatian", "da": "Danish", "nl": "Dutch", "eo": "Esperanto", "et": "Estonian", "fi": "Finnish", "fr": "French", "gl": "Galician", "ka": "Georgian", "el": "Greek", "gu": "Gujarati", "ht": "Haitian", "ha": "Hausa", "he": "Hebrew", "hi": "Hindi", "hu": "Hungarian", "id": "Indonesian", "ga": "Irish", "ig": "Igbo", "is": "Icelandic", "it": "Italian", "ja": "Japanese", "jv": "Javanese", "kn": "Kannada", "kk": "Kazakh", "km": "Central Khmer", "rw": "Kinyarwanda", "ky": "Kirghiz", "kg": "Kongo", "ko": "Korean", "ku": "Kurdish", "la": "Latin", "lb": "Luxembourgish", "lo": "Lao",
+                 "lt": "Lithuanian", "lv": "Latvian", "mk": "Macedonian", "mg": "Malagasy", "ms": "Malay", "ml": "Malayalam", "mt": "Maltese", "mi": "Maori", "mr": "Marathi", "mn": "Monogolian", "ne": "Nepali", "nb": "Norwegian Bokmal", "nn": "Norwegian Nynorsk", "no": "Norsk", "or": "Oriya", "pa": "Punjabi", "fa": "Persian", "pl": "Polish", "ps": "Pashto", "pt": "Portuguese", "ro": "Romanian", "ru": "Russian", "sd": "Sindhi", "sm": "Samoan", "sr": "Serbian", "gd": "Gaelic", "sn": "Shona", "si": "Sinhala", "sk": "Slovak", "sl": "Slovenian", "so": "Somali", "st": "Southern Sotho", "su": "Sundanese", "sw": "Swahili", "sv": "Swedish", "ta": "Tamil", "te": "Telugu", "tg": "Tajik", "th": "Thai", "tk": "Turkmen", "tl": "Tagalog", "tr": "Turkish", "tt": "Tatar", "ug": "Uighur", "uk": "Ukrainian", "ur": "Urdu", "uz": "Uzbek", "vi": "Vietnamese", "cy": "Welsh", "fy": "Western Frisian", "xh": "Xhosa", "yi": "Yiddish", "yo": "Yoruba", "zu": "Zulu"}
+    if order == 0:
+        return languages.get(lang, lang)
+    else:
+        for item in languages.items():
+            if lang.strip().lower() in item[1].strip().lower():
+                return item[0]
+        return lang
+
+
 def apply_theme(theme):
     try:
         gui.theme(theme)
@@ -272,8 +304,14 @@ def apply_theme(theme):
         gui.theme("default")
         if graphic_mode:
             gui.Popup("Invalid Theme! Launching Theme Previewer!",
-                      title="Warning", font="Courier 20", text_color="red")
+                      title=gui_translate("Warning"), font="Courier 20", text_color="red")
             gui.theme_previewer()
+
+
+def gui_translate(string):
+    if translation:
+        string = TranslationManager.translate(string)
+    return string
 
 
 def apply_color(default, error, reset):
@@ -292,8 +330,39 @@ def apply_color(default, error, reset):
 def animated_print(string, **kwargs):
     """Accepts a string to be printed, along with the optional parameter for how long Python should wait before printing the next character"""
     try:
-        speed = kwargs.get('speed', None)
-        newline = kwargs.get('newline', False)
+        speed, newline, error, reset_at_end = kwargs.get("speed", None), kwargs.get(
+            "newline", False), kwargs.get("error", False), kwargs.get("reset", False)
+        if translation:
+            try:
+                format_count, target_list = string.count("\033["), []
+                for _ in range(format_count):
+                    if string.find("\033[") != -1:
+                        target_string = string[string.find("\033["):string.find("\033[")+5]
+                        target_string = f"{substring(target_string, 'm', 0)}m"
+                        target_list.append([target_string, int(
+                            string.find("\033[")), int(string.find("\033["))+5])
+                        string = string.replace(target_string, "")
+                string = TranslationManager.translate(string)
+                if len(target_list) != 0:
+                    temp_list = list(string)
+                    string = ""
+                    for entry in target_list:
+                        if "0m" not in entry[0]:
+                            temp_list.insert(entry[1], entry[0])
+                        else:
+                            reset_at_end = True
+                    for char in temp_list:
+                        string += char
+            except:
+                log("Connection error with translation server!",
+                    "languageManager", get_current_user(), None)
+                exit()
+        if error and reset_at_end:
+            string = f"\033[91m{string}\033[0m{applied_default_color}"
+        elif error:
+            string = f"\033[91m{string}"
+        elif reset_at_end:
+            string = f"{string}\033[0m{applied_default_color}"
         enter_home_directory()
         with open(f"./config.txt", "r+") as config_file:
             config_lines = config_file.readlines()
@@ -497,7 +566,7 @@ def establish_tree():
     display_license()
     with open(f"./config.txt", "w+") as config_file:
         default_config = ["# FiEncrypt", "[config.txt]", "debug_mode = False",
-                          "display_initiate = False", "-", "-", "-", "conversation_mode = True", "graphic_mode = False", "private_mode = False", "auto_code = True", "voice_message = 15s", "gui_theme = default_no_more_nagging"]
+                          "display_initiate = False", "-", "-", "-", "conversation_mode = True", "graphic_mode = False", "private_mode = False", "auto_code = True", "voice_message = 15s", "gui_theme = default_no_more_nagging", "translation = False", "lang = en"]
         for line in default_config:
             config_file.write(f"{line}\n")
     with open(f"./cache_settings.txt", "w+") as cache_settings_file:
@@ -521,6 +590,19 @@ def establish_tree():
     log("FiEncrypt directory structure established! ['./config.txt', './cache_settings.txt', './code.txt', './logs.txt', './messagein.txt', './messageout.txt', './CREDENTIALS.txt', './LICENSE', './cache']", "fileManager", get_current_user(), None)
     if sys.platform == "win32":
         hide_tree()
+
+
+def disable_translation():
+    global translation
+    enter_home_directory()
+    with open("./config.txt", "r+") as config_file:
+        config_lines = config_file.read().split("\n")
+        config_lines[13] = "translation = False"
+        config_file.seek(0)
+        config_file.truncate()
+        for line in config_lines:
+            config_file.write(f"{line}\n")
+    translation = False
 
 
 def clear_cache():
@@ -557,7 +639,7 @@ def add_new_user():
                     else:
                         for line in credential_lines:
                             if hash_user in line:
-                                gui.Popup("Username aleady taken!", title="Warning",
+                                gui.Popup("Username aleady taken!", title=gui_translate("Warning"),
                                           font="Courier 15", text_color="red")
                                 valid_username = False
                                 break
@@ -570,11 +652,11 @@ def add_new_user():
                     confirm_password = values.get("confirm_password", "").encode("utf-8")
                     if hash_pass != hashlib.sha256(confirm_password).hexdigest():
                         valid_password = False
-                        gui.Popup("Passwords do not match!", title="Warning",
+                        gui.Popup("Passwords do not match!", title=gui_translate("Warning"),
                                   font="Courier 15", text_color="red")
                     elif len(password) <= 8:
                         valid_password = False
-                        gui.Popup("Password is too short!", title="Warning",
+                        gui.Popup("Password is too short!", title=gui_translate("Warning"),
                                   font="Courier 15", text_color="red")
                     else:
                         valid_password = True
@@ -602,14 +684,14 @@ def add_new_user():
         while len(password) <= 8:
             password = privacy_input("Enter a password here", 1)
             if len(password) <= 8:
-                animated_print("Password is too short!")
+                animated_print("WARNING: Password is too short!", error=True, reset=True)
         hash_pass = password.encode("utf-8")
         hash_pass = hashlib.sha256(hash_pass).hexdigest()
         confirm_password = "".encode("utf-8")
         while hash_pass != hashlib.sha256(confirm_password).hexdigest():
             confirm_password = privacy_input("Enter password again", 1).encode("utf-8")
             if hash_pass != hashlib.sha256(confirm_password).hexdigest():
-                animated_print(f"Passwords do not match!")
+                animated_print(f"WARNING: Passwords do not match!", error=True, reset=True)
     if valid_username:
         hash = username + password
         hash = hash.encode("utf-8")
@@ -684,7 +766,7 @@ def get_own_ip(print_logs, private_mode):
             if graphic_mode:
                 layout = [[gui.Text("Enter your IP in dottec decimal format"),
                            gui.InputText(key="ip")], [gui.Button("Submit", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                window = gui.Window(title="FiEncrypt - IP Resolution", layout=layout,
+                window = gui.Window(title=f"FiEncrypt - IP Resolution (Logged in as: {get_current_user()})", layout=layout,
                                     margins=(100, 50), font="Courier 20")
                 event, values = window.read()
                 if event == "Submit":
@@ -737,7 +819,8 @@ def mac_resolve(mac, print_logs):
                 f"{IP_str[0]}.{IP_str[1]}.{i}.0/24")
             if result == None:
                 if graphic_mode:
-                    gui.Popup(f"ARP Resolution unavailable on {pass_os()}!", title="Warning", font="Courier 20", text_color="red")
+                    gui.Popup(
+                        f"ARP Resolution unavailable on {pass_os()}!", title=gui_translate("Warning"), font="Courier 20", text_color="red")
                 return None
             for mapping in result:
                 # ?Strips both results to avoid rampant fucking spaces from affecting the comparison query lol
@@ -847,7 +930,34 @@ def get_foreign_user(**kwargs):
 
 def privacy_input(string, state, **line_break):
     """Custom input function that employs the getpass module to hide user input based on the state paramter"""
-    line_break = line_break.get("line_break", None)
+    line_break, reset_at_end = line_break.get("line_break", None), False
+    if translation:
+        try:
+            format_count, target_list = string.count("\033["), []
+            for _ in range(format_count):
+                if string.find("\033[") != -1:
+                    target_string = string[string.find("\033["):string.find("\033[")+5]
+                    target_string = f"{substring(target_string, 'm', 0)}m"
+                    target_list.append([target_string, int(
+                        string.find("\033[")), int(string.find("\033["))+5])
+                    string = string.replace(target_string, "")
+            string = TranslationManager.translate(string)
+            if len(target_list) != 0:
+                temp_list = list(string)
+                string = ""
+                for entry in target_list:
+                    if "0m" not in entry[0]:
+                        temp_list.insert(entry[1], entry[0])
+                    else:
+                        reset_at_end = True
+                for char in temp_list:
+                    string += char
+            if reset_at_end:
+                string = f"{string}\033[0m{applied_default_color}"
+        except:
+            log("Connection error with translation server!",
+                "languageManager", get_current_user(), None)
+            exit()
     try:
         if state == 1 or "true" in str(state).lower():
             if line_break:
@@ -898,13 +1008,14 @@ def contact_input(string):
     if graphic_mode:
         layout = [[gui.Text("Enter contact name"), gui.InputText(key="name")],
                   [gui.Button("Submit", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-        window = gui.Window(title="FiEncrypt - Contact Input", layout=layout, margins=(100, 50))
+        window = gui.Window(
+            title=f"FiEncrypt - Contact Input (Logged in as: {get_current_user()})", layout=layout, margins=(100, 50))
         event, values = window.read()
         if event == "Submit":
             name = values.get("name", None)
         window.close()
     else:
-        name = input(f"{string}: ")
+        name = privacy_input(f"{string}", 0)
     contact_manager = Contacts(user, get_current_user().lower().strip(),
                                print_logs, default_color, error_color, private_mode)
     if "." not in name:
@@ -965,8 +1076,17 @@ def retrieve_config_settings(**kwargs):
         voice_record_time = voice_record_time[1]
         gui_theme = config_lines[12].split(" = ")
         gui_theme = gui_theme[1].strip()
+        translation_enabled = config_lines[13].split(" = ")
+        translation_enabled = to_boolean(translation_enabled[1].strip())
+        if translation_enabled:
+            lang = config_lines[14].split(" = ")
+            lang = lang[1].strip()
+            if len(lang) > 3:
+                parse_region(lang, order=1)
+        else:
+            lang = None
         if exclusive_mode == None:
-            return print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme
+            return print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation_enabled, lang
         elif exclusive_mode == "print_logs":
             return print_logs
         elif exclusive_mode == "display_initiate":
@@ -1030,7 +1150,7 @@ def get_poked(foreign_user, **poke_num):
     if graphic_mode:
         for poke in range(pokes):
             gui.Popup(f"{line1}\n{line2}\n{line3}\n{line4}\n{line5}\n{line6}\n{line7}\n{line8}\n{line9}\n{line10}\n{line11}\n{line12}\n{line13}\n{line14}\n{line15}\n{line15}\n{line16}",
-                      title="FiEncrypt - Poke", font="Courier 20")
+                      title=f"FiEncrypt - Poke (Logged in as: {get_current_user()})", font="Courier 20")
     else:
         for poke in range(pokes):
             if pass_os() != "win32":
@@ -1082,19 +1202,19 @@ def get_poked(foreign_user, **poke_num):
                 print(f"{line16}")
     if capitalize_user(get_current_user()).strip().lower() == foreign_user.strip().lower():
         if graphic_mode:
-            gui.Popup("You have poked yourself... Don't you think that is a little weird?",
-                      title="FiEncrypt - Poke", font="Courier 20")
+            gui.Popup(gui_translate("You have poked yourself... Don't you think that is a little weird?"),
+                      title=gui_translate(f"FiEncrypt - Poke (Logged in as: {get_current_user()})"), font="Courier 20")
         else:
             animated_print(
                 f"You have poked yourself... Don't you think that is a little weird?")
     else:
         if graphic_mode:
             if pokes > 1:
-                gui.Popup(
-                    f"Hey {capitalize_user(get_current_user())}...\n{foreign_user.capitalize()} has poked you {pokes} times!", title="FiEncrypt - Poke", font="Courier 20")
+                gui.Popup(gui_translate(
+                    f"Hey {capitalize_user(get_current_user())}...\n{foreign_user.capitalize()} has poked you {pokes} times!"), title=gui_translate(f"FiEncrypt - Poke (Logged in as: {get_current_user()})"), font="Courier 20")
             else:
-                gui.Popup(
-                    f"Hey {capitalize_user(get_current_user())}...\n{foreign_user.capitalize()} has poked you!", title="FiEncrypt - Poke", font="Courier 20")
+                gui.Popup(gui_translate(
+                    f"Hey {capitalize_user(get_current_user())}...\n{foreign_user.capitalize()} has poked you!"), title=gui_translate(f"FiEncrypt - Poke (Logged in as: {get_current_user()})"), font="Courier 20")
         else:
             animated_print(f"Hey {capitalize_user(get_current_user())}...")
             if pokes > 1:
@@ -1116,8 +1236,8 @@ def you_are_loved(foreign_user, **hearts):
         heart_range = hearts + 1
     if graphic_mode:
         for heart in range(heart_range-1):
-            gui.Window(layout=[[gui.Text(f"{line1}\n{line2}\n{line3}\n{line4}\n{line5}\n{line6}\n{line7}\n{line8}", text_color="purple")], [gui.Button("OK", bind_return_key=True)]],
-                       title="FiEncrypt - You Are Loved", font="Courier 20", finalize=True)
+            gui.Window(layout=[[gui.Text(f"{line1}\n{line2}\n{line3}\n{line4}\n{line5}\n{line6}\n{line7}\n{line8}", text_color="purple")], [gui.Button(gui_translate("OK"), key="OK", bind_return_key=True)]],
+                       title=gui_translate(f"FiEncrypt - You Are Loved (Logged in as: {get_current_user()})"), font="Courier 20", finalize=True)
     else:
         for heart in range(heart_range):
             print(f"\033[35m{line1 * heart}")
@@ -1144,14 +1264,14 @@ def you_are_loved(foreign_user, **hearts):
         if graphic_mode:
             if hearts > 1:
                 if hearts == 2:
-                    gui.Popup(
-                        f"No... those are not boobs! I swear...\n{foreign_user.capitalize()} loves you {hearts} times over!", title="FiEncrypt - You Are Loved", font="Courier 20")
+                    gui.Popup(gui_translate(
+                        f"No... those are not boobs! I swear...\n{foreign_user.capitalize()} loves you {hearts} times over!"), title=gui_translate(f"FiEncrypt - You Are Loved (Logged in as: {get_current_user()})"), font="Courier 20")
                 else:
-                    gui.Popup(f"{foreign_user.capitalize()} loves you {hearts} times over!",
-                              title="FiEncrypt - You Are Loved", font="Courier 20")
+                    gui.Popup(gui_translate(f"{foreign_user.capitalize()} loves you {hearts} times over!"),
+                              title=gui_translate(f"FiEncrypt - You Are Loved (Logged in as: {get_current_user()})"), font="Courier 20")
             else:
-                gui.Popup(f"{foreign_user.capitalize()} loves you {capitalize_user(get_current_user())}!",
-                          title="FiEncrypt - You Are Loved", font="Courier 20")
+                gui.Popup(gui_translate(f"{foreign_user.capitalize()} loves you {capitalize_user(get_current_user())}!"),
+                          title=gui_translate(f"FiEncrypt - You Are Loved (Logged in as: {get_current_user()})"), font="Courier 20")
         else:
             if hearts > 1:
                 if hearts == 2:
@@ -1244,9 +1364,9 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
         "is_invite", False), kwargs.get("confirm_ip", None), kwargs.get("message", None), None
     if confirm_ip == None:
         if graphic_mode:
-            layout = [[gui.Text("Enter IP, MAC address or contact name of the recipient"), gui.InputText(
-                key="ip_in")], [gui.Button("Send", bind_return_key=True), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-            window = gui.Window(title="FiEncrypt - Recipient IP", layout=layout,
+            layout = [[gui.Text(gui_translate("Enter IP, MAC address or contact name of the recipient")), gui.InputText(
+                key="ip_in")], [gui.Button(gui_translate("Send"), key="Send", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+            window = gui.Window(title=gui_translate(f"FiEncrypt - Recipient IP (Logged in as: {get_current_user()})"), layout=layout,
                                 margins=(100, 50), font="Courier 20")
             event, values = window.read()
             if event == "Send":
@@ -1277,7 +1397,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     ip = mac_resolve(target_mac, print_logs)
                 if ip == None:
                     animated_print(
-                        f"{error_color}WARNING: Unable to resolve IP address through ARP!")
+                        f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
                     Colors(default_color)
                     connected = False
                 else:
@@ -1300,7 +1420,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 ip = mac_resolve(target_mac.strip(), print_logs)
             if ip == None:
                 animated_print(
-                    f"{error_color}WARNING: Unable to resolve IP address through ARP!")
+                    f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
                 Colors(default_color)
                 connected = False
             else:
@@ -1309,9 +1429,9 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
             ip, expected_user, print_logs, temp_sc, message=message)
         if not validated:
             if graphic_mode:
-                layout = [[gui.Text(f"Unable to verify if recipient is {expected_user}!", text_color="red")], [
-                    gui.Text("Do you wish to proceed anyway?")], [gui.Button("Yes", bind_return_key=True), gui.Button("No")]]
-                window = gui.Window(title="Warning", layout=layout,
+                layout = [[gui.Text(gui_translate(f"Unable to verify if recipient is {expected_user}!"), text_color="red")], [
+                    gui.Text(gui_translate("Do you wish to proceed anyway?"))], [gui.Button(gui_translate("Yes"), key="Yes", bind_return_key=True), gui.Button(gui_translate("No"), key="No")]]
+                window = gui.Window(title=gui_translate("Warning"), layout=layout,
                                     margins=(100, 50), font="Courier 20")
                 event, values = window.read()
                 if event == "Yes":
@@ -1321,7 +1441,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 window.close()
             else:
                 animated_print(
-                    f"{error_color}WARNING: Unable to verify if recipient is {expected_user}!")
+                    f"WARNING: Unable to verify if recipient is {expected_user}!", error=True, reset=True)
                 Colors(default_color)
                 proceed = privacy_input(
                     f"Do you wish to proceed anyway? [Y|N]", private_mode)
@@ -1345,7 +1465,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 ip = mac_resolve(target_mac.strip(), print_logs)
             if ip == None:
                 animated_print(
-                    f"{error_color}WARNING: Unable to resolve IP address through ARP!")
+                    f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
                 Colors(default_color)
                 connected = False
             else:
@@ -1359,7 +1479,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 target_name = target_name.replace("\n", "")
                 if mac.strip() == "":
                     animated_print(
-                        f"{error_color}WARNING: MAC address for contact is blank!")
+                        f"WARNING: MAC address for contact is blank!", error=True, reset=True)
                     Colors(default_color)
                     connected = False
                 else:
@@ -1370,28 +1490,28 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                         ip = mac_resolve(target_mac, print_logs)
                     if ip == None:
                         animated_print(
-                            f"{error_color}WARNING: Unable to resolve IP address through ARP!")
+                            f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
                         Colors(default_color)
                         connected = False
                     else:
                         contact_search.add_ip(target_name, ip)
             except ValueError:
                 animated_print(
-                    f"{error_color}WARNING: Invalid contact name entered!")
+                    f"WARNING: Invalid contact name entered!", error=True, reset=True)
                 Colors(default_color)
                 connected = False
                 get_recipient_ip(user, display_initiate, print_logs,
                                  default_color, private_mode, error_color, temp_sc)
             except TypeError:
                 animated_print(
-                    f"{error_color}WARNING: Invalid contact details!")
+                    f"WARNING: Invalid contact details!", error=True, reset=True)
                 Colors(default_color)
                 connected = False
                 get_recipient_ip(user, display_initiate, print_logs,
                                  default_color, private_mode, error_color, temp_sc)
             except AttributeError:
                 animated_print(
-                    f"{error_color}WARNING: Invalid contact details!")
+                    f"WARNING: Invalid contact details!", error=True, reset=True)
                 Colors(default_color)
                 connected = False
                 get_recipient_ip(user, display_initiate, print_logs,
@@ -1411,9 +1531,9 @@ def gnu_ip_resolve(print_logs, private_mode):
             else:
                 animated_print(f"{i}. {interface}")
         if graphic_mode:
-            layout = [[gui.Text(graphic_interfaces)], [gui.Text("Select one of these"), gui.InputText(key="chosen_interface"), gui.Button(
-                "Select", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-            window = gui.Window(title="FiEncrypt - Interface Selector",
+            layout = [[gui.Text(gui_translate(graphic_interfaces))], [gui.Text(gui_translate("Select one of these")), gui.InputText(key="chosen_interface"), gui.Button(
+                gui_translate("Select"), bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+            window = gui.Window(title=gui_translate(f"FiEncrypt - Interface Selector (Logged in as: {get_current_user()})"),
                                 layout=layout, margins=(100, 50), font="Courier 20")
             event, values = window.read()
             if event == "Select":
@@ -1447,9 +1567,9 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
     """Accepts secret codes to execute special behaviours, like an easter egg! NO PEAKING!"""
     enter_home_directory()
     if graphic_mode:
-        layout = [[gui.Text("Enter the secret code here"), gui.InputText(key="secret_code")], [gui.Button(
-            "Submit", bind_return_key=True), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-        window = gui.Window(title="FiEncrypt - Secret Code", layout=layout,
+        layout = [[gui.Text(gui_translate("Enter the secret code here")), gui.InputText(key="secret_code")], [gui.Button(
+            gui_translate("Submit"), bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+        window = gui.Window(title=gui_translate(f"FiEncrypt - Secret Code (Logged in as: {get_current_user()})"), layout=layout,
                             margins=(100, 50), font="Courier 20")
         event, values = window.read()
         window.close()
@@ -1467,10 +1587,11 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
     try:
         if ((int(len(secret_code)) % 2) / 2) != 0:
             if graphic_mode:
-                gui.Popup("Code format not valid!", title="Warning", font="Courier 20")
+                gui.Popup(gui_translate("Code format not valid!"),
+                          title=gui_translate("Warning"), font="Courier 20")
             else:
                 animated_print(
-                    f"{error_color}WARNING: Code format not valid!")
+                    f"WARNING: Code format not valid!", error=True, reset=True)
                 Colors(default_color)
             log("Secret Code Entered! Valid? False",
                 "encryptionManager", current_user, print_logs)
@@ -1480,10 +1601,11 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
             pass
     except ValueError:
         if graphic_mode:
-            gui.Popup("Code format not valid!", title="Warning", font="Courier 20")
+            gui.Popup(gui_translate("Code format not valid!"),
+                      title=gui_translate("Warning"), font="Courier 20")
         else:
             animated_print(
-                f"{error_color}WARNING: Code format not valid!")
+                f"WARNING: Code format not valid!", error=True, reset=True)
             Colors(default_color)
         log("Secret Code Entered! Valid? False",
             "encryptionManager", current_user, print_logs)
@@ -1496,11 +1618,11 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
     valid, func = check_secret_code(completed_code)
     if not valid:
         if graphic_mode:
-            gui.Popup(f"Secret code {secret_code} does not exist!",
-                      title="Warning", font="Courier 20")
+            gui.Popup(gui_translate(f"Secret code {secret_code} does not exist!"),
+                      title=gui_translate("Warning"), font="Courier 20")
         else:
             animated_print(
-                f"{error_color}WARNING: Code format not valid!")
+                f"WARNING: Code format not valid!", error=True, reset=True)
             Colors(default_color)
         log("Secret Code Entered! Valid? False",
             "encryptionManager", current_user, print_logs)
@@ -1511,8 +1633,8 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
             "encryptionManager", current_user, print_logs)
     if func == 1:
         if graphic_mode:
-            temp_popup = gui.Window(title="Alert", layout=[
-                                    [gui.Text("Config editor mode entered! Standby...")]], font="Courier 20", finalize=True)
+            temp_popup = gui.Window(title=gui_translate("Alert"), layout=[
+                                    [gui.Text(gui_translate("Config editor mode entered! Standby..."))]], font="Courier 20", finalize=True)
         else:
             animated_print("Config editor mode entered! Standby...")
         config_file = open(f"./config.txt", "r+")
@@ -1529,15 +1651,15 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
         config_file.close()
         os.remove(f"./config.txt")
         if graphic_mode:
-            gui.Popup("Writing a custom config file can cause the program to break. Delete the FiEncrypt folder if you have any issues! Good luck",
-                      title="Warning", font="Courier 20", text_color="red")
+            gui.Popup(gui_translate("Writing a custom config file can cause the program to break. Delete the FiEncrypt folder if you have any issues! Good luck"),
+                      title=gui_translate("Warning"), font="Courier 20", text_color="red")
         else:
             animated_print(
-                f"{error_color}WARNING: Writing a custom config file can cause the program to break. Delete the FiEncrypt folder if you have any issues! Good Luck!")
+                f"WARNING: Writing a custom config file can cause the program to break. Delete the FiEncrypt folder if you have any issues! Good Luck!", error=True, reset=True)
             Colors(default_color)
         config_file = open("./config.txt", "w+")
         if graphic_mode:
-            window = gui.Window(title="FiEncrypt - Config Editor", layout=[[gui.Text("Enter a semi-colon (;) in order for a line break")], [gui.InputText(
+            window = gui.Window(title=gui_translate(f"FiEncrypt - Config Editor (Logged in as: {get_current_user()})"), layout=[[gui.Text(gui_translate("Enter a semi-colon (;) in order for a line break"))], [gui.InputText(
                 key="new_code"), gui.Button("Write")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20")
             event, values = window.read()
             if event == "Write":
@@ -1549,9 +1671,9 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
         new_code = new_code.split(";")
         if len(new_code) != len(config_lines):
             if graphic_mode:
-                layout = [[gui.Text("Number of lines differs from the expected value!", text_color="red")], [gui.Text("Do you wish to proceed?"), gui.Button(
-                    "Yes", bind_return_key=True), gui.Button("No")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                window = gui.Window(title="FiEncrypt - Config Editor",
+                layout = [[gui.Text(gui_translate("Number of lines differs from the expected value!"), text_color="red")], [gui.Text(gui_translate("Do you wish to proceed?")), gui.Button(
+                    gui_translate("Yes"), bind_return_key=True), gui.Button(gui_translate("No"), key="No")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                window = gui.Window(title=gui_translate(f"FiEncrypt - Config Editor (Logged in as: {get_current_user()})"),
                                     layout=layout, margins=(100, 50), font="Courier 20")
                 event, values = window.read()
                 if event == "Yes":
@@ -1561,7 +1683,7 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
                 window.close()
             else:
                 animated_print(
-                    f"{error_color}WARNING: Number of lines differs from the expected value!")
+                    f"WARNING: Number of lines differs from the expected value!", error=True, reset=True)
                 Colors(default_color)
                 proceed = input("Do you wish to proceed? (Y/N): ")
             if "y" in proceed.lower():
@@ -1600,7 +1722,7 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
         for j in range(3):
             for i in range(30):
                 if graphic_mode:
-                    window = gui.Window(title="FiEncrypt - BREADFISH!!!", layout=[[gui.Text(line1, text_color="blue")], [gui.Text(line2, text_color="blue")], [gui.Text(line3, text_color="blue")], [gui.Text(line4, text_color="blue")], [gui.Text(line5, text_color="blue")], [gui.Text(line6, text_color="blue")], [gui.Text(line7, text_color="blue")], [gui.Text(line8, text_color="blue")], [gui.Text(line9, text_color="blue")], [gui.Text(line10, text_color="blue")], [
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - BREADFISH!!! (Logged in as: {get_current_user()})"), layout=[[gui.Text(line1, text_color="blue")], [gui.Text(line2, text_color="blue")], [gui.Text(line3, text_color="blue")], [gui.Text(line4, text_color="blue")], [gui.Text(line5, text_color="blue")], [gui.Text(line6, text_color="blue")], [gui.Text(line7, text_color="blue")], [gui.Text(line8, text_color="blue")], [gui.Text(line9, text_color="blue")], [gui.Text(line10, text_color="blue")], [
                                         gui.Text(line11, text_color="blue")], [gui.Text(line12, text_color="blue")], [gui.Text(line13, text_color="blue")], [gui.Text(line14, text_color="blue")], [gui.Text(line15, text_color="blue")], [gui.Text(line16, text_color="blue")], [gui.Text(line17, text_color="blue")]], margins=(100, 50), size=(random.randint(600, 1000), random.randint(400, 800)), font=f"Courier {random.randint(10, 20)}", finalize=True)
                     time.sleep(0.5)
                     window.close()
@@ -1704,19 +1826,19 @@ def showcode(user, current_user, private_mode, print_logs, error_color, default_
     if current_user != 1 and current_user != 2:
         if graphic_mode:
             if code == "":
-                layout = [[gui.Text("This is the current code saved in the code.txt file")], [gui.Text("No code present in the code.txt file! Either it has not been generated or manually overwritten!", text_color="red")], [
-                    gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                layout = [[gui.Text(gui_translate("This is the current code saved in the code.txt file"))], [gui.Text(gui_translate("No code present in the code.txt file! Either it has not been generated or manually overwritten!"), text_color="red")], [
+                    gui.Text(gui_translate("FiEncrypt (C) le_firehawk 2020"), font="Courier 10", text_color="grey")]]
             else:
-                layout = [[gui.Text("This is the current code saved in the code.txt file")], [gui.Text(code)], [
+                layout = [[gui.Text(gui_translate("This is the current code saved in the code.txt file"))], [gui.Text(code)], [
                     gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-            window = gui.Window(title="FiEncrypt - Current Code", layout=layout,
+            window = gui.Window(title=gui_translate(f"FiEncrypt - Current Code (Logged in as: {get_current_user()})"), layout=layout,
                                 margins=(100, 50), font="Courier 20", finalize=True)
         else:
             animated_print(
                 f"This is the current code saved in the code.txt file:")
             if code == "":
                 animated_print(
-                    f"{error_color}WARNING: No code present in the code.txt file! Either it has not been generated or manually overwritten!")
+                    f"WARNING: No code present in the code.txt file! Either it has not been generated or manually overwritten!", error=True, reset=True)
                 Colors(default_color)
             else:
                 animated_print(code)
@@ -1856,10 +1978,10 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
         randomcode(user, current_user, auto_request, private_mode,
                    print_logs, default_color, error_color, auto_code=auto_code)
     elif "y" in custom_code.lower() and not auto_code:
-        temp_string = str(f"New code generated as of "+str(datetime.datetime.now()
-                                                           )+" is $"+str(a)+"_"+str(rand_code)+"_$"+b+"#")
+        temp_string = str(
+            f"{gui_translate('New code generated as of')} {str(datetime.datetime.now())} {gui_translate('is')} ${str(a)}_{str(rand_code)}_${b}#")
         if graphic_mode:
-            window = gui.Window(title="FiEncrypt - New Code", layout=[[gui.Text(temp_string)], [gui.Text(
+            window = gui.Window(title=gui_translate(f"FiEncrypt - New Code (Logged in as: {get_current_user()})"), layout=[[gui.Text(gui_translate(temp_string))], [gui.Text(
                 "FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20", finalize=True)
         else:
             animated_print(temp_string)
@@ -1869,8 +1991,8 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
         try:
             # ?The user can input a code of their own, which will be combined with the prefix and timestamp that were automatically generated
             if graphic_mode:
-                window = gui.Window(title="FiEncrypt - New Code", layout=[[gui.Text("Enter the code you wish to set (or leave this blank to leave code empty)")], [gui.InputText(
-                    key="manual_code"), gui.Button("Save", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20")
+                window = gui.Window(title=gui_translate(f"FiEncrypt - New Code (Logged in as: {get_current_user()})"), layout=[[gui.Text(gui_translate("Enter the code you wish to set (or leave this blank to leave code empty)"))], [gui.InputText(
+                    key="manual_code"), gui.Button(gui_translate("Save"), key="Save", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20")
                 event, values = window.read()
                 if event == "Save":
                     rand_code = values.get("manual_code", None)
@@ -1880,7 +2002,7 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
                     f"Enter the code you wish to set (or leave this blank to leave code empty)", private_mode)
             if rand_code == None or rand_code.strip() == "":
                 if graphic_mode:
-                    gui.Popup("No code entered!", title="Warning",
+                    gui.Popup(gui_translate("No code entered!"), title=gui_translate("Warning"),
                               font="Courier 20", text_color="red")
                 else:
                     animated_print("No code entered!")
@@ -1888,7 +2010,7 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
                            print_logs, default_color, error_color, auto_code=auto_code)
         except ValueError:
             animated_print(
-                f"{error_color}WARNING: With no code saved locally, auto-generated key functions will not work! {Colors(default_color)}")
+                f"WARNING: With no code saved locally, auto-generated key functions will not work!", error=True, reset=True)
             log("Code override ordered... leaving blank!",
                 "encryptionManager", get_current_user(), None)
             menu(user, None, print_logs, default_color,
@@ -1902,7 +2024,7 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
             pass
         else:
             if graphic_mode:
-                window = gui.Window(title="FiEncrypt - New Code", layout=[[gui.Text(f"New code generated as of {str(datetime.datetime.now())} is ${str(a)}_{str(rand_code)}_${b}#")], [
+                window = gui.Window(title=gui_translate(f"FiEncrypt - New Code (Logged in as: {get_current_user()})"), layout=[[gui.Text(f"{gui_translate('New code generated as of')} {str(datetime.datetime.now())} {gui_translate('is')} ${str(a)}_{str(rand_code)}_${b}#")], [
                                     gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20", finalize=True)
             else:
                 animated_print(str(
@@ -2044,9 +2166,9 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             pass
     if (recipient_ip == "" or code2 == "") and not faulty_override:
         if graphic_mode:
-            temp_layout = [[gui.Text("Enter the encryption code for the message here! Or, leave it blank for the auto-generated key")], [
-                gui.InputText(key="code")], [gui.Button("Set Code", bind_return_key=True), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-            temp_window = gui.Window(title="FiEncrypt - Code Input", layout=temp_layout,
+            temp_layout = [[gui.Text(gui_translate("Enter the encryption code for the message here! Or, leave it blank for the auto-generated key"))], [
+                gui.InputText(key="code")], [gui.Button(gui_translate("Set Code"), key="Set Code", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+            temp_window = gui.Window(title=gui_translate(f"FiEncrypt - Code Input (Logged in as: {get_current_user()})"), layout=temp_layout,
                                      margins=(100, 50), font="Courier 20")
             event, values = temp_window.read()
             temp_window.close()
@@ -2067,7 +2189,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 code2 = code
             else:
                 animated_print(
-                    f"{error_color}WARNING: Unable to retrieve auto-generated key! Make sure the key is in the code.txt file")
+                    f"WARNING: Unable to retrieve auto-generated key! Make sure the key is in the code.txt file", error=True, reset=True)
                 Colors(default_color)
             manual = False
         else:
@@ -2206,7 +2328,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             except ValueError:
                 # ? Sometimes the @time_decode value is poorly generated and exceeds the value of the encrypted temp_timestamp, so this warning is displayed before the program attempts to decrypt the time after reversing the string
                 animated_print(
-                    f"{error_color}WARNING: Irregularity detected in the decrypted temp_timestamp! It may be wrong!")
+                    f"WARNING: Irregularity detected in the decrypted temp_timestamp! It may be wrong!", error=True, reset=True)
                 Colors(default_color)
                 hrs = int(temp_timestamp[0][::-1]) - int(time_decode)
                 hrs = int(f"0{hrs}")
@@ -2245,9 +2367,9 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         temp_display_name = recipient_ip
                     enter_home_directory()
                     os.chdir("./cache")
-                    layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Conversation",
+                    layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
+                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == ">>":
@@ -2261,20 +2383,20 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                      private_mode, error_color, print_speed=0)
             while message_text.strip() == "":
                 if graphic_mode:
-                    gui.Popup("No message was entered!", title="Warning",
+                    gui.Popup(gui_translate("No message was entered!"), title=gui_translate("Warning"),
                               text_color="red", font="Courier 15")
                     enter_home_directory()
                     os.chdir("./cache")
-                    layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Conversation",
+                    layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
+                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == ">>":
                         message_text = values.get("message_input", "")
                 else:
                     animated_print(
-                        f"{error_color}WARNING: No message was entered!")
+                        f"WARNING: No message was entered!", error=True, reset=True)
                     Colors(default_color)
                     message_text = privacy_input(
                         f"How do you feel", private_mode)
@@ -2365,9 +2487,9 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         pass
                 enter_home_directory()
                 os.chdir("./cache")
-                layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                    prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                window = gui.Window(title="FiEncrypt - Conversation",
+                layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
+                    gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                     layout=layout, margins=(100, 50), font="Courier 20")
 
         # *When the exit exits, the other client they have a TCP connection to automatically recieves the exit code, triggering their connection to close as well
@@ -2392,9 +2514,9 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         temp_display_name = recipient_ip
                     enter_home_directory()
                     os.chdir("./cache")
-                    layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Conversation",
+                    layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
+                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == ">>":
@@ -2413,20 +2535,20 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                      private_mode, error_color, print_speed=0)
             while message_text.strip() == "":
                 if graphic_mode:
-                    gui.Popup("No message was entered!", title="Warning",
+                    gui.Popup("No message was entered!", title=gui_translate("Warning"),
                               text_color="red", font="Courier 15")
                     enter_home_directory()
                     os.chdir("./cache")
-                    layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Conversation",
+                    layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
+                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == ">>":
                         message_text = values.get("message_input", "")
                 else:
                     animated_print(
-                        f"{error_color}WARNING: No message was entered!")
+                        f"WARNING: No message was entered!", error=True, reset=True)
                     Colors(default_color)
                     message_text = privacy_input(
                         f"Enter a reply here", private_mode)
@@ -2463,9 +2585,9 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 enter_home_directory()
                 os.chdir("./cache")
 
-                layout = [[gui.Text(f"New Conversation", font="Courier 30", text_color="red")], [gui.Text(
-                    prev_message_temp, font="Courier 20")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                window = gui.Window(title="FiEncrypt - New Conversation",
+                layout = [[gui.Text(gui_translate(f"New Conversation"), font="Courier 30", text_color="red")], [gui.Text(
+                    gui_translate(prev_message_temp), font="Courier 20")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                window = gui.Window(title=gui_translate(f"FiEncrypt - New Conversation (Logged in as: {get_current_user()})"),
                                     layout=layout, margins=(100, 50))
                 event, values = window.read()
                 if event == ">>":
@@ -2489,20 +2611,20 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                  private_mode, error_color, print_speed=0)
         while message_text.strip() == "":
             if graphic_mode:
-                gui.Popup("No message was entered!", title="Warning",
+                gui.Popup("No message was entered!", title=gui_translate("Warning"),
                           text_color="red", font="Courier 15")
                 enter_home_directory()
                 os.chdir("./cache")
-                layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                    prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                window = gui.Window(title="FiEncrypt - Conversation",
+                layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
+                    gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                     layout=layout, margins=(100, 50), font="Courier 20")
                 event, values = window.read()
                 if event == ">>":
                     message_text = values.get("message_input", "")
             else:
                 animated_print(
-                    f"{error_color}WARNING: No message was entered!")
+                    f"WARNING: No message was entered!", error=True, reset=True)
                 Colors(default_color)
                 message_text = privacy_input(
                     f"Enter your text here", private_mode, line_break=True)
@@ -2589,9 +2711,9 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     pass
             enter_home_directory()
             os.chdir("./cache")
-            layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-            window = gui.Window(title="FiEncrypt - Conversation",
+            layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
+                gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+            window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                 layout=layout, margins=(100, 50), font="Courier 20")
         elif graphic_mode:
             try:
@@ -2669,9 +2791,9 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     pass
             enter_home_directory()
             os.chdir("./cache")
-            layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-            window = gui.Window(title="FiEncrypt - Conversation",
+            layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
+                gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+            window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                 layout=layout, margins=(100, 50), font="Courier 20")
     try:
         window.close()
@@ -2685,10 +2807,11 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
         skip = False
     if "\\ip" in message_text.strip().lower():
         if graphic_mode and get_foreign_user() != None:
-            gui.Popup(f"{get_foreign_user().strip().capitalize()}'s IP address is {recipient_ip}",
-                      title="IP Address", font="Courier 20")
+            gui.Popup(gui_translate(f"{get_foreign_user().strip().capitalize()}'s IP address is {recipient_ip}"),
+                      title=gui_translate("IP Address"), font="Courier 20")
         elif graphic_mode:
-            gui.Popup(f"Peer's IP address is {recipient_ip}", title="IP Address", font="Courier 20")
+            gui.Popup(gui_translate(f"Peer's IP address is {recipient_ip}"), title=gui_translate(
+                "IP Address"), font="Courier 20")
         elif get_foreign_user() != None:
             animated_print(
                 f"{get_foreign_user().strip().capitalize()}'s IP address is {recipient_ip}")
@@ -2725,14 +2848,14 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                                rate=sample_rate, input=True, output=True, frames_per_buffer=chunk)
                 else:
                     if graphic_mode:
-                        gui.Popup("Microphone functionality currently unavailable on Windows!",
-                                  title="Warning", font="Courier 20", text_color="red")
+                        gui.Popup(gui_translate("Microphone functionality currently unavailable on Windows!"),
+                                  title=gui_translate("Warning"), font="Courier 20", text_color="red")
                     else:
                         animated_print(
-                            f"{error_color}WARNING: Microphone functionality currently unavailable on Windows!")
+                            f"WARNING: Microphone functionality currently unavailable on Windows!", error=True, reset=True)
                         colors(default_color)
             except OSError:
-                animated_print(f"{error_color}WARNING: Unable to detect microphone!")
+                animated_print(f"WARNING: Unable to detect microphone!", error=True, reset=True)
                 Colors(default_color)
                 log("Unable to detect microphone!", "voiceManager", get_current_user(), print_logs)
             else:
@@ -2975,7 +3098,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         ip = mac_resolve(target_mac, print_logs)
                     except UnboundLocalError:
                         animated_print(
-                            f"{error_color}WARNING: Unable to reach the host! Try a different address!")
+                            f"WARNING: Unable to reach the host! Try a different address!", error=True, reset=True)
                         Colors(default_color)
                         ip, target_mac, target_name, empty_sc = get_recipient_ip(user, display_initiate, print_logs,
                                                                                  default_color, private_mode, error_color, None, message=scrambled_output_phrase)
@@ -2999,7 +3122,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                     ip = mac_resolve(target_mac, print_logs)
                                 if ip == None:
                                     animated_print(
-                                        f"{error_color}WARNING: Unable to resolve IP address through ARP!")
+                                        f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
                                     Colors(default_color)
                                     connected = False
                                 else:
@@ -3013,7 +3136,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                     target_name = target_name.replace("\n", "")
                                     if mac.strip() == "":
                                         animated_print(
-                                            f"{error_color}WARNING: MAC address for contact is blank!")
+                                            f"WARNING: MAC address for contact is blank!", error=True, reset=True)
                                         Colors(default_color)
                                         connected = False
                                     else:
@@ -3025,24 +3148,24 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                                 target_mac, print_logs)
                                         if ip == None:
                                             animated_print(
-                                                f"{error_color}WARNING: Unable to resolve IP address through ARP!")
+                                                f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
                                             Colors(default_color)
                                             connected = False
                                         else:
                                             contact_search.add_ip(target_name, ip)
                                 except ValueError:
                                     animated_print(
-                                        f"{error_color}WARNING: Invalid contact name entered!")
+                                        f"WARNING: Invalid contact name entered!", error=True, reset=True)
                                     Colors(default_color)
                                     connected = False
                                 except TypeError:
                                     animated_print(
-                                        f"{error_color}WARNING: Invalid contact details!")
+                                        f"WARNING: Invalid contact details!", error=True, reset=True)
                                     Colors(default_color)
                                     connected = False
                                 except AttributeError:
                                     animated_print(
-                                        f"{error_color}WARNING: Invalid contact details!")
+                                        f"WARNING: Invalid contact details!", error=True, reset=True)
                                     Colors(default_color)
                                     connected = False
                         recipient_ip = ip.strip().replace("\n", "")
@@ -3050,7 +3173,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             except KeyboardInterrupt:
                 connected = False
                 animated_print(
-                    f"{error_color}WARNING: Keyboard Interrupt! Attempting to deliver message!")
+                    f"WARNING: Keyboard Interrupt! Attempting to deliver message!", error=True, reset=True)
                 Colors(default_color)
                 log(f"Message delivery override! Redirecting to {ip}'s mailbox!", "networkManager", get_current_user(
                 ), print_logs)
@@ -3100,7 +3223,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         ip = mac_resolve(target_mac, print_logs)
                     except:
                         animated_print(
-                            f"{error_color}WARNING: Unable to reach the host! Try a different address!")
+                            f"WARNING: Unable to reach the host! Try a different address!", error=True, reset=True)
                     Colors(default_color)
                     try:
                         if ip:
@@ -3131,7 +3254,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                 ip = mac_resolve(target_mac, print_logs)
                             if ip == None:
                                 animated_print(
-                                    f"{error_color}WARNING: Unable to resolve IP address through ARP!")
+                                    f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
                                 Colors(default_color)
                                 connected = False
                             else:
@@ -3145,7 +3268,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                 target_name = target_name.replace("\n", "")
                                 if mac.strip() == "":
                                     animated_print(
-                                        f"{error_color}WARNING: MAC address for contact is blank!")
+                                        f"WARNING: MAC address for contact is blank!", error=True, reset=True)
                                     Colors(default_color)
                                     connected = False
                                 else:
@@ -3157,24 +3280,24 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                             target_mac, print_logs)
                                     if ip == None:
                                         animated_print(
-                                            f"{error_color}WARNING: Unable to resolve IP address through ARP!")
+                                            f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
                                         Colors(default_color)
                                         connected = False
                                     else:
                                         contact_search.add_ip(target_name, ip)
                             except ValueError:
                                 animated_print(
-                                    f"{error_color}WARNING: Invalid contact name entered!")
+                                    f"WARNING: Invalid contact name entered!", error=True, reset=True)
                                 Colors(default_color)
                                 connected = False
                             except TypeError:
                                 animated_print(
-                                    f"{error_color}WARNING: Invalid contact details!")
+                                    f"WARNING: Invalid contact details!", error=True, reset=True)
                                 Colors(default_color)
                                 connected = False
                             except AttributeError:
                                 animated_print(
-                                    f"{error_color}WARNING: Invalid contact details!")
+                                    f"WARNING: Invalid contact details!", error=True, reset=True)
                                 Colors(default_color)
                                 connected = False
                     if recipient_ip != None:
@@ -3206,7 +3329,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         ip = mac_resolve(target_mac, print_logs)
                     except:
                         animated_print(
-                            f"{error_color}WARNING: Unable to reach the host! Try a different address!")
+                            f"WARNING: Unable to reach the host! Try a different address!", error=True, reset=True)
                     Colors(default_color)
                     if ip == None or ip.strip() == "":
                         ip, target_mac, target_name, empty_sc = get_recipient_ip(user, display_initiate, print_logs,
@@ -3232,7 +3355,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                 ip = mac_resolve(target_mac, print_logs)
                             if ip == None:
                                 animated_print(
-                                    f"{error_color}WARNING: Unable to resolve IP address through ARP!")
+                                    f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
                                 Colors(default_color)
                                 connected = False
                             else:
@@ -3246,7 +3369,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                 target_name = target_name.replace("\n", "")
                                 if mac.strip() == "":
                                     animated_print(
-                                        f"{error_color}WARNING: MAC address for contact is blank!")
+                                        f"WARNING: MAC address for contact is blank!", error=True, reset=True)
                                     Colors(default_color)
                                     connected = False
                                 else:
@@ -3258,24 +3381,24 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                             target_mac, print_logs)
                                     if ip == None:
                                         animated_print(
-                                            f"{error_color}WARNING: Unable to resolve IP address through ARP!")
+                                            f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
                                         Colors(default_color)
                                         connected = False
                                     else:
                                         contact_search.add_ip(target_name, ip)
                             except ValueError:
                                 animated_print(
-                                    f"{error_color}WARNING: Invalid contact name entered!")
+                                    f"WARNING: Invalid contact name entered!", error=True, reset=True)
                                 Colors(default_color)
                                 connected = False
                             except TypeError:
                                 animated_print(
-                                    f"{error_color}WARNING: Invalid contact details!")
+                                    f"WARNING: Invalid contact details!", error=True, reset=True)
                                 Colors(default_color)
                                 connected = False
                             except AttributeError:
                                 animated_print(
-                                    f"{error_color}WARNING: Invalid contact details!")
+                                    f"WARNING: Invalid contact details!", error=True, reset=True)
                                 Colors(default_color)
                                 connected = False
                     recipient_ip = ip.strip().replace("\n", "")
@@ -3328,10 +3451,11 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 sc.send(packet.encode())
             except:
                 if graphic_mode:
-                    gui.Popup("Connection lost! Returning to menu...",
-                              title="Warning", font="Courier 20", text_color="red")
+                    gui.Popup(gui_translate("Connection lost! Returning to menu..."),
+                              title=gui_translate("Warning"), font="Courier 20", text_color="red")
                 else:
-                    animated_print(f"{error_color}WARNING: Connection lost! Returning to menu")
+                    animated_print(f"WARNING: Connection lost! Returning to menu",
+                                   error=True, reset=True)
                     Colors(default_color)
                 sc.close()
                 menu(user, None, print_logs, default_color,
@@ -3379,25 +3503,25 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     animated_print(f"Message left!")
             else:
                 if get_foreign_user() != None:
-                    gui.Popup(f"{get_foreign_user().capitalize()} is not available! Message left in their mailbox!",
-                              title="FiEncrypt - Sent To Mailbox", font="Courier 20")
+                    gui.Popup(gui_translate(f"{get_foreign_user().capitalize()} is not available! Message left in their mailbox!"),
+                              title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20")
                     get_foreign_user(new_user="\\reset")
                 else:
-                    gui.Popup(f"{recipient_ip} unavailable! Message left in their mailbox!",
-                              title="FiEncrypt - Sent To Mailbox", font="Courier 20")
+                    gui.Popup(gui_translate(f"{recipient_ip} unavailable! Message left in their mailbox!"),
+                              title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20")
         elif mailbox:
             if not graphic_mode:
                 animated_print(f"Message left!")
             else:
-                gui.Popup(f"{recipient_ip} unavailable! Message left in their mailbox!",
-                          title="FiEncrypt - Sent To Mailbox", font="Courier 20")
+                gui.Popup(gui_translate(f"{recipient_ip} unavailable! Message left in their mailbox!"),
+                          title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20")
         elif poke:
             if not graphic_mode:
                 animated_print(f"Poke sent!")
         else:
             if graphic_mode:
-                gui.Popup(f"Leaving conversation with {foreign_user.capitalize()}!",
-                          title="FiEncrypt - Leaving Conversation", font="Courier 20")
+                gui.Popup(gui_translate(f"Leaving conversation with {foreign_user.capitalize()}!"),
+                          title=gui_translate(f"FiEncrypt - Leaving Conversation (Logged in as: {get_current_user()})"), font="Courier 20")
             else:
                 animated_print(
                     f"Leaving conversation with {foreign_user.capitalize()}!")
@@ -3538,8 +3662,8 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
     else:
         sc = temp_sc
     if graphic_mode:
-        temp_popup = gui.Window(title="FiEncrypt - User Validation", layout=[
-                                [gui.Text("Validating User...")]], margins=(100, 50), font="Courier 20", finalize=True)
+        temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - User Validation (Logged in as: {get_current_user()})"), layout=[
+                                [gui.Text(gui_translate("Validating User..."))]], margins=(100, 50), font="Courier 20", finalize=True)
     try:
         sc.send(
             f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
@@ -3563,8 +3687,8 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
         get_foreign_user(new_user=expected_user)
         if graphic_mode:
             temp_popup.close()
-            temp_popup = gui.Window(title="FiEncrypt - User Validation", layout=[
-                                    [gui.Text("Validating User... Success!")]], margins=(100, 50), font="Courier 20", finalize=True)
+            temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - User Validation (Logged in as: {get_current_user()})"), layout=[
+                                    [gui.Text(gui_translate("Validating User... Success!"))]], margins=(100, 50), font="Courier 20", finalize=True)
             time.sleep(2)
             temp_popup.close()
         return True, sc
@@ -3575,8 +3699,8 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
         except ConnectionRefusedError:
             if graphic_mode:
                 temp_popup.close()
-                temp_popup = gui.Window(title="FiEncrypt - User Validation", layout=[
-                                        [gui.Text("Validating User... Failed!")]], margins=(100, 50), font="Courier 20", finalize=True)
+                temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - User Validation (Logged in as: {get_current_user()})"), layout=[
+                                        [gui.Text(gui_translate("Validating User... Failed!"))]], margins=(100, 50), font="Courier 20", finalize=True)
                 time.sleep(2)
                 temp_popup.close()
             return None, sc
@@ -3594,8 +3718,8 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
             get_foreign_user(new_user=expected_user)
             if graphic_mode:
                 temp_popup.close()
-                temp_popup = gui.Window(title="FiEncrypt - User Validation", layout=[
-                                        [gui.Text("Validating User... Success!")]], margins=(100, 50), font="Courier 20", finalize=True)
+                temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - User Validation (Logged in as: {get_current_user()})"), layout=[
+                                        [gui.Text(gui_translate("Validating User... Success!"))]], margins=(100, 50), font="Courier 20", finalize=True)
                 time.sleep(2)
                 temp_popup.close()
             return True, sc
@@ -3604,8 +3728,8 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
             reply_link.send("\\exit".encode())
             if graphic_mode:
                 temp_popup.close()
-                temp_popup = gui.Window(title="FiEncrypt - User Validation", layout=[
-                                        [gui.Text("Validating User... Failed!")]], margins=(100, 50), font="Courier 20", finalize=True)
+                temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - User Validation (Logged in as: {get_current_user()})"), layout=[
+                                        [gui.Text(gui_translate("Validating User... Failed!"))]], margins=(100, 50), font="Courier 20", finalize=True)
                 time.sleep(2)
                 temp_popup.close()
             return False, sc
@@ -3613,7 +3737,7 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
 
 def get_auto_code():
     """Specifically retrieves the state of the auto_code parameter in the config file"""
-    print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme = retrieve_config_settings()
+    print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation, lang = retrieve_config_settings()
     return auto_code
 
 
@@ -3688,10 +3812,11 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
         sc, address = file_link.accept()
     except:
         if graphic_mode:
-            gui.Popup("Connection failed! Aborting file transfer",
-                      title="Warning", font="Courier 20", text_color="red")
+            gui.Popup(gui_translate("Connection failed! Aborting file transfer"),
+                      title=gui_translate("Warning"), font="Courier 20", text_color="red")
         else:
-            animated_print(f"{error_color}WARNING: Connection failed! Aborting file transfer!")
+            animated_print(f"WARNING: Connection failed! Aborting file transfer!",
+                           error=True, reset=True)
         Colors(default_color)
         temp_sc.send("\\exit".encode())
         temp_sc.close()
@@ -3737,9 +3862,9 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                 try:
                     if old_file_path == None:
                         if graphic_mode:
-                            layout = [[gui.Text(f"Enter path of file to send to {temp_foreign_user}"), gui.InputText(key="filename"), gui.Button(
+                            layout = [[gui.Text(gui_translate(f"Enter path of file to send to {temp_foreign_user}")), gui.InputText(key="filename"), gui.Button(
                                 ">>", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                            window = gui.Window(title="FiEncrypt - File Transfer",
+                            window = gui.Window(title=gui_translate(f"FiEncrypt - File Transfer (Logged in as: {get_current_user()})"),
                                                 layout=layout, margins=(100, 50), font="Courier 20")
                             event, values = window.read()
                             if event == ">>":
@@ -3756,10 +3881,10 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                     log(f"File transfer interrupted!", "networkManager", get_current_user(
                     ), None)
                     if graphic_mode:
-                        gui.Popup("File transfer aborted!", title="Warning",
+                        gui.Popup(gui_translate("File transfer aborted!"), title=gui_translate("Warning"),
                                   font="Courier 20", text_color="red")
                     else:
-                        animated_print(f"{error_color}WARNING: File transfer aborted!")
+                        animated_print(f"WARNING: File transfer aborted!", error=True, reset=True)
                         Colors(default_color)
                     file_link.close()
                     sc.close()
@@ -3768,21 +3893,21 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                 final_file, valid_file = True, False
                 if return_value == 1:
                     if graphic_mode:
-                        gui.Popup("You cannot access core FiEncrypt files outside of the public or private cache!",
-                                  title="Warning", font="Courier 20", text_color="red")
+                        gui.Popup(gui_translate("You cannot access core FiEncrypt files outside of the public or private cache!"),
+                                  title=gui_translate("Warning"), font="Courier 20", text_color="red")
                     else:
                         animated_print(
-                            f"{error_color}WARNING: You cannot access core FiEncrypt files outside of the public or private cache!")
+                            f"WARNING: You cannot access core FiEncrypt files outside of the public or private cache!", error=True, reset=True)
                         Colors(default_color)
                     log("Sftp access to core FiEncrypt files rejected!",
                         "encryptionManager", get_current_user(), None)
                 elif return_value == 2:
                     if graphic_mode:
-                        gui.Popup("You cannot access the private cache of any other user!",
-                                  title="Warning", font="Courier 20", text_color="red")
+                        gui.Popup(gui_translate("You cannot access the private cache of any other user!"),
+                                  title=gui_translate("Warning"), font="Courier 20", text_color="red")
                     else:
                         animated_print(
-                            f"{error_color}WARNING: You cannot access the private cache of any other user!")
+                            f"WARNING: You cannot access the private cache of any other user!", error=True, reset=True)
                         Colors(default_color)
                     log("Sftp access to private cache rejected!",
                         "encryptionManager", get_current_user(), None)
@@ -3798,9 +3923,9 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                         enter_home_directory()
                         while not valid or not current_valid:
                             if graphic_mode:
-                                layout = [[gui.Text("Please confirm your login")], [gui.Text("Username"), gui.InputText(
-                                    key="username")], [gui.Text("Password"), gui.InputText(key="password", password_char="*")], [gui.Button("Login", bind_return_key=True), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                                window = gui.Window(title="FiEncrypt - Login", layout=layout,
+                                layout = [[gui.Text(gui_translate("Please confirm your login"))], [gui.Text(gui_translate("Username")), gui.InputText(
+                                    key="username")], [gui.Text(gui_translate("Password")), gui.InputText(key="password", password_char="*")], [gui.Button(gui_translate("Login"), key="Login", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                                window = gui.Window(title=gui_translate(f"FiEncrypt - Login"), layout=layout,
                                                     margins=(100, 50), font="Courier 20")
                                 event, values = window.read()
                                 if event == "Login":
@@ -3820,10 +3945,11 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                 filename = f"./{hash_current_user(username.lower().strip())}/files/{filename[1]}"
                             else:
                                 if graphic_mode:
-                                    gui.Popup("Invalid login!", title="Warnng",
+                                    gui.Popup(gui_translate("Invalid login!"), title=gui_translate("Warning"),
                                               font="Courier 20", text_color="red")
                                 else:
-                                    animated_print(f"{error_color}WARNING: Inavlid login!")
+                                    animated_print(f"WARNING: Inavlid login!",
+                                                   error=True, reset=True)
                                     colors(default_color)
                     if filename.strip().endswith("/") or filename.strip().endswith("\\"):
                         final_file = False
@@ -3853,9 +3979,9 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                     option_type.append(parse_size(os.path.getsize(
                                         filename+options[i]), options[i]))
                             if graphic_mode:
-                                layout = [[gui.Column([[gui.Text(graphic_options)]], scrollable=True, size=(800, 600))], [gui.Text("Select one of these"), gui.InputText(key="file_choice"), gui.Button(
-                                    "Send", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                                window = gui.Window(title="FiEncrypt - File Transfer",
+                                layout = [[gui.Column([[gui.Text(gui_translate(graphic_options))]], scrollable=True, size=(800, 600))], [gui.Text(gui_translate("Select one of these")), gui.InputText(key="file_choice"), gui.Button(
+                                    gui_translate("Send"), bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                                window = gui.Window(title=gui_translate(f"FiEncrypt - File Transfer (Logged in as: {get_current_user()})"),
                                                     layout=layout, margins=(100, 50), font="Courier 20")
                                 event, values = window.read()
                                 if event == "Send":
@@ -3913,9 +4039,9 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                     animated_print(f"{i+1}. {option}", speed=0)
                                 file_choice = privacy_input(f"Select one of these files", 0)
                             else:
-                                layout = [[gui.Column([[gui.Text(graphic_options)]], scrollable=True, size=(800, 600))], [gui.Text("Select one of these files"), gui.InputText(key="filename"), gui.Button(
-                                    "Send", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                                window = gui.Window(title="FiEncrypt - File Transfer",
+                                layout = [[gui.Column([[gui.Text(gui_translate(graphic_options))]], scrollable=True, size=(800, 600))], [gui.Text(gui_translate("Select one of these files")), gui.InputText(key="filename"), gui.Button(
+                                    gui_translate("Send"), bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                                window = gui.Window(title=gui_translate(f"FiEncrypt - File Transfer (Logged in as: {get_current_user()})"),
                                                     layout=layout, margins=(100, 50), font="Courier 20")
                                 event, values = window.read()
                                 if event == "Send":
@@ -3932,10 +4058,10 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                             valid_file = False
                     except:
                         if graphic_mode:
-                            gui.Popup("File not found!", title="Warning",
+                            gui.Popup(gui_translate("File not found!"), title=gui_translate("Warning"),
                                       font="Courier 20", text_color="red")
                         else:
-                            animated_print(f"{error_color}WARNING: File not found!")
+                            animated_print(f"WARNING: File not found!", error=True, reset=True)
                             Colors(default_color)
                         valid_file = False
                 if valid_file:
@@ -3988,7 +4114,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                         if accepted:
                             if graphic_mode:
                                 temp_window = gui.Window(
-                                    title="FiEncrypt - File Transfer", layout=[[gui.Text("Sending file...")]], font="Courier 20", finalize=True)
+                                    title=gui_translate(f"FiEncrypt - File Transfer (Logged in as: {get_current_user()})"), layout=[[gui.Text(gui_translate("Sending file..."))]], font="Courier 20", finalize=True)
                                 progress = tqdm.tqdm(range(
                                     int(filesize)), f"Sending {os.path.basename(filename)}", unit="B", unit_scale=True, unit_divisor=1024)
                             else:
@@ -4005,10 +4131,11 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                             progress.update(len(bytes_read))
                                 except BrokenPipeError:
                                     if graphic_mode:
-                                        gui.Popup("Pipe Broken!", title="Warning",
+                                        gui.Popup(gui_translate("Pipe Broken!"), title=gui_translate("Warning"),
                                                   font="Courier 20", text_color="red")
                                     else:
-                                        animated_print(f"{error_color}WARNING: Pipe Broken!")
+                                        animated_print(f"WARNING: Pipe Broken!",
+                                                       error=True, reset=True)
                                         Colors(default_color)
                                     file_link.close()
                                     sc.close()
@@ -4023,37 +4150,39 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                             print("not accepted!")
                     except KeyboardInterrupt:
                         if graphic_mode:
-                            gui.Popup("File transfer interrrupted", title="Warning",
+                            gui.Popup(gui_translate("File transfer interrrupted"), title=gui_translate("Warning"),
                                       font="Courier 20", text_color="red")
                         else:
-                            animated_print(f"{error_color}WARNING: File transfer interrupted!")
+                            animated_print(f"WARNING: File transfer interrupted!",
+                                           error=True, reset=True)
                             Colors(default_color)
                         file_link.close()
                         sc.close()
                     except OverflowError:
                         if graphic_mode:
-                            gui.Popup("File too large! Aborting...", title="Warning",
+                            gui.Popup(gui_translate("File too large! Aborting..."), title=gui_translate("Warning"),
                                       font="Courier 20", text_color="red")
                         else:
-                            animated_print(f"{error_color}WARNING: File too large! Aborting...")
+                            animated_print(f"WARNING: File too large! Aborting...",
+                                           error=True, reset=True)
                             Colors(default_color)
                         file_link.close()
                         sc.close()
                     except ConnectionResetError:
                         if graphic_mode:
                             if foreign_user != None:
-                                gui.Popup(f"{foreign_user.capitalize()} has reset the conenction!",
-                                          title="Warning", font="Courier 20", text_color="red")
+                                gui.Popup(gui_translate(f"{foreign_user.capitalize()} has reset the conenction!"),
+                                          title=gui_translate("Warning"), font="Courier 20", text_color="red")
                             else:
-                                gui.Popup("Peer has reset the connection!",
-                                          title="Warning", font="Courier 20", text_color="red")
+                                gui.Popup(gui_translate("Peer has reset the connection!"),
+                                          title=gui_translate("Warning"), font="Courier 20", text_color="red")
                         else:
                             if foreign_user != None:
                                 animated_print(
-                                    f"{error_color}WARNING: {foreign_user.capitalize()} has reset the conenction!")
+                                    f"WARNING: {foreign_user.capitalize()} has reset the conenction!", error=True, reset=True)
                             else:
                                 animated_print(
-                                    f"{error_color}WARNING: Peer has reset the conenction!")
+                                    f"WARNING: Peer has reset the conenction!", error=True, reset=True)
                             Colors(default_color)
                         file_link.close()
                         sc.close()
@@ -4105,13 +4234,13 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
     if voice_message:
         if graphic_mode:
             temp_popup = gui.Window(layout=[[gui.Text("New Voice Message!")]],
-                                    title="Alert", font="Courier 20", finalize=True)
+                                    title=gui_translate("Alert"), font="Courier 20", finalize=True)
         else:
             animated_print(f"New Voice Message!")
     else:
         if graphic_mode:
             temp_popup = gui.Window(layout=[[gui.Text("Awaiting file...")]],
-                                    title="Alert", font="Courier 20", finalize=True)
+                                    title=gui_translate("Alert"), font="Courier 20", finalize=True)
         else:
             animated_print(f"Awaiting File...")
     try:
@@ -4156,7 +4285,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
             else:
                 temp_popup.close()
                 temp_popup = gui.Window(layout=[[gui.Text("Recieving file...")]],
-                                        title="Alert", font="Courier 20", finalize=True)
+                                        title=gui_translate("Alert"), font="Courier 20", finalize=True)
                 try:
                     progress = tqdm.tqdm(range(int(filesize)),
                                          f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
@@ -4178,10 +4307,10 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                         progress.update(len(bytes_read))
                 else:
                     if graphic_mode:
-                        gui.Popup("File transfer failed", title="Warning",
+                        gui.Popup("File transfer failed", title=gui_translate("Warning"),
                                   font="Courier 20", text_color="red")
                     else:
-                        animated_print(f"{error_color}WARNING: File transfer failed!")
+                        animated_print(f"WARNING: File transfer failed!", error=True, reset=True)
                         Colors(default_color)
                     file_recipient.close()
             if graphic_mode:
@@ -4207,10 +4336,11 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                             cached_image.show()
                     except:
                         if graphic_mode:
-                            gui.Popup("Unable to open image!", title="Warning",
+                            gui.Popup("Unable to open image!", title=gui_translate("Warning"),
                                       font="Courier 20", text_color="red")
                         else:
-                            animated_print(f"{error_color}WARNING: Unable to open image!")
+                            animated_print(f"WARNING: Unable to open image!",
+                                           error=True, reset=True)
                             Colors(default_color)
             if not graphic_mode:
                 for _ in range(2):
@@ -4220,8 +4350,8 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
             if str(filesize).strip() == str(os.path.getsize(f"./cache/{filename}")).strip():
                 if not voice_message:
                     if graphic_mode:
-                        gui.Popup(
-                            f"File {filename} saved to {os.getcwd()}/cache/{filename}", title="Alert", font="Courier 20")
+                        gui.Popup(gui_translate(
+                            f"File {filename} saved to {os.getcwd()}/cache/{filename}"), title=gui_translate("Alert"), font="Courier 20")
                     else:
                         animated_print(f"File {filename} saved to {os.getcwd()}/cache/{filename}")
                 if autosync and filename.lower().strip() != "foreign_voice_message.wav" and filename.lower().strip() != "voice_message.wav":
@@ -4230,9 +4360,9 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                     if not graphic_mode:
                         animated_print("*** Autosync ***")
                     else:
-                        layout = [[gui.Text(f"Copying {filename} to your private cache")], [gui.Text(f"Size of {filename}: {parse_size(cache_transfer_size, filename)}")], [
-                            gui.Text(f"Max Size of Personal Cache: {max_size}")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                        window = gui.Window(title="FiEncrypt - Autosync", layout=layout,
+                        layout = [[gui.Text(gui_translate(f"Copying {filename} to your private cache"))], [gui.Text(gui_translate(f"Size of {filename}: {parse_size(cache_transfer_size, filename)}"))], [
+                            gui.Text(gui_translate(f"Max Size of Personal Cache: {max_size}"))], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        window = gui.Window(title=gui_translate(f"FiEncrypt - Autosync (Logged in as: {get_current_user()})"), layout=layout,
                                             margins=(100, 50), font="Courier 20", finalize=True)
                     if "gb" in max_size.lower():
                         max_size = max_size.lower().split("gb")
@@ -4258,12 +4388,12 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                             "'", "\\'").replace("(", "\\(").replace(")", "\\)")
                     if (int(cache_transfer_size) + int(personal_cache_total_size)) > max_size:
                         if graphic_mode:
-                            gui.Popup(f"Size of {filename} would exceed max allocated size of your private cache!",
-                                      title="Warning", font="Courier 20", text_color="red")
+                            gui.Popup(gui_translate(f"Size of {filename} would exceed max allocated size of your private cache!"),
+                                      title=gui_translate("Warning"), font="Courier 20", text_color="red")
                             window.close()
                         else:
                             animated_print(
-                                f"{error_color}WARNING: Size of {filename} would exceed max allocated size of your private cache!")
+                                f"WARNING: Size of {filename} would exceed max allocated size of your private cache!", error=True, reset=True)
                             Colors(default_color)
                     else:
                         if pass_os() == "win32":
@@ -4279,9 +4409,9 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                                 sys.stdout.write("\033[K")
                 elif autosync:
                     if graphic_mode:
-                        vm_layout = [[gui.Text("Storing voice messages in your Private Cache is discouraged!", text_color="red")], [gui.Text(
-                            "Do you wish to proceed anyway?"), gui.Button("Yes", bind_return_key=True), gui.Button("No")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                        vm_window = gui.Window(title="FiEncrypt - Voice Message",
+                        vm_layout = [[gui.Text(gui_translate("Storing voice messages in your Private Cache is discouraged!"), text_color="red")], [gui.Text(
+                            gui_translate("Do you wish to proceed anyway?")), gui.Button(gui_translate("Yes"), key="Yes", bind_return_key=True), gui.Button(gui_translate("No"), key="No")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        vm_window = gui.Window(title=gui_translate(f"FiEncrypt - Voice Message (Logged in as: {get_current_user()})"),
                                                layout=vm_layout, margins=(100, 50), font="Courier 20")
                         event, values = vm_window.read()
                         if event == "Yes":
@@ -4291,17 +4421,17 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                         vm_window.close()
                     else:
                         animated_print(
-                            f"{error_color}WARNING: Storing voice messages in your Private Cache is discouraged!")
+                            f"WARNING: Storing voice messages in your Private Cache is discouraged!", error=True, reset=True)
                         Colors(default_color)
                         override = privacy_input("Do you wish to proceed anyway? [Y|N]", 0)
                     if "y" in override.lower().strip():
                         valid_name = False
                         while not valid_name:
                             if graphic_mode:
-                                name_layout = [[gui.Text("Enter a new name for the voice message file"), gui.InputText(
-                                    key="new_name"), gui.Button("Save", bind_return_key=True)]]
+                                name_layout = [[gui.Text(gui_translate("Enter a new name for the voice message file")), gui.InputText(
+                                    key="new_name"), gui.Button(gui_translate("Save"), key="Save", bind_return_key=True)]]
                                 name_window = gui.Window(
-                                    title="Alert", layout=name_layout, margins=(100, 50), font="Courier 20")
+                                    title=gui_translate("Alert"), layout=name_layout, margins=(100, 50), font="Courier 20")
                                 event, values = name_window.read()
                                 if event == "Save":
                                     new_name = values.get("new_name", None)
@@ -4336,10 +4466,11 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                                         sys.stdout.write("\033[K")
                             else:
                                 if graphic_mode:
-                                    gui.Popup("Names still match!", title="Warning",
+                                    gui.Popup(gui_translate("Names still match!"), title=gui_translate("Warning"),
                                               font="Courier 20", text_color="red")
                                 else:
-                                    animated_print(f"{error_color}WARNING: Names still match!")
+                                    animated_print(f"WARNING: Names still match!",
+                                                   error=True, reset=True)
                                     Colors(default_color)
                                     time.sleep(2)
                                     for _ in range(5):
@@ -4348,26 +4479,26 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
             else:
                 if graphic_mode:
                     gui.Popup(
-                        f"File corrupt or incomplete! Check {os.getcwd()}/cache/{filename}", title="Warning", font="Courier 20")
+                        gui_translate(f"File corrupt or incomplete! Check {os.getcwd()}/cache/{filename}"), title=gui_translate("Warning"), font="Courier 20")
                 else:
                     animated_print(
-                        f"{error_color}WARNING: File corrupt or incomplete! Check {os.getcwd()}/cache/{filename}")
+                        f"WARNING: File corrupt or incomplete! Check {os.getcwd()}/cache/{filename}", error=True, reset=True)
                     Colors(default_color)
 
     except OverflowError:
         log(f"File transfer overflow! File too large!", "networkManager", get_current_user(
         ), None)
         if graphic_mode:
-            gui.Popup("File too large! Aborting...", title="Warning",
+            gui.Popup(gui_translate("File too large! Aborting..."), title=gui_translate("Warning"),
                       font="Courier 20", text_color="red")
         else:
-            animated_print(f"{error_color}WARNING: File too large! Aborting...")
+            animated_print(f"WARNING: File too large! Aborting...", error=True, reset=True)
             Colors(default_color)
         file_recipient.close()
     except KeyboardInterrupt:
         log(f"File transfer interrupted!", "networkManager", get_current_user(
         ), None)
-        animated_print(f"\n{error_color}WARNING: Aborting file transfer...")
+        animated_print(f"\nWARNING: Aborting file transfer...", error=True, reset=True)
         Colors(default_color)
         file_recipient.close()
     try:
@@ -4422,8 +4553,8 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
     # *@code2 is blank unless old_code carries a value, which is does during conversation and self-talk modes
     while code2 == "" or old_code == "" or current_user != 2:
         if graphic_mode:
-            window = gui.Window(title="FiEncrypt - Message Decryption", layout=[[gui.Text("Enter the encryption code for the message here! Or, leave it blank for the auto-generated key")], [gui.InputText(key="manual_code")], [
-                                gui.Button("Decrypt", bind_return_key=True), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20")
+            window = gui.Window(title=gui_translate(f"FiEncrypt - Message Decryption (Logged in as: {get_current_user()})"), layout=[[gui.Text(gui_translate("Enter the encryption code for the message here! Or, leave it blank for the auto-generated key"))], [gui.InputText(key="manual_code")], [
+                                gui.Button(gui_translate("Decrypt"), key="Decrypt", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20")
             event, values = window.read()
             window.close()
             if event == "Decrypt":
@@ -4447,7 +4578,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
             else:
                 if old_code == "":
                     animated_print(
-                        f"{error_color}WARNING: Unable to retrieve auto-generated key! Make sure the key is in the code.txt file")
+                        f"WARNING: Unable to retrieve auto-generated key! Make sure the key is in the code.txt file", error=True, reset=True)
                     Colors(default_color)
                 else:
                     code2 = old_code
@@ -4532,6 +4663,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
         date = date[1]
         months, rd_dates, st_dates, nd_dates, th_dates = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], [
             "3", "23"], ["1", "21", "31"], ["2", "22"], ["4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "24", "25", "26", "27", "28", "29", "30"]
+        print(date)
         if len(date) == 3:
             if date[0] == "0":
                 date = f"{date[-1]}/{date[0:len(date)-1]}"
@@ -4549,7 +4681,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
             else:
                 date = f"{date[-2:len(date)]}/{date[0:2]}"
         elif len(date) == 2:
-            date = f"{date[0]}/{date[-1]}"
+            date = f"{date[-1]}/{date[0]}"
         else:
             date = "Date: Unknown"
         if date != "Date: Unknown":
@@ -4588,7 +4720,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
             except ValueError:
                 # ? Sometimes the @time_decode value is poorly generated and exceeds the value of the encrypted timestamp, so this warning is displayed before the program attempts to decrypt the time after reversing the string
                 animated_print(
-                    f"{error_color}WARNING: Irregularity detected in the decrypted timestamp! It may be wrong!")
+                    f"WARNING: Irregularity detected in the decrypted timestamp! It may be wrong!", error=True, reset=True)
                 Colors(default_color)
                 hrs = int(timestamp[0][::-1]) - int(time_decode)
                 hrs = int(f"0{hrs}")
@@ -4623,14 +4755,14 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
     if len(message_text) == 0:
         if not allow_message_input:
             animated_print(
-                f"{error_color}WARNING: Message cannot be blank!")
+                f"WARNING: Message cannot be blank!", error=True, reset=True)
             Colors(default_color)
             menu(user, current_user, None, default_color,
                  private_mode, error_color, print_speed=0)
         else:
             while len(message_text) == 0:
                 animated_print(
-                    f"{error_color}WARNING: Message cannot be blank!")
+                    f"WARNING: Message cannot be blank!", error=True, reset=True)
                 Colors(default_color)
                 message_text = privacy_input(f"Enter message to be decrypted", private_mode)
     for i, k in enumerate(message_text):
@@ -5058,24 +5190,24 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
             enter_home_directory()
             os.chdir("./cache")
             if temp_display_name.strip() != "":
-                layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                    prev_message_temp)]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
+                    gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             else:
-                layout = [[gui.Text(f"Decrypted Message!", font="Courier 30", text_color="red")], [gui.Text(f"From: UNKNOWN")], [
-                    gui.Text(temp_timestamp)], [gui.Text(temp_output_phrase)], [gui.Button("Delete", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-            window = gui.Window(title="FiEncrypt - Conversation",
+                layout = [[gui.Text(gui_translate(f"Decrypted Message!"), font="Courier 30", text_color="red")], [gui.Text(gui_translate(f"From: UNKNOWN"))], [
+                    gui.Text(temp_timestamp)], [gui.Text(gui_translate(temp_output_phrase))], [gui.Button(gui_translate("Delete"), key="Delete", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+            window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                 layout=layout, margins=(100, 50), font="Courier 20")
         else:
             current_user = get_current_user().strip().lower()
             enter_home_directory()
             os.chdir("./cache")
             if temp_display_name.strip() != "":
-                layout = [[gui.Text(f"New message!", font="Courier 30", text_color="red")], [gui.Text(f"From: {temp_display_name}")], [
-                    gui.Text(temp_timestamp)], [gui.Text(temp_output_phrase)], [gui.Button("Reply", bind_return_key=True), gui.Button("Delete")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                layout = [[gui.Text(gui_translate(f"New message!"), font="Courier 30", text_color="red")], [gui.Text(gui_translate(f"From: {temp_display_name}"))], [
+                    gui.Text(temp_timestamp)], [gui.Text(gui_translate(temp_output_phrase))], [gui.Button(gui_translate("Reply"), key="Reply", bind_return_key=True), gui.Button(gui_translate("Delete"), key="Delete")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             else:
-                layout = [[gui.Text(f"Decrypted Message!", font="Courier 30", text_color="red")], [gui.Text(f"From: UNKNOWN")], [
-                    gui.Text(temp_timestamp)], [gui.Text(temp_output_phrase)], [gui.Button("Delete", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-            window = gui.Window(title="FiEncrypt - Mailbox",
+                layout = [[gui.Text(gui_translate(f"Decrypted Message!"), font="Courier 30", text_color="red")], [gui.Text(gui_translate(f"From: UNKNOWN"))], [
+                    gui.Text(temp_timestamp)], [gui.Text(gui_translate(temp_output_phrase))], [gui.Button(gui_translate("Delete"), key="Delete", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+            window = gui.Window(title=gui_translate(f"FiEncrypt - Mailbox (Logged in as: {get_current_user()})"),
                                 layout=layout, margins=(100, 50), font="Courier 20")
             event, values = window.read()
             if event == "Reply":
@@ -5115,7 +5247,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
             except ValueError:
                 log("Voice message playback error!", "voiceManager", get_current_user(), print_logs)
                 animated_print(
-                    f"{error_color}WARNING: Unable to play voice message! Maybe {sys.platform} doesn't support PyAudio?")
+                    f"WARNING: Unable to play voice message! Maybe {sys.platform} doesn't support PyAudio?", error=True, reset=True)
             except KeyboardInterrupt:
                 pass
     else:
@@ -5207,8 +5339,8 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
                        error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window)
         else:
             if graphic_mode:
-                window = gui.Window(title="FiEncrypt - Message Decryption", layout=[[gui.Text("Was the decryption successful?")], [gui.Button("Yes", bind_return_key=True), gui.Button(
-                    "No")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20")
+                window = gui.Window(title=gui_translate(f"FiEncrypt - Message Decryption (Logged in as: {get_current_user()})"), layout=[[gui.Text(gui_translate("Was the decryption successful?"))], [gui.Button(gui_translate("Yes"), key="Yes", bind_return_key=True), gui.Button(
+                    gui_translate("No"))], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20")
                 event, values = window.read()
                 if event == "Yes":
                     success = "y"
@@ -5240,15 +5372,15 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
                     log(
                         f"Message successfully decrypted!", "encryptionManager", current_user, print_logs)
                     if graphic_mode:
-                        gui.Popup("The code used to decrypt this message will be deleted from local storage, for your security",
-                                  title="Alert", font="Courier 20")
+                        gui.Popup(gui_translate("The code used to decrypt this message will be deleted from local storage, for your security"),
+                                  title=gui_translate("Alert"), font="Courier 20")
                     else:
                         animated_print(
                             f"The code used to decrypt this message will be deleted from local storage, for your security")
                 else:
                     if graphic_mode:
-                        gui.Popup("Manual code decryption concluded. It is not recommended that you use this code again!",
-                                  title="Alert", font="Courier 20")
+                        gui.Popup(gui_translate("Manual code decryption concluded. It is not recommended that you use this code again!"),
+                                  title=gui_translate("Alert"), font="Courier 20")
                     else:
                         animated_print(
                             f"Manual code decryption concluded. It is not recommended that you use this code again!")
@@ -5260,7 +5392,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
                     f"Message not successfully decrypted!", "encryptionManager", current_user, print_logs)
                 if graphic_mode:
                     gui.Popup(
-                        "That is unfortunate :( We will launch the encryption assistant momentarily", title="Alert", font="Courier 20")
+                        gui_translate("That is unfortunate :( We will launch the encryption assistant momentarily"), title=gui_translate("Alert"), font="Courier 20")
                 else:
                     animated_print(
                         f"That is unfortunate :( We will launch the encryption assistant momentarily")
@@ -5364,16 +5496,16 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                     pass
             enter_home_directory()
             os.chdir("./cache")
-            layout = [[gui.Text(f"Conversation with {temp_display_name}", font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                prev_message_temp)], [gui.Text("...")]], scrollable=True)], [gui.Text("Media", font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-            window = gui.Window(title="FiEncrypt - Conversation",
+            layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
+                gui_translate(prev_message_temp))], [gui.Text("...")]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+            window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                 layout=layout, margins=(100, 50), font="Courier 20", finalize=True)
     enter_home_directory()
     if sys.platform.startswith("linux"):
         ip = gnu_ip_resolve(print_logs, private_mode)
         if ip == "":
             animated_print(
-                f"{error_color}WARNING: Unable to determine IP address!")
+                f"WARNING: Unable to determine IP address!", error=True, reset=True)
             Colors(default_color)
             ip = privacy_input(
                 "Enter your IP in dotted decimal format", private_mode)
@@ -5401,8 +5533,8 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             animated_print("Listening on socket... ")
         elif graphic_mode:
             time.sleep(1)
-            temp_popup = gui.Window(title="FiEncrypt - Inbound Server",
-                                    layout=[[gui.Text("Awaiting Message")]], margins=(100, 50), font="Courier 20", finalize=True)
+            temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - Inbound Server (Logged in as: {get_current_user()})"),
+                                    layout=[[gui.Text(gui_translate("Awaiting Message"))]], margins=(100, 50), font="Courier 20", finalize=True)
         log(f"Server started on {ip}:15753", "networkManager",
             current_user, print_logs)
         if temp_sc == None:
@@ -5476,7 +5608,8 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
         except:
             pass
         if graphic_mode:
-            gui.Popup("Server Connection Aborted!", title="Warning", font="Courier 20", text_color="red")
+            gui.Popup(gui_translate("Server Connection Aborted!"), title=gui_translate("Warning"),
+                      font="Courier 20", text_color="red")
             try:
                 window.close()
                 connection_window.close()
@@ -5489,7 +5622,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
     except ConnectionResetError:
         log("Server channel reset!", "networkManager", get_current_user(), print_logs)
         animated_print(
-            f"{error_color}Connection reset by peer!")
+            f"Connection reset by peer!", error=True, reset=True)
         Colors(default_color)
         try:
             sc.close()
@@ -5517,9 +5650,9 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             temp_popup.close()
         except:
             pass
-        connection_layout = [[gui.Text("Incoming Message")], [
-            gui.Text(key="progress")], [gui.Button("Dismiss")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-        connection_window = gui.Window(title="FiEncrypt - Server",
+        connection_layout = [[gui.Text(gui_translate("Incoming Message"))], [
+            gui.Text(key="progress")], [gui.Button(gui_translate("Dismiss"), key="Dismiss")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+        connection_window = gui.Window(title=gui_translate(f"FiEncrypt - Server (Logged in as: {get_current_user()})"),
                                        layout=connection_layout, margins=(100, 50), font="Courier 20", finalize=True)
     for i in range(1, 6):
         if not silent and not graphic_mode:
@@ -5536,8 +5669,8 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
     info = info.decode()
     if to_boolean(info):
         if graphic_mode:
-            gui.Popup(f"{recipient_ip} unavailable! Message left in their mailbox!",
-                      title="FiEncrypt - Sent To Mailbox", font="Courier 20")
+            gui.Popup(gui_translate(f"{recipient_ip} unavailable! Message left in their mailbox!"),
+                      title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20")
         elif not silent:
             for _ in range(2):
                 sys.stdout.write("\033[F")
@@ -5584,11 +5717,11 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
         else:
             sc.send(str(False).encode())
             if graphic_mode:
-                gui.Popup("Foreign user validation failed!", title="Warning",
+                gui.Popup(gui_translate("Foreign user validation failed!"), title=gui_translate("Warning"),
                           font="Courier 20", text_color="red")
             elif not silent:
                 animated_print(
-                    f"{error_color}WARNING: Foreign user validation failed!")
+                    f"WARNING: Foreign user validation failed!", error=True, reset=True)
                 Colors(default_color)
                 for _ in range(7):
                     sys.stdout.write("\033[F")
@@ -5614,10 +5747,11 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
         except IndexError:
             if message[0].strip() == "":
                 if graphic_mode:
-                    gui.Popup("Pipe Broken! Returning to menu!", title="Warning",
+                    gui.Popup(gui_translate("Pipe Broken! Returning to menu!"), title=gui_translate("Warning"),
                               font="Courier 20", text_color="red")
                 else:
-                    animated_print(f"{error_color}WARNING: Pipe broken! Returning to menu!")
+                    animated_print(f"WARNING: Pipe broken! Returning to menu!",
+                                   error=True, reset=True)
                     Colors(default_color)
                 try:
                     sc.close()
@@ -5642,11 +5776,11 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 log("Invalid message recieved! Server channel restarting",
                     "networkManager", get_current_user(), print_logs)
                 if graphic_mode:
-                    gui.Popup("Invalid message recieved!", title="Warning",
+                    gui.Popup(gui_translate("Invalid message recieved!"), title=gui_translate("Warning"),
                               font="Courier 20", text_color="red")
                 else:
                     animated_print(
-                        f"{error_color}WARNING: {message} recieved but not valid! Restarting Server!")
+                        f"WARNING: {message} recieved but not valid! Restarting Server!", error=True, reset=True)
                 Colors(default_color)
                 try:
                     link.close()
@@ -5681,7 +5815,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
         else:
             print(info)
             animated_print(
-                f"{error_color}WARNING: Error with date formatting! Returning to menu!")
+                f"WARNING: Error with date formatting! Returning to menu!", error=True, reset=True)
             Colors(default_color)
             try:
                 sc.close()
@@ -5709,8 +5843,8 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
         else:
             foreign_user = get_foreign_user()
         if graphic_mode:
-            gui.Popup(f"{foreign_user.capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!",
-                      title="Warning", font="Courier 20", text_color="red")
+            gui.Popup(gui_translate(f"{foreign_user.capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!"),
+                      title=gui_translate("Warning"), font="Courier 20", text_color="red")
         else:
             animated_print(
                 f"{foreign_user.capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
@@ -5784,11 +5918,11 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 sys.stdout.write("\033[F")
             if get_foreign_user() != None and foreign_user.strip().lower() != get_foreign_user().strip().lower():
                 if graphic_mode:
-                    gui.Popup("The user sending the message has changed!",
-                              title="Warning", font="Courier 20", text_color="red")
+                    gui.Popup(gui_translate("The user sending the message has changed!"),
+                              title=gui_translate("Warning"), font="Courier 20", text_color="red")
                 else:
                     animated_print(
-                        f"{error_color}WARNING: The user sending the message has changed!")
+                        f"WARNING: The user sending the message has changed!", error=True, reset=True)
                     Colors(default_color)
             if not silent and not graphic_mode:
                 animated_print(
@@ -5849,9 +5983,9 @@ def send_conversation_invite(user, current_user, default_color, private_mode, er
         ip = gnu_ip_resolve(print_logs, private_mode)
         if ip == "":
             if graphic_mode:
-                layout = [[gui.Text("Enter your IP in dotted decimal format"), gui.InputText(key="ip"), gui.Button(
-                    "Set", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                window = gui.Window(title="FiEncrypt - IP", layout=layout,
+                layout = [[gui.Text(gui_translate("Enter your IP in dotted decimal format")), gui.InputText(key="ip"), gui.Button(
+                    gui_translate("Set"), bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                window = gui.Window(title=gui_translate("FiEncrypt - IP"), layout=layout,
                                     margins=(100, 50), font="Courier 20")
                 event, values = window.read()
                 if event == "Set":
@@ -5880,11 +6014,11 @@ def send_conversation_invite(user, current_user, default_color, private_mode, er
             ), print_logs)
             connected = False
             if graphic_mode:
-                gui.Popup("Connection to recipient unexpectedly terminated! Try again!",
-                          title="Warning", font="Courier 20", text_color="red")
+                gui.Popup(gui_translate("Connection to recipient unexpectedly terminated! Try again!"),
+                          title=gui_translate("Warning"), font="Courier 20", text_color="red")
             else:
                 animated_print(
-                    f"{error_color}WARNING: Connection to recipient unexpectedly terminated! Try again!")
+                    f"WARNING: Connection to recipient unexpectedly terminated! Try again!", error=True, reset=True)
                 Colors(default_color)
             menu(user, None, print_logs, default_color,
                  private_mode, error_color, print_speed=0)
@@ -5893,11 +6027,11 @@ def send_conversation_invite(user, current_user, default_color, private_mode, er
             ), print_logs)
             connected = False
             if graphic_mode:
-                gui.Popup("Unable to obtain a response from recipient address! Try again!",
-                          title="Warning", font="Courier 20", text_color="red")
+                gui.Popup(gui_translate("Unable to obtain a response from recipient address! Try again!"),
+                          title=gui_translate("Warning"), font="Courier 20", text_color="red")
             else:
                 animated_print(
-                    f"{error_color}WARNING: Unable to obtain a response from recipient address! Try again!")
+                    f"WARNING: Unable to obtain a response from recipient address! Try again!", error=True, reset=True)
                 Colors(default_color)
             send_conversation_invite(user, current_user, default_color,
                                      private_mode, error_color, print_logs, display_initiate)
@@ -5906,11 +6040,11 @@ def send_conversation_invite(user, current_user, default_color, private_mode, er
             ), print_logs)
             connected = False
             if graphic_mode:
-                gui.Popup("Unable to obtain a response from recipient address! Try again!",
-                          title="Warning", font="Courier 20", text_color="red")
+                gui.Popup(gui_translate("Unable to obtain a response from recipient address! Try again!"),
+                          title=gui_translate("Warning"), font="Courier 20", text_color="red")
             else:
                 animated_print(
-                    f"{error_color}WARNING: Unable to obtain a response from recipient address! Try again!")
+                    f"WARNING: Unable to obtain a response from recipient address! Try again!", error=True, reset=True)
                 Colors(default_color)
             send_conversation_invite(user, current_user, default_color,
                                      private_mode, error_color, print_logs, display_initiate)
@@ -5918,7 +6052,8 @@ def send_conversation_invite(user, current_user, default_color, private_mode, er
             log(f"Invite delivery interrupted!", "networkManager", get_current_user(
             ), print_logs)
             if graphic_mode:
-                gui.Popup("Aborting!", title="Warning", font="Courier 20", text_color="red")
+                gui.Popup(gui_translate("Aborting!"), title=gui_translate("Warning"),
+                          font="Courier 20", text_color="red")
             else:
                 animated_print(f"\nAborting!")
             try:
@@ -5950,9 +6085,9 @@ def send_conversation_invite(user, current_user, default_color, private_mode, er
     date = timestamp.split("|")
     date = date[1]
     if graphic_mode:
-        layout = [[gui.Text(f"{dest_ip} has been invited!")], [gui.Text("Start server?"), gui.Button(
-            "Yes", bind_return_key=True), gui.Button("No")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-        window = gui.Window(title="FiEncrypt - Conversation Invite",
+        layout = [[gui.Text(gui_translate(f"{dest_ip} has been invited!"))], [gui.Text(gui_translate("Start server?")), gui.Button(
+            gui_translate("Yes"), bind_return_key=True), gui.Button(gui_translate("No"), key="No")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+        window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation Invite (Logged in as: {get_current_user()})"),
                             layout=layout, magins=(100, 50), font="Courier 20")
         event, values = window.read()
         if event == "Yes":
@@ -5988,8 +6123,8 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_color, de
                 pass
         # ?Due to the formatting of the mailbox entries made by listener.py, each message uses two lines, so the printed value is half the length
         if graphic_mode:
-            gui.Popup(f"You have {int(len(letters)/2)} unread messages!",
-                      title=f"{int(len(letters)/2)} Unread Messages!", font="Courier 20")
+            gui.Popup(gui_translate(f"You have {int(len(letters)/2)} unread messages!"),
+                      title=gui_translate(f"{int(len(letters)/2)} Unread Messages! (Logged in as: {get_current_user()})"), font="Courier 20")
         else:
             animated_print(f"You have {int(len(letters)/2)} unread messages!\n")
         log(f"Mailbox accessed! Unread messages: {int(len(letters)/2)}",
@@ -6026,7 +6161,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_color, de
             except IndexError:
                 log("Corrupted message in mailbox!", "mailManager", get_current_user(), print_logs)
                 animated_print(
-                    f"{error_color}WARNING: Message {i} contains corrupted format! This message will be removed!")
+                    f"WARNING: Message {i} contains corrupted format! This message will be removed!", error=True, reset=True)
                 Colors(default_color)
             del(index[i])
             enter_home_directory()
@@ -6075,7 +6210,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_color, de
 
 def config_settings(user, current_user, default_color, print_logs, private_mode, error_color):
     """Provides an interface to modify the config file through"""
-    global graphic_mode, gui_theme
+    global graphic_mode, gui_theme, translation, TranslationManager
     master_printing_speed = None
     if not graphic_mode:
         animated_print(f"Loading special options...")
@@ -6153,14 +6288,27 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
             gui_theme = gui_theme[1].strip().capitalize()
         else:
             gui_theme = "Default"
+        if "translation" in config_lines[13].lower():
+            translation = config_lines[13].split(" = ")
+            translation = to_boolean(translation[1].strip())
+        else:
+            translation = False
+        if translation:
+            if "lang" in config_lines[14].lower():
+                lang = config_lines[14].split(" = ")
+                lang = parse_region(lang[1].strip(), order=0).capitalize()
+            else:
+                lang = "English"
+        else:
+            lang = "English"
         if graphic_mode:
             if custom_scheme:
-                layout = [[gui.Text(f"1. Debug mode: {debug_mode}")], [gui.Text(f"2. Display initiate: {display_initiate}")], [gui.Text(f"3. Print Speed: {printing_speed}")], [gui.Text(f"4. Enable custom color scheme: {custom_scheme}")], [gui.Text(f"5. Custom color: {display_color}")], [gui.Text(f"6. Conversation mode: {conversation_mode}")], [gui.Text(f"7. Graphic mode: {graphic_mode}")], [
-                    gui.Text(f"8. Privacy mode: {private_mode}")], [gui.Text(f"9. Auto code: {auto_code}")], [gui.Text(f"10. Voice Message Duration: {voice_record_time}")], [gui.Text(f"11. GUI Theme: {gui_theme}")], [gui.Text("12. Create new user...")], [gui.Text("Which setting would you like to modify"), gui.InputText(key="choice"), gui.Button("Select", bind_return_key=True)], [gui.Button("Return to Main Menu", key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                layout = [[gui.Text(f"{gui_translate('1. Debug mode:')} {debug_mode}")], [gui.Text(f"{gui_translate('2. Display initiate:')} {display_initiate}")], [gui.Text(f"{gui_translate('3. Print Speed:')} {printing_speed}")], [gui.Text(f"{gui_translate('4. Enable custom color scheme:')} {custom_scheme}")], [gui.Text(f"{gui_translate('5. Custom color:')} {display_color}")], [gui.Text(f"{gui_translate('6. Conversation mode:')} {conversation_mode}")], [gui.Text(f"{gui_translate('7. Graphic mode:')} {graphic_mode}")], [gui.Text(f"{gui_translate('8. Privacy mode:')} {private_mode}")], [gui.Text(f"{gui_translate('9. Auto code:')} {auto_code}")], [
+                    gui.Text(f"{gui_translate('10. Voice Message Duration:')} {voice_record_time}")], [gui.Text(f"{gui_translate('11. GUI Theme:')} {gui_theme}")], [gui.Text(f"{gui_translate('12. Translation:')} {translation}")], [gui.Text(f"{gui_translate('13. Region:')} {lang}")], [gui.Text(gui_translate("14. Create new user..."))], [gui.Text(gui_translate("Which setting would you like to modify")), gui.InputText(key="choice"), gui.Button(gui_translate("Select"), key="Select", bind_return_key=True)], [gui.Button(gui_translate("Return to Main Menu"), key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             else:
-                layout = [[gui.Text(f"1. Debug mode: {debug_mode}")], [gui.Text(f"2. Display initiate: {display_initiate}")], [gui.Text(f"3. Print Speed: {printing_speed}")], [gui.Text(f"4. Enable custom color scheme: {custom_scheme}")], [gui.Text(f"5. Conversation mode: {conversation_mode}")], [gui.Text(f"6. Graphic mode: {graphic_mode}")], [
-                    gui.Text(f"7. Privacy mode: {private_mode}")], [gui.Text(f"8. Auto code: {auto_code}")], [gui.Text(f"9. Voice Message Duration: {voice_record_time}")], [gui.Text(f"10. GUI Theme: {gui_theme}")], [gui.Text("11. Create new user...")], [gui.Text("Which setting would you like to modify"), gui.InputText(key="choice"), gui.Button("Select", bind_return_key=True)], [gui.Button("Return to Main Menu", key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-            window = gui.Window(title="FiEncrypt - Config Settings", layout=layout,
+                layout = [[gui.Text(f"{gui_translate('1. Debug mode:')} {debug_mode}")], [gui.Text(f"{gui_translate('2. Display initiate:')} {display_initiate}")], [gui.Text(f"{gui_translate('3. Print Speed:')} {printing_speed}")], [gui.Text(f"{gui_translate('4. Enable custom color scheme:')} {custom_scheme}")], [gui.Text(f"{gui_translate('5. Conversation mode:')} {conversation_mode}")], [gui.Text(f"{gui_translate('6. Graphic mode:')} {graphic_mode}")], [
+                    gui.Text(f"{gui_translate('7. Privacy mode:')} {private_mode}")], [gui.Text(f"{gui_translate('8. Auto code:')} {auto_code}")], [gui.Text(f"{gui_translate('9. Voice Message Duration:')} {voice_record_time}")], [gui.Text(f"{gui_translate('10. GUI Theme:')} {gui_theme}")], [gui.Text(f"{gui_translate('11. Translation:')} {translation}")], [gui.Text(f"{gui_translate('12. Region:')} {lang}")], [gui.Text(gui_translate("13. Create new user..."))], [gui.Text(gui_translate("Which setting would you like to modify")), gui.InputText(key="choice"), gui.Button(gui_translate("Select"), key="Select", bind_return_key=True)], [gui.Button(gui_translate("Return to Main Menu"), key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+            window = gui.Window(title=gui_translate(f"FiEncrypt - Config Settings (Logged in as: {get_current_user()})"), layout=layout,
                                 margins=(100, 50), font="Courier 20")
             event, values = window.read()
             if event == "Select":
@@ -6169,9 +6317,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     choice = None
             elif event == "Return":
                 if custom_scheme:
-                    choice = "13"
+                    choice = "15"
                 else:
-                    choice = "12"
+                    choice = "14"
             window.close()
         else:
             animated_print(
@@ -6196,8 +6344,10 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 animated_print(
                     f"10. Voice Message Duration: {voice_record_time}", speed=master_printing_speed)
                 animated_print(f"11. GUI Theme: {gui_theme}", speed=master_printing_speed)
-                animated_print(f"12. Create new user...", speed=master_printing_speed)
-                animated_print(f"13. Return to main menu", speed=master_printing_speed)
+                animated_print(f"12. Translation: {translation}", speed=master_printing_speed)
+                animated_print(f"13. Region: {lang}", speed=master_printing_speed)
+                animated_print(f"14. Create new user...", speed=master_printing_speed)
+                animated_print(f"15. Return to main menu", speed=master_printing_speed)
             else:
                 animated_print(
                     f"5. Conversation mode: {conversation_mode}", speed=master_printing_speed)
@@ -6210,8 +6360,10 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 animated_print(
                     f"9. Voice Message Duration: {voice_record_time}", speed=master_printing_speed)
                 animated_print(f"10. GUI Theme: {gui_theme}", speed=master_printing_speed)
-                animated_print(f"11. Create new user...", speed=master_printing_speed)
-                animated_print(f"12. Return to main menu", speed=master_printing_speed)
+                animated_print(f"11. Translation: {translation}", speed=master_printing_speed)
+                animated_print(f"12. Region: {lang}", speed=master_print_speed)
+                animated_print(f"13. Create new user...", speed=master_printing_speed)
+                animated_print(f"14. Return to main menu", speed=master_printing_speed)
             choice = privacy_input(
                 f"What setting would you like to modify", private_mode)
         if choice == None:
@@ -6219,9 +6371,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                  private_mode, error_color, print_speed=0)
         elif choice == "1":
             if graphic_mode:
-                layout = [[gui.Text("True/False"), gui.InputText(key="debug_mode")],
-                          [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                window = gui.Window(title="FiEncrypt - Debug Mode", layout=layout,
+                layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="debug_mode")],
+                          [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                window = gui.Window(title=gui_translate(f"FiEncrypt - Debug Mode (Logged in as: {get_current_user()})"), layout=layout,
                                     margins=(100, 50), font="Courier 20")
                 event, values = window.read()
                 if event == "Update":
@@ -6232,9 +6384,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
             config_lines[2] = f"debug_mode = {to_boolean(debug_mode)}"
         elif choice == "2":
             if graphic_mode:
-                layout = [[gui.Text("True/False"), gui.InputText(key="display_initiate")],
-                          [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                window = gui.Window(title="FiEncrypt - Display Initiate", layout=layout,
+                layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="display_initiate")],
+                          [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                window = gui.Window(title=gui_translate(f"FiEncrypt - Display Initiate (Logged in as: {get_current_user()})"), layout=layout,
                                     margins=(100, 50), font="Courier 20")
                 event, values = window.read()
                 if event == "Update":
@@ -6245,9 +6397,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
             config_lines[3] = f"display_initiate = {to_boolean(display_initiate)}"
         elif choice == "3":
             if graphic_mode:
-                layout = [[gui.Text("Enter Print Speed"), gui.InputText(key="print_speed")],
-                          [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                window = gui.Window(title="FiEncrypt - Print Speed", layout=layout,
+                layout = [[gui.Text(gui_translate("Enter Print Speed")), gui.InputText(key="print_speed")],
+                          [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                window = gui.Window(title=gui_translate(f"FiEncrypt - Print Speed (Logged in as: {get_current_user()})"), layout=layout,
                                     margins=(100, 50), font="Courier 20")
                 event, values = window.read()
                 if event == "Update":
@@ -6259,9 +6411,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
             config_lines[4] = f"printing_speed = {float(str(new_print_speed).strip())}"
         elif choice == "4":
             if graphic_mode:
-                layout = [[gui.Text("True/False"), gui.InputText(key="custom_scheme")],
-                          [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                window = gui.Window(title="FiEncrypt - Custom Color Scheme", layout=layout,
+                layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="custom_scheme")],
+                          [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                window = gui.Window(title=gui_translate(f"FiEncrypt - Custom Color Scheme (Logged in as: {get_current_user()})"), layout=layout,
                                     margins=(100, 50), font="Courier 20")
                 event, values = window.read()
                 if event == "Update":
@@ -6273,28 +6425,28 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
         elif choice == "5":
             if custom_scheme:
                 if graphic_mode:
-                    layout = [[gui.Text("Enter Color"), gui.InputText(key="new_color")],
-                              [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Update Color", layout=layout,
+                    layout = [[gui.Text(gui_translate("Enter Color")), gui.InputText(key="new_color")],
+                              [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Update Color (Logged in as: {get_current_user()})"), layout=layout,
                                         margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         new_color = values.get("new_color", False)
                     window.close()
-                    gui.Popup("Program restart will be required for color change!",
-                              title="Warning", text_color="red", font="Courier 15")
+                    gui.Popup(gui_translate("Program restart will be required for color change!"),
+                              title=gui_translate("Warning"), text_color="red", font="Courier 15")
                 else:
                     new_color = privacy_input(
                         f"Enter color (in plain text)", private_mode)
                     animated_print(
-                        f"{error_color}WARNING: Program restart will be required for color change!")
+                        f"WARNING: Program restart will be required for color change!", error=True, reset=True)
                     Colors(default_color)
                 config_lines[5] = f"default_color = {new_color}"
             elif conversation_mode or not conversation_mode:
                 if graphic_mode:
-                    layout = [[gui.Text("True/False"), gui.InputText(key="conversation_mode")],
-                              [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Conversation Mode", layout=layout,
+                    layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="conversation_mode")],
+                              [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation Mode (Logged in as: {get_current_user()})"), layout=layout,
                                         margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
@@ -6307,9 +6459,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
         elif choice == "6":
             if custom_scheme:
                 if graphic_mode:
-                    layout = [[gui.Text("True/False"), gui.InputText(key="conversation_mode")],
-                              [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Conversation Mode", layout=layout,
+                    layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="conversation_mode")],
+                              [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation Mode (Logged in as: {get_current_user()})"), layout=layout,
                                         margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
@@ -6321,9 +6473,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 config_lines[7] = f"conversation_mode = {to_boolean(conversation_mode)}"
             else:
                 if graphic_mode:
-                    layout = [[gui.Text("True/False"), gui.InputText(key="graphic_mode")],
-                              [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Graphic Mode", layout=layout,
+                    layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="graphic_mode")],
+                              [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Graphic Mode (Logged in as: {get_current_user()})"), layout=layout,
                                         margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
@@ -6335,9 +6487,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
         elif choice == "7":
             if custom_scheme:
                 if graphic_mode:
-                    layout = [[gui.Text("True/False"), gui.InputText(key="graphic_mode")],
-                              [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Graphic Mode", layout=layout,
+                    layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="graphic_mode")],
+                              [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Graphic Mode (Logged in as: {get_current_user()})"), layout=layout,
                                         margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
@@ -6348,46 +6500,46 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 config_lines[8] = f"graphic_mode = {to_boolean(graphic_mode)}"
             else:
                 if graphic_mode:
-                    layout = [[gui.Text("True/False"), gui.InputText(key="private_mode")],
-                              [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Private Mode", layout=layout,
+                    layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="private_mode")],
+                              [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Private Mode (Logged in as: {get_current_user()})"), layout=layout,
                                         margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         private_mode = values.get("private_mode", False)
                     window.close()
-                    gui.Popup("Program restart will be required for privacy mode change!",
-                              title="Warning", text_color="red")
+                    gui.Popup(gui_translate("Program restart will be required for privacy mode change!"),
+                              title=gui_translate("Warning"), text_color="red")
                 else:
                     private_mode = privacy_input(f"True/False", private_mode)
                     animated_print(
-                        f"{error_color}WARNING: Program restart will be required for privacy mode change!")
+                        f"WARNING: Program restart will be required for privacy mode change!", error=True, reset=True)
                     Colors(default_color)
                 config_lines[9] = f"private_mode = {to_boolean(private_mode)}"
         elif choice == "8":
             if custom_scheme:
                 if graphic_mode:
-                    layout = [[gui.Text("True/False"), gui.InputText(key="private_mode")],
-                              [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Private Mode", layout=layout,
+                    layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="private_mode")],
+                              [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Private Mode (Logged in as: {get_current_user()})"), layout=layout,
                                         margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         private_mode = values.get("private_mode", False)
                     window.close()
-                    gui.Popup("Program restart will be required for privacy mode change!",
-                              title="Warning", text_color="red")
+                    gui.Popup(gui_translate("Program restart will be required for privacy mode change!"),
+                              title=gui_translate("Warning"), text_color="red")
                 else:
                     private_mode = privacy_input(f"True/False", private_mode)
                     animated_print(
-                        f"{error_color}WARNING: Program restart will be required for privacy mode change!")
+                        f"WARNING: Program restart will be required for privacy mode change!", error=True, reset=True)
                     Colors(default_color)
                 config_lines[9] = f"private_mode = {to_boolean(private_mode)}"
             else:
                 if graphic_mode:
-                    layout = [[gui.Text("True/False"), gui.InputText(key="autocode")],
-                              [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Auto Code", layout=layout,
+                    layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="autocode")],
+                              [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Auto Code (Logged in as: {get_current_user()})"), layout=layout,
                                         margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
@@ -6399,9 +6551,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
         elif choice == "9":
             if custom_scheme:
                 if graphic_mode:
-                    layout = [[gui.Text("True/False"), gui.InputText(key="autocode")],
-                              [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Auto Code", layout=layout,
+                    layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="autocode")],
+                              [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Auto Code (Logged in as: {get_current_user()})"), layout=layout,
                                         margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
@@ -6415,9 +6567,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 while not valid_value:
                     try:
                         if graphic_mode:
-                            layout = [[gui.Text("Voice message duration"), gui.InputText(key="voice_time")],
-                                      [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                            window = gui.Window(title="FiEncrypt - Voice Message Duration", layout=layout,
+                            layout = [[gui.Text(gui_translate("Voice message duration")), gui.InputText(key="voice_time")],
+                                      [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                            window = gui.Window(title=gui_translate(f"FiEncrypt - Voice Message Duration (Logged in as: {get_current_user()})"), layout=layout,
                                                 margins=(100, 50), font="Courier 20")
                             event, values = window.read()
                             if event == "Update":
@@ -6442,9 +6594,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 while not valid_value:
                     try:
                         if graphic_mode:
-                            layout = [[gui.Text("Voice message duration"), gui.InputText(key="voice_time")],
-                                      [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                            window = gui.Window(title="FiEncrypt - Voice Message Duration", layout=layout,
+                            layout = [[gui.Text(gui_translate("Voice message duration")), gui.InputText(key="voice_time")],
+                                      [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                            window = gui.Window(title=gui_translate(f"FiEncrypt - Voice Message Duration (Logged in as: {get_current_user()})"), layout=layout,
                                                 margins=(100, 50), font="Courier 20")
                             event, values = window.read()
                             if event == "Update":
@@ -6466,9 +6618,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
             else:
                 gui.theme_previewer()
                 if graphic_mode:
-                    layout = [[gui.Text("Enter GUI Theme"), gui.InputText(key="new_theme")],
-                              [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Update GUI Theme", layout=layout,
+                    layout = [[gui.Text(gui_translate("Enter GUI Theme")), gui.InputText(key="new_theme")],
+                              [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Update GUI Theme (Logged in as: {get_current_user()})"), layout=layout,
                                         margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
@@ -6483,13 +6635,13 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
             gui.theme_previewer()
             if custom_scheme:
                 if graphic_mode:
-                    layout = [[gui.Text("Enter GUI Theme"), gui.InputText(key="new_theme")],
-                              [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Update GUI Theme", layout=layout,
+                    layout = [[gui.Text(gui_translate("Enter GUI Theme")), gui.InputText(key="new_theme")],
+                              [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Update GUI Theme (Logged in as: {get_current_user()})"), layout=layout,
                                         margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
-                        gui_theme = values.get("new_theme", False)
+                        gui_theme = values.get("new_theme", "default")
                     window.close()
                     apply_theme(gui_theme)
                 else:
@@ -6497,14 +6649,76 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                         f"Enter new theme name", private_mode)
                 config_lines[12] = f"gui_theme = {gui_theme}"
             else:
-                add_new_user()
+                if graphic_mode:
+                    layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="translate")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [
+                        gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(
+                        title=gui_translate(f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})"), layout=layout, margins=(100, 50), font="Courier 20")
+                    event, values = window.read()
+                    if event == "Update":
+                        translation = values.get("translate", False)
+                    window.close()
+                else:
+                    translation = to_boolean(privacy_input(f"True/False", private_mode))
+                config_lines[13] = f"translation = {translation}"
         elif choice == "12":
+            if custom_scheme:
+                if graphic_mode:
+                    layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="translate")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [
+                        gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(
+                        title=gui_translate(f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})"), layout=layout, margins=(100, 50), font="Courier 20")
+                    event, values = window.read()
+                    if event == "Update":
+                        translation = values.get("translate", False)
+                    window.close()
+                else:
+                    translation = to_boolean(privacy_input(f"True/False", private_mode))
+                config_lines[13] = f"translation = {translation}"
+            else:
+                if graphic_mode:
+                    layout = [[gui.Text(gui_translate("Enter Region Code or Language")), gui.InputText(key="region_code")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [
+                        gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(
+                        title=gui_translate(f"FiEncrypt - Set Language (Logged in as: {get_current_user()})"), layout=layout, margins=(100, 50), font="Courier 20")
+                    event, values = window.read()
+                    if event == "Update":
+                        lang = values.get("region_code", "en")
+                        if len(lang.strip()) != 2:
+                            lang = parse_region(lang, order=1)
+                    window.close()
+                else:
+                    lang = privacy_input("Enter region code", private_mode)
+                config_lines[14] = f"lang = {lang}"
+                TranslationManager = Translate(lang)
+                lang = parse_region(lang, order=0)
+        elif choice == "13":
+            if custom_scheme:
+                if graphic_mode:
+                    layout = [[gui.Text(gui_translate("Enter Region Code or Language")), gui.InputText(key="region_code")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [
+                        gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(
+                        title=gui_translate(f"FiEncrypt - Set Language (Logged in as: {get_current_user()})"), layout=layout, margins=(100, 50), font="Courier 20")
+                    event, values = window.read()
+                    if event == "Update":
+                        lang = values.get("region_code", "en")
+                        if len(lang.strip()) > 3:
+                            lang = parse_region(lang, order=1)
+                    window.close()
+                else:
+                    lang = privacy_input("Enter region code", private_mode)
+                config_lines[14] = f"lang = {lang}"
+                TranslationManager = Translate(lang)
+                lang = parse_region(lang, order=0)
+            else:
+                add_new_user()
+        elif choice == "14":
             if custom_scheme:
                 add_new_user()
             else:
                 menu(user, display_initiate, print_logs, default_color,
                      private_mode, error_color, print_speed=0)
-        elif choice == "13":
+        elif choice == "15":
             if custom_scheme:
                 menu(user, display_initiate, print_logs, default_color,
                      private_mode, error_color, print_speed=0)
@@ -6556,9 +6770,9 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
 
         # output
         if graphic_mode:
-            layout = [[gui.Text(f"1. Auto Sync: {autosync}")], [gui.Text(f"2. Max Personal Cache Size: {max_size}")], [gui.Text("Select option to modify"), gui.InputText(key="cache_setting")], [
-                gui.Button("Edit", bind_return_key=True), gui.Button("Return to Cache Menu", key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-            window = gui.Window(title="FiEncrypt - Cache Settings", layout=layout,
+            layout = [[gui.Text(f"{gui_translate('1. Auto Sync:')} {autosync}")], [gui.Text(f"{gui_translate('2. Max Personal Cache Size:')} {max_size}")], [gui.Text(gui_translate("Select option to modify")), gui.InputText(key="cache_setting")], [
+                gui.Button(gui_translate("Edit"), key="Edit", bind_return_key=True), gui.Button(gui_translate("Return to Cache Menu"), key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+            window = gui.Window(title=gui_translate(f"FiEncrypt - Cache Settings (Logged in as: {get_current_user()})"), layout=layout,
                                 margins=(100, 50), font="Courier 20")
             event, values = window.read()
             if event == "Edit":
@@ -6575,9 +6789,9 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
             escape = True
         elif choice == "1":
             if graphic_mode:
-                layout = [[gui.Text("True/False"), gui.InputText(key="autosync")],
-                          [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                window = gui.Window(title="FiEncrypt - Autosync", layout=layout,
+                layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="autosync")],
+                          [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                window = gui.Window(title=gui_translate(f"FiEncrypt - Autosync (Logged in as: {get_current_user()})"), layout=layout,
                                     margins=(100, 50), font="Courier 20")
                 event, values = window.read()
                 if event == "Update":
@@ -6590,9 +6804,9 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
             valid_size = False
             while not valid_size:
                 if graphic_mode:
-                    layout = [[gui.Text("Enter size in MB or GB"), gui.InputText(
-                        key="max_size")], [gui.Button("Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="Personal Cache Size",
+                    layout = [[gui.Text(gui_translate("Enter size in MB or GB")), gui.InputText(
+                        key="max_size")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Personal Cache Size (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
@@ -6606,11 +6820,11 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
                     else:
                         assumed_type = "MB"
                     if graphic_mode:
-                        gui.Popup(
-                            f"Data unit not declared... assuming {assumed_type}", title="Warning", text_color="red", font="Courier 15")
+                        gui.Popup(gui_translate(
+                            f"Data unit not declared... assuming {assumed_type}"), title=gui_translate("Warning"), text_color="red", font="Courier 15")
                     else:
                         animated_print(
-                            f"{error_color}WARNING: Data unit not declared... assuming {assumed_type}")
+                            f"WARNING: Data unit not declared... assuming {assumed_type}", error=True, reset=True)
                         Colors(default_color)
                     try:
                         if "." in max_size or assumed_type == "gb":
@@ -6621,10 +6835,11 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
                         old_cache_settings[3] = f"max_size = {max_size}{assumed_type.upper()}"
                     except:
                         if graphic_mode:
-                            gui.Popup("Invalid personal cache size!", title="Warning",
+                            gui.Popup(gui_translate("Invalid personal cache size!"), title=gui_translate("Warning"),
                                       text_color="red", font="Courier 15")
                         else:
-                            animated_print(f"{error_color}WARNING: Invalid personal cache size!")
+                            animated_print(f"WARNING: Invalid personal cache size!",
+                                           error=True, reset=True)
                             Colors(default_color)
                 else:
                     if max_size.strip().lower().endswith("gb"):
@@ -6635,11 +6850,11 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
                         unit = substring(max_size.lower(), "mb", 1)
                     else:
                         if graphic_mode:
-                            gui.Popup("Invalid data unit... assuming MB", title="Warning",
+                            gui.Popup(gui_translate("Invalid data unit... assuming MB"), title=gui_translate("Warning"),
                                       text_color="red", font="Courier 15")
                         else:
                             animated_print(
-                                f"{error_color}WARNING: Invalid data unit... assuming MB")
+                                f"WARNING: Invalid data unit... assuming MB", error=True, reset=True)
                             Colors(default_color)
                         unit = "mb"
                     try:
@@ -6651,18 +6866,20 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
                         old_cache_settings[3] = f"max_size = {requested_size}{unit.upper()}"
                     except:
                         if graphic_mode:
-                            gui.Popup("Invalid personal cache size!", title="Warning",
+                            gui.Popup(gui_translate("Invalid personal cache size!"), title=gui_translate("Warning"),
                                       text_color="red", font="Courier 15")
                         else:
-                            animated_print(f"{error_color}WARNING: Invalid personal cache size!")
+                            animated_print(f"WARNING: Invalid personal cache size!",
+                                           error=True, reset=True)
                             Colors(default_color)
         elif choice == "3":
             escape = True
         else:
             if graphic_mode:
-                gui.Popup("Invalid Option!", title="Warning", text_color="red", font="Courier 15")
+                gui.Popup(gui_translate("Invalid Option!"), title=gui_translate(
+                    "Warning"), text_color="red", font="Courier 15")
             else:
-                animated_print(f"{error_color}WARNING: Invalid option!")
+                animated_print(f"WARNING: Invalid option!", error=True, reset=True)
                 Colors(default_color)
         with open(f"./cache_settings.txt", "w+") as new_cache_file:
             for line in old_cache_settings:
@@ -6685,7 +6902,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                     temp_files = str(files).replace(
                         "[", "").replace("]", "").replace("'", "").strip()
                     gui.Popup(temp_files.replace(",", "\n"),
-                              title="FiEncrypt - Public Cache", font="Courier 20")
+                              title=gui_translate(f"FiEncrypt - Public Cache (Logged in as: {get_current_user()})"), font="Courier 20")
                 else:
                     animated_print(files)
         enter_home_directory()
@@ -6694,11 +6911,11 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
         else:
             if not straight_to_menu:
                 if graphic_mode:
-                    gui.Popup("Private cache is empty!", title="Warning",
+                    gui.Popup(gui_translate("Private cache is empty!"), title=gui_translate("Warning"),
                               text_color="red", font="Courier 15")
                     menu_state = ["", "", "", "*Unavailable* ", "*Unavailable* ", ""]
                 else:
-                    animated_print(f"{error_color}WARNING: Private cache is empty!")
+                    animated_print(f"WARNING: Private cache is empty!", error=True, reset=True)
                     Colors(default_color)
                     menu_state = ["", "", "", "\033[9m", "\033[9m", ""]
     else:
@@ -6707,28 +6924,29 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
         if len([filenum for filenum in os.listdir(f"./{hash_current_user(get_current_user().lower().strip())}/files")]) > 0:
             if not straight_to_menu:
                 if graphic_mode:
-                    gui.Popup("Public cache is empty!", title="Warning",
+                    gui.Popup(gui_translate("Public cache is empty!"), title=gui_translate("Warning"),
                               text_color="red", font="Courier 15")
                     menu_state = ["*Unavailable* ", "*Unavailable* ", "*Unavailable* ", "", "", ""]
                 else:
-                    animated_print(f"{error_color}WARNING: Public cache is empty!")
+                    animated_print(f"WARNING: Public cache is empty!", error=True, reset=True)
                     Colors(default_color)
                     menu_state = ["\033[9m", "\033[9m", "\033[9m", "", "", ""]
         else:
             if not straight_to_menu:
                 if graphic_mode:
-                    gui.Popup("Private and Public caches are empty!",
-                              title="Warning", text_color="red", font="Courier 15")
+                    gui.Popup(gui_translate("Private and Public caches are empty!"),
+                              title=gui_translate("Warning"), text_color="red", font="Courier 15")
                     menu_state = ["*Unavailable* ", "*Unavailable* ",
                                   "*Unavailable* ", "*Unavailable* ", "*Unavailable* ", ""]
                 else:
-                    animated_print(f"{error_color}WARNING: Public and Private caches are empty!")
+                    animated_print(f"WARNING: Public and Private caches are empty!",
+                                   error=True, reset=True)
                     Colors(default_color)
                     menu_state = ["\033[9m", "\033[9m", "\033[9m", "\033[9m", "\033[9m", ""]
     if graphic_mode:
-        layout = [[gui.Text(f"{menu_state[0]}1. Archive public cache")], [gui.Text(f"{menu_state[1]}2. Delete from public cache")], [gui.Text(f"{menu_state[2]}3. Empty public cache")], [gui.Text(f"{menu_state[3]}4. View private cache")], [
-            gui.Text(f"{menu_state[4]}5. Empty private cache")], [gui.Text(f"{menu_state[5]}6. Cache settings")], [gui.Text("Select an option"), gui.InputText(key="cache_option"), gui.Button("Launch!", bind_return_key=True)], [gui.Button("Return to Main Menu", key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-        window = gui.Window(title="FiEncrypt - Cache manager", layout=layout,
+        layout = [[gui.Text(gui_translate(f"{menu_state[0]}1. Archive public cache"))], [gui.Text(gui_translate(f"{menu_state[1]}2. Delete from public cache"))], [gui.Text(gui_translate(f"{menu_state[2]}3. Empty public cache"))], [gui.Text(gui_translate(f"{menu_state[3]}4. View private cache"))], [
+            gui.Text(gui_translate(f"{menu_state[4]}5. Empty private cache"))], [gui.Text(gui_translate(f"{menu_state[5]}6. Cache settings"))], [gui.Text(gui_translate("Select an option")), gui.InputText(key="cache_option"), gui.Button(gui_translate("Launch!"), key="Launch!", bind_return_key=True)], [gui.Button(gui_translate("Return to Main Menu"), key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+        window = gui.Window(title=gui_translate(f"FiEncrypt - Cache manager (Logged in as: {get_current_user()})"), layout=layout,
                             margins=(100, 50), font="Courier 20")
     else:
         animated_print(f"{menu_state[0]}1. Archive public cache\033[0m", speed=0.01)
@@ -6760,9 +6978,9 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
             valid_choice = True
         except:
             if graphic_mode:
-                gui.Popup("Invalid Selection!", title="Warning",
+                gui.Popup(gui_translate("Invalid Selection!"), title=gui_translate("Warning"),
                           text_color="red", font="Courier 15")
-            animated_print(f"{error_color}WARNING: Invalid selection!")
+            animated_print(f"WARNING: Invalid selection!", error=True, reset=True)
             Colors(default_color)
     if cache_option == 1:
         if menu_state[0].strip() == "":
@@ -6797,11 +7015,11 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                     "'", "\\'").replace("(", "\\(").replace(")", "\\)")
             if (int(cache_total_size) + int(personal_cache_total_size)) > max_size:
                 if graphic_mode:
-                    gui.Popup(
-                        "Size of files in public cache exceeds max allocated size of your private cache!", title="Warning", text_color="red", font="Courier 15")
+                    gui.Popup(gui_translate(
+                        "Size of files in public cache exceeds max allocated size of your private cache!"), title=gui_translate("Warning"), text_color="red", font="Courier 15")
                 else:
                     animated_print(
-                        f"{error_color}WARNING: Size of files in public cache exceeds max allocated size of your private cache!")
+                        f"WARNING: Size of files in public cache exceeds max allocated size of your private cache!", error=True, reset=True)
                     Colors(default_color)
             else:
                 try:
@@ -6826,19 +7044,19 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                         files = old_files
                     else:
                         if graphic_mode:
-                            gui.Popup("Files in public cache no longer accessible!",
-                                      title="Warning", text_color="red", font="Courier 15")
+                            gui.Popup(gui_translate("Files in public cache no longer accessible!"),
+                                      title=gui_translate("Warning"), text_color="red", font="Courier 15")
                         else:
                             animated_print(
-                                f"{error_color}WARNING: Files in public cache no longer accessible!")
+                                f"WARNING: Files in public cache no longer accessible!", error=True, reset=True)
                             Colors(default_color)
                         files = None
         else:
             if graphic_mode:
-                gui.Popup("Option not available!", title="Warning",
+                gui.Popup(gui_translate("Option not available!"), title=gui_translate("Warning"),
                           text_color="red", font="Courier 15")
             else:
-                animated_print(f"{error_color}WARNING: Option not available!")
+                animated_print(f"WARNING: Option not available!", error=True, reset=True)
                 Colors(default_color)
     elif cache_option == 2:
         if menu_state[1].strip() == "":
@@ -6851,17 +7069,17 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
             file_to_delete = privacy_input(f"Delete {file_string}", private_mode)
         else:
             if graphic_mode:
-                gui.Popup("Option not available!", title="Warning",
+                gui.Popup(gui_translate("Option not available!"), title=gui_translate("Warning"),
                           text_color="red", font="Courier 15")
             else:
-                animated_print(f"{error_color}WARNING: Option not available!")
+                animated_print(f"WARNING: Option not available!", error=True, reset=True)
                 Colors(default_color)
     elif cache_option == 3:
         if menu_state[2].strip() == "":
             if graphic_mode:
-                layout = [[gui.Text("Delete public cache?")], [
-                    gui.Button("Confirm", bind_return_key=True), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                window = gui.Window(title="FiEncrypt - Empty Public Cache", layout=layout,
+                layout = [[gui.Text(gui_translate("Delete public cache?"))], [
+                    gui.Button(gui_translate("Confirm"), key="Confirm", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                window = gui.Window(title=gui_translate(f"FiEncrypt - Empty Public Cache (Logged in as: {get_current_user()})"), layout=layout,
                                     margins=(100, 50), font="Courier 20")
                 events, values = window.read()
                 if events == "Confirm":
@@ -6877,10 +7095,10 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                 pass
         else:
             if graphic_mode:
-                gui.Popup("Option not available!", title="Warning",
+                gui.Popup(gui_translate("Option not available!"), title=gui_translate("Warning"),
                           text_color="red", font="Courier 15")
             else:
-                animated_print(f"{error_color}WARNING: Option not available!")
+                animated_print(f"WARNING: Option not available!", error=True, reset=True)
                 Colors(default_color)
     elif cache_option == 4:
         if menu_state[3].strip() == "":
@@ -6888,19 +7106,19 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
             if graphic_mode:
                 username, password = "", ""
                 while username == None or username.strip() == "" or password == None or password.strip() == "":
-                    layout = [[gui.Text("Please confirm your login")], [gui.Text("Username"), gui.InputText(
-                        key="username")], [gui.Text("Password"), gui.InputText(key="password", password_char="*")], [gui.Button("Login", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Login Confirmation",
+                    layout = [[gui.Text(gui_translate("Please confirm your login"))], [gui.Text(gui_translate("Username")), gui.InputText(
+                        key="username")], [gui.Text(gui_translate("Password")), gui.InputText(key="password", password_char="*")], [gui.Button(gui_translate("Login"), key="Login", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate("FiEncrypt - Login Confirmation"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Login":
                         username = values.get("username", None)
                         password = values.get("password", None)
                         if username == None or username.strip() == "":
-                            gui.Popup("Username cannot be blank!", title="Warning",
+                            gui.Popup(gui_translate("Username cannot be blank!"), title=gui_translate("Warning"),
                                       text_color="red", font="Courier 15")
                         elif password == None or password.strip() == "":
-                            gui.Popup("Password cannot be blank!", title="Warning",
+                            gui.Popup(gui_translate("Password cannot be blank!"), title=gui_translate("Warning"),
                                       text_color="red", font="Courier 15")
                     window.close()
             else:
@@ -6919,20 +7137,20 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                         temp_files = str(files).replace(
                             "[", "").replace("]", "").replace("'", "").strip()
                         gui.Popup(temp_files.replace(",", "\n"),
-                                  title="FiEncrypt - Private Cache", font="Courier 20")
+                                  title=gui_translate(f"FiEncrypt - Private Cache (Logged in as: {get_current_user()})"), font="Courier 20")
             else:
                 if graphic_mode:
-                    gui.Popup("Access Denied!", title="Warning",
+                    gui.Popup(gui_translate("Access Denied!"), title=gui_translate("Warning"),
                               text_color="red", font="Courier 15")
                 else:
-                    animated_print(f"{error_color}WARNING: Access Denied!")
+                    animated_print(f"WARNING: Access Denied!", error=True, reset=True)
                     Colors(default_color)
         else:
             if graphic_mode:
-                gui.Popup("Option not available!", title="Warning",
+                gui.Popup(gui_translate("Option not available!"), title=gui_translate("Warning"),
                           text_color="red", font="Courier 15")
             else:
-                animated_print(f"{error_color}WARNING: Option not available!")
+                animated_print(f"WARNING: Option not available!", error=True, reset=True)
                 Colors(default_color)
     elif cache_option == 5:
         if menu_state[4].strip() == "":
@@ -6940,19 +7158,19 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
             if graphic_mode:
                 username, password = "", ""
                 while username == None or username.strip() == "" or password == None or password.strip() == "":
-                    layout = [[gui.Text("Please confirm your login")], [gui.Text("Username"), gui.InputText(
-                        key="username")], [gui.Text("Password"), gui.InputText(key="password", password_char="*")], [gui.Button("Login", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Login Confirmation",
+                    layout = [[gui.Text(gui_translate("Please confirm your login"))], [gui.Text(gui_translate("Username")), gui.InputText(
+                        key="username")], [gui.Text(gui_translate("Password")), gui.InputText(key="password", password_char="*")], [gui.Button(gui_translate("Login"), key="Login", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate("FiEncrypt - Login Confirmation"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Login":
                         username = values.get("username", None)
                         password = values.get("password", None)
                         if username == None or username.strip() == "":
-                            gui.Popup("Username cannot be blank!", title="Warning",
+                            gui.Popup(gui_translate("Username cannot be blank!"), title=gui_translate("Warning"),
                                       text_color="red", font="Courier 15")
                         elif password == None or password.strip() == "":
-                            gui.Popup("Password cannot be blank!", title="Warning",
+                            gui.Popup(gui_translate("Password cannot be blank!"), title=gui_translate("Warning"),
                                       text_color="red", font="Courier 15")
                     window.close()
             else:
@@ -6967,17 +7185,17 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                 os.mkdir("./files")
             else:
                 if graphic_mode:
-                    gui.Popup("Access Denied!", title="Warning",
+                    gui.Popup(gui_translate("Access Denied!"), title=gui_translate("Warning"),
                               text_color="red", font="Courier 15")
                 else:
-                    animated_print(f"{error_color}WARNING: Access Denied!")
+                    animated_print(f"WARNING: Access Denied!", error=True, reset=True)
                     Colors(default_color)
         else:
             if graphic_mode:
-                gui.Popup("Option not available!", title="Warning",
+                gui.Popup(gui_translate("Option not available!"), title=gui_translate("Warning"),
                           text_color="red", font="Courier 15")
             else:
-                animated_print(f"{error_color}WARNING: Option not available!")
+                animated_print(f"WARNING: Option not available!", error=True, reset=True)
                 Colors(default_color)
     elif cache_option == 6:
         if menu_state[5].strip() == "":
@@ -7003,7 +7221,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
 
 def assisted_menu():
     home_directory, operating_system, user = enter_home_directory()
-    print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme = retrieve_config_settings()
+    print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation, lang = retrieve_config_settings()
     error_color = "\033[91m"
     menu(user, display_initiate, print_logs, default_color, private_mode, error_color)
 
@@ -7060,12 +7278,12 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
         try:
             if graphic_mode:
                 if display_initiate:
-                    layout = [[gui.Text("1. Encrypt New Message")], [gui.Text("2. Decrypt Message")], [gui.Text("3. Show Current Code")], [gui.Text("4. Request Random Code")], [gui.Text("5. Initiate Filesystem")], [gui.Text("6. Encryption Helper")], [gui.Text("7. Secret Code")], [gui.Text("8. Open Inbound Server")], [
-                        gui.Text("9. Invite to Conversation")], [gui.Text("10. Check Mailbox")], [gui.Text("11. Manage Contacts")], [gui.Text("12. Config Settings")], [gui.Text("13. Manage Cache")], [gui.Text("Select one of these functions"), gui.InputText(key="func"), gui.Button("Launch!", bind_return_key=True)], [gui.Button("Reload"), gui.Button("Quit")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    layout = [[gui.Text(gui_translate("1. Encrypt New Message"))], [gui.Text(gui_translate("2. Decrypt Message"))], [gui.Text(gui_translate("3. Show Current Code"))], [gui.Text(gui_translate("4. Request Random Code"))], [gui.Text(gui_translate("5. Initiate Filesystem"))], [gui.Text(gui_translate("6. Encryption Helper"))], [gui.Text(gui_translate("7. Secret Code"))], [gui.Text(gui_translate("8. Open Inbound Server"))], [
+                        gui.Text(gui_translate("9. Invite to Conversation"))], [gui.Text(gui_translate("10. Check Mailbox"))], [gui.Text(gui_translate("11. Manage Contacts"))], [gui.Text(gui_translate("12. Config Settings"))], [gui.Text(gui_translate("13. Manage Cache"))], [gui.Text(gui_translate("Select one of these functions")), gui.InputText(key="func"), gui.Button(gui_translate("Launch!"), key="Launch!", bind_return_key=True)], [gui.Button(gui_translate("Reload"), key="Reload"), gui.Button(gui_translate("Quit"), key="Quit")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 else:
-                    layout = [[gui.Text("1. Encrypt New Message")], [gui.Text("2. Decrypt Message")], [gui.Text("3. Show Current Code")], [gui.Text("4. Request Random Code")], [gui.Text("5. Encryption Helper")], [gui.Text("6. Secret Code")], [gui.Text("7. Open Inbound Server")], [gui.Text("8. Invite to Conversation")], [
-                        gui.Text("9. Check Mailbox")], [gui.Text("10. Manage Contacts")], [gui.Text("11. Config Settings")], [gui.Text("12. Manage Cache")], [gui.Text("Select one of these functions"), gui.InputText(key="func"), gui.Button("Launch!", bind_return_key=True)], [gui.Button("Reload"), gui.Button("Quit")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                window = gui.Window(title="FiEncrypt - Main Menu", layout=layout,
+                    layout = [[gui.Text(gui_translate("1. Encrypt New Message"))], [gui.Text(gui_translate("2. Decrypt Message"))], [gui.Text(gui_translate("3. Show Current Code"))], [gui.Text(gui_translate("4. Request Random Code"))], [gui.Text(gui_translate("5. Encryption Helper"))], [gui.Text(gui_translate("6. Secret Code"))], [gui.Text(gui_translate("7. Open Inbound Server"))], [gui.Text(gui_translate("8. Invite to Conversation"))], [
+                        gui.Text(gui_translate("9. Check Mailbox"))], [gui.Text(gui_translate("10. Manage Contacts"))], [gui.Text(gui_translate("11. Config Settings"))], [gui.Text(gui_translate("12. Manage Cache"))], [gui.Text(gui_translate("Select one of these functions")), gui.InputText(key="func"), gui.Button(gui_translate("Launch!"), key="Launch!", bind_return_key=True)], [gui.Button(gui_translate("Reload"), key="Reload"), gui.Button(gui_translate("Quit"), key="Quit")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                window = gui.Window(title=gui_translate(f"FiEncrypt - Main Menu (Logged in as: {get_current_user()})"), layout=layout,
                                     margins=(100, 50), font="Courier 20")
                 event, values = window.read()
                 if event == "Launch!":
@@ -7082,7 +7300,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                         func = 13
                 window.close()
             else:
-                func = input(f"Select one of these functions: ")
+                func = privacy_input(f"Select one of these functions", private_mode)
         except KeyboardInterrupt:
             print("")
             maybe_quit()
@@ -7214,9 +7432,9 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
             else:
                 contact_func = 0
                 if graphic_mode:
-                    layout = [[gui.Text("1. Add Contact")], [gui.Text("2. Remove Contact")], [gui.Text("3. Search For Contact")], [gui.Text("4. List All Contacts")], [gui.Text("Select a function"), gui.InputText(
-                        key="contact_func"), gui.Button("Launch!", bind_return_key=True)], [gui.Button("Return to Main Menu", key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Contact Manager",
+                    layout = [[gui.Text(gui_translate("1. Add Contact"))], [gui.Text(gui_translate("2. Remove Contact"))], [gui.Text(gui_translate("3. Search For Contact"))], [gui.Text(gui_translate("4. List All Contacts"))], [gui.Text(gui_translate("Select a function")), gui.InputText(
+                        key="contact_func"), gui.Button(gui_translate("Launch!"), key="Launch!", bind_return_key=True)], [gui.Button(gui_translate("Return to Main Menu"), key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Contact Manager (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                 else:
                     animated_print(f"Contact manager:")
@@ -7235,7 +7453,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                                 contact_func = 5
                             window.close()
                         else:
-                            contact_func = input(f">> ")
+                            contact_func = privacy_input(f"Select function", 0)
                     except KeyboardInterrupt:
                         print("")
                         menu(user, display_initiate, print_logs,
@@ -7252,9 +7470,9 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                     ).strip(), print_logs, default_color, error_color, private_mode)
                     if contact_func == 1:
                         if graphic_mode:
-                            layout = [[gui.Text("Enter contact name here"), gui.InputText(key="new_name")], [gui.Text("Enter MAC address here (or leave blank)"), gui.InputText(
-                                key="new_ip")], [gui.Text("Enter any additional details here"), gui.InputText(key="new_details")], [gui.Button("Save", bind_return_key=True), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                            window = gui.Window(title="FiEncrypt - New Contact",
+                            layout = [[gui.Text(gui_translate("Enter contact name here")), gui.InputText(key="new_name")], [gui.Text(gui_translate("Enter MAC address here")), gui.InputText(
+                                key="new_ip")], [gui.Text(gui_translate("Enter any additional details here")), gui.InputText(key="new_details")], [gui.Button(gui_translate("Save"), key="Save", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                            window = gui.Window(title=gui_translate(f"FiEncrypt - New Contact (Logged in as: {get_current_user()})"),
                                                 layout=layout, margins=(100, 50), font="Courier 20")
                             event, values = window.read()
                             if event == "Save":
@@ -7272,18 +7490,18 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             contact_manager.add(new_name, new_ip, new_details)
                         else:
                             if graphic_mode:
-                                gui.Popup("Contact name cannot be blank!", title="Warning",
+                                gui.Popup(gui_translate("Contact name cannot be blank!"), title=gui_translate("Warning"),
                                           text_color="red", font="Courier 15")
                             else:
                                 animated_print(
-                                    f"{error_color}WARNING: Contact name cannot be blank!")
+                                    f"WARNING: Contact name cannot be blank!", error=True, reset=True)
                                 Colors(default_color)
                         contact_func = 0
                     elif contact_func == 2:
                         if graphic_mode:
-                            layout = [[gui.Text("Enter name of contact to be removed"), gui.InputText(
-                                key="target_name")], [gui.Button("Delete", bind_return_key=True), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                            window = gui.Window(title="FiEncrypt - Delete Contact",
+                            layout = [[gui.Text(gui_translate("Enter name of contact to be removed")), gui.InputText(
+                                key="target_name")], [gui.Button(gui_translate("Delete"), key="Delete", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                            window = gui.Window(title=gui_translate("FiEncrypt - Delete Contact"),
                                                 layout=layout, margins=(100, 50), font="Courier 20")
                             event, values = window.read()
                             if event == "Delete":
@@ -7296,18 +7514,18 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             contact_manager.remove(target_name)
                         else:
                             if graphic_mode:
-                                gui.Popup("Contact name cannot be blank!", title="Warning",
+                                gui.Popup(gui_translate("Contact name cannot be blank!"), title=gui_translate("Warning"),
                                           text_color="red", font="Courier 15")
                             else:
                                 animated_print(
-                                    f"{error_color}WARNING: Contact name cannot be blank!")
+                                    f"WARNING: Contact name cannot be blank!", error=True, reset=True)
                                 Colors(default_color)
                         contact_func = 0
                     elif contact_func == 3:
                         if graphic_mode:
-                            layout = [[gui.Text("Enter the contact name here"), gui.InputText(key="search")], [
-                                gui.Button("Search", bind_return_key=True), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                            window = gui.Window(title="FiEncrypt - Search for contact",
+                            layout = [[gui.Text(gui_translate("Enter the contact name here")), gui.InputText(key="search")], [
+                                gui.Button(gui_translate("Search"), key="Search", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                            window = gui.Window(title=gui_translate("FiEncrypt - Search for contact"),
                                                 layout=layout, margins=(100, 50), font="Courier 20")
                             event, values = window.read()
                             if event == "Search":
@@ -7322,10 +7540,10 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                                 result = str(result).replace("\\n", "").replace(
                                     "(", "").replace(")", "").split(",")
                                 gui.Popup(
-                                    f"{result[0].strip()}\n{result[1].strip()}\n{result[2]}\n{result[3]}", title="FiEncrypt - Search Result", font="Courier 20")
+                                    gui_translate(f"{result[0].strip()}\n{result[1].strip()}\n{result[2]}\n{result[3]}"), title=gui_translate(f"FiEncrypt - Search Result (Logged in as: {get_current_user()})"), font="Courier 20")
                             else:
-                                gui.Popup(
-                                    f"No contact matching {search} found!", title="FiEncrypt - Search Result", font="Courier 15")
+                                gui.Popup(gui_translate(
+                                    f"No contact matching {search} found!"), title=gui_translate(f"FiEncrypt - Search Result (Logged in as: {get_current_user()})"), font="Courier 15")
                         else:
                             if result != None:
                                 animated_print(result)
@@ -7341,9 +7559,9 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                              default_color, private_mode, error_color, print_speed=0)
                     else:
                         if graphic_mode:
-                            layout = [[gui.Text("1. Add Contact")], [gui.Text("2. Remove Contact")], [gui.Text("3. Search For Contact")], [gui.Text("4. List All Contacts")], [
-                                gui.Text("5. Return to Main Menu")], [gui.Text("Select a function"), gui.InputText(key="contact_func"), gui.Button("Launch!", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                            window = gui.Window(title="FiEncrypt - Contact Manager",
+                            layout = [[gui.Text(gui_translate("1. Add Contact"))], [gui.Text(gui_translate("2. Remove Contact"))], [gui.Text(gui_translate("3. Search For Contact"))], [gui.Text(gui_translate("4. List All Contacts"))], [
+                                gui.Text(gui_translate("5. Return to Main Menu"))], [gui.Text(gui_translate("Select a function")), gui.InputText(key="contact_func"), gui.Button(gui_translate("Launch!"), key="Launch!", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                            window = gui.Window(title=gui_translate(f"FiEncrypt - Contact Manager (Logged in as: {get_current_user()})"),
                                                 layout=layout, margins=(100, 50), font="Courier 20")
                         else:
                             animated_print(
@@ -7352,9 +7570,9 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
             if display_initiate:
                 contact_func = 0
                 if graphic_mode:
-                    layout = [[gui.Text("1. Add Contact")], [gui.Text("2. Remove Contact")], [gui.Text("3. Search For Contact")], [gui.Text("4. List All Contacts")], [
-                        gui.Text("5. Return to Main Menu")], [gui.Text("Select a function"), gui.InputText(key="contact_func"), gui.Button("Launch!", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title="FiEncrypt - Contact Manager",
+                    layout = [[gui.Text(gui_translate("1. Add Contact"))], [gui.Text(gui_translate("2. Remove Contact"))], [gui.Text(gui_translate("3. Search For Contact"))], [gui.Text(gui_translate("4. List All Contacts"))], [
+                        gui.Text(gui_translate("5. Return to Main Menu"))], [gui.Text(gui_translate("Select a function")), gui.InputText(key="contact_func"), gui.Button(gui_translate("Launch!"), key="Launch!", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=gui_translate(f"FiEncrypt - Contact Manager (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                 else:
                     animated_print(f"Contact manager:")
@@ -7371,7 +7589,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                                 contact_func = values.get("contact_func", 0)
                             window.close()
                         else:
-                            contact_func = input(f">> ")
+                            contact_func = privacy_input(f">> ", 0)
                     except KeyboardInterrupt:
                         print("")
                         menu(user, display_initiate, print_logs,
@@ -7388,9 +7606,9 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                     ).strip(), print_logs, default_color, error_color, private_mode)
                     if contact_func == 1:
                         if graphic_mode:
-                            layout = [[gui.Text("Enter contact name here"), gui.InputText(key="new_name")], [gui.Text("Enter MAC address here (or leave blank)"), gui.InputText(
-                                key="new_ip")], [gui.Text("Enter any additional details here"), gui.InputText(key="new_details")], [gui.Button("Save", bind_return_key=True), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                            window = gui.Window(title="FiEncrypt - New Contact",
+                            layout = [[gui.Text(gui_translate("Enter contact name here")), gui.InputText(key="new_name")], [gui.Text(gui_translate("Enter MAC address here")), gui.InputText(
+                                key="new_ip")], [gui.Text(gui_translate("Enter any additional details here")), gui.InputText(key="new_details")], [gui.Button(gui_translate("Save"), key="Save", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                            window = gui.Window(title=gui_translate(f"FiEncrypt - New Contact (Logged in as: {get_current_user()})"),
                                                 layout=layout, margins=(100, 50), font="Courier 20")
                             event, values = window.read()
                             if event == "Save":
@@ -7408,18 +7626,18 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             contact_manager.add(new_name, new_ip, new_details)
                         else:
                             if graphic_mode:
-                                gui.Popup("Contact name cannot be blank!", title="Warning",
+                                gui.Popup(gui_translate("Contact name cannot be blank!"), title=gui_translate("Warning"),
                                           text_color="red", font="Courier 15")
                             else:
                                 animated_print(
-                                    f"{error_color}WARNING: Contact name cannot be blank!")
+                                    f"WARNING: Contact name cannot be blank!", error=True, reset=True)
                                 Colors(default_color)
                         contact_func = 0
                     elif contact_func == 2:
                         if graphic_mode:
-                            layout = [[gui.Text("Enter name of contact to be removed"), gui.InputText(
-                                key="target_name")], [gui.Button("Delete", bind_return_key=True), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                            window = gui.Window(title="FiEncrypt - Delete Contact",
+                            layout = [[gui.Text(gui_translate("Enter name of contact to be removed")), gui.InputText(
+                                key="target_name")], [gui.Button(gui_translate("Delete"), key="Delete", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                            window = gui.Window(title=gui_translate(f"FiEncrypt - Delete Contact (Logged in as: {get_current_user()})"),
                                                 layout=layout, margins=(100, 50), font="Courier 20")
                             event, values = window.read()
                             if event == "Delete":
@@ -7432,18 +7650,18 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             contact_manager.remove(target_name)
                         else:
                             if graphic_mode:
-                                gui.Popup("Contact name cannot be blank!", title="Warning",
+                                gui.Popup(gui_translate("Contact name cannot be blank!"), title=gui_translate("Warning"),
                                           text_color="red", font="Courier 15")
                             else:
                                 animated_print(
-                                    f"{error_color}WARNING: Contact name cannot be blank!")
+                                    f"WARNING: Contact name cannot be blank!", error=True, reset=True)
                                 Colors(default_color)
                         contact_func = 0
                     elif contact_func == 3:
                         if graphic_mode:
-                            layout = [[gui.Text("Enter the contact name here"), gui.InputText(key="search")], [
-                                gui.Button("Search", bind_return_key=True), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                            window = gui.Window(title="FiEncrypt - Search for contact",
+                            layout = [[gui.Text(gui_translate("Enter the contact name here")), gui.InputText(key="search")], [
+                                gui.Button(gui_translate("Search"), key="Search", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                            window = gui.Window(title=gui_translate(f"FiEncrypt - Search for contact (Logged in as: {get_current_user()})"),
                                                 layout=layout, margins=(100, 50), font="Courier 20")
                             event, values = window.read()
                             if event == "Search":
@@ -7457,13 +7675,11 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             if result != None:
                                 result = str(result).replace("\\n", "").replace(
                                     "(", "").replace(")", "").split(",")
-                                gui.Popup(
-                                    f"{result[0].strip()}\n{result[1].strip()}\n{result[2]}\n{result[3]}", title="FiEncrypt - Search Result", font="Courier 20")
+                                gui.Popup(gui_translate(
+                                    f"{result[0].strip()}\n{result[1].strip()}\n{result[2]}\n{result[3]}"), title=gui_translate(f"FiEncrypt - Search Result (Logged in as: {get_current_user()})"), font="Courier 20")
                             else:
-                                gui.Popup(
-                                    f"No contact matching {search} found!", title="FiEncrypt - Search Result", font="Courier 15")
-                                animated_print(
-                                    f"No contact matching {search} found!", font="Courier 15")
+                                gui.Popup(gui_translate(
+                                    f"No contact matching {search} found!"), title=gui_translate(f"FiEncrypt - Search Result (Logged in as: {get_current_user()})"), font="Courier 15")
                         else:
                             if result != None:
                                 animated_print(result)
@@ -7479,9 +7695,9 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                              default_color, private_mode, error_color, print_speed=0)
                     else:
                         if graphic_mode:
-                            layout = [[gui.Text("1. Add Contact")], [gui.Text("2. Remove Contact")], [gui.Text("3. Search For Contact")], [gui.Text("4. List All Contacts")], [
-                                gui.Text("5. Return to Main Menu")], [gui.Text("Select a function"), gui.InputText(key="contact_func"), gui.Button("Launch!", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                            window = gui.Window(title="FiEncrypt - Contact Manager",
+                            layout = [[gui.Text(gui_translate("1. Add Contact"))], [gui.Text(gui_translate("2. Remove Contact"))], [gui.Text(gui_translate("3. Search For Contact"))], [gui.Text(gui_translate("4. List All Contacts"))], [
+                                gui.Text(gui_translate("5. Return to Main Menu"))], [gui.Text(gui_translate("Select a function")), gui.InputText(key="contact_func"), gui.Button(gui_translate("Launch!"), key="Launch!", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                            window = gui.Window(title=gui_translate(f"FiEncrypt - Contact Manager (Logged in as: {get_current_user()})"),
                                                 layout=layout, margins=(100, 50), font="Courier 20")
                         else:
                             animated_print(
@@ -7518,7 +7734,8 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                 exit()
         else:
             if graphic_mode:
-                gui.Popup("Invalid Function!", title="Warning", text_color="red")
+                gui.Popup(gui_translate("Invalid Function!"),
+                          title=gui_translate("Warning"), text_color="red")
             else:
                 animated_print(f"Invalid Fuction!")
 
@@ -7535,8 +7752,8 @@ def login(display_initiate, user_account_name, error_color, default_color, print
     while not access:
         if graphic_mode:
             while username_input == None or username_input.strip() == "" or password_input == None or password_input.strip() == "":
-                layout = [[gui.Text("Welcome to FiEncrypt! Enter your credientials below!")], [gui.Text("Username"), gui.InputText(
-                    key="username")], [gui.Text("Password"), gui.InputText(key="password", password_char="*")], [gui.Button("Login", bind_return_key=True), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                layout = [[gui.Text(gui_translate("Welcome to FiEncrypt! Enter your credientials below!"))], [gui.Text(gui_translate("Username")), gui.InputText(
+                    key="username")], [gui.Text(gui_translate("Password")), gui.InputText(key="password", password_char="*")], [gui.Button(gui_translate("Login"), key="Login", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title="FiEncrypt", layout=layout,
                                     margins=(100, 50), font="Courier 20")
                 event, values = window.read()
@@ -7544,10 +7761,10 @@ def login(display_initiate, user_account_name, error_color, default_color, print
                     username_input = values.get("username", None)
                     password_input = values.get("password", None)
                     if username_input == None or username_input.strip() == "":
-                        gui.Popup("Username cannot be blank!", title="Warning",
+                        gui.Popup(gui_translate("Username cannot be blank!"), title=gui_translate("Warning"),
                                   text_color="red", font="Courier 15")
                     elif password_input == None or password_input.strip() == "":
-                        gui.Popup("Password cannot be blank!", title="Warning",
+                        gui.Popup(gui_translate("Password cannot be blank!"), title=gui_translate("Warning"),
                                   text_color="red", font="Courier 15")
                 elif event == "Cancel":
                     window.close()
@@ -7558,7 +7775,7 @@ def login(display_initiate, user_account_name, error_color, default_color, print
                 username_input = privacy_input(f"Username", is_private())
                 if username_input == None or username_input.strip() == "":
                     animated_print(
-                        f"{error_color}WARNING: Username cannot be blank!")
+                        f"WARNING: Username cannot be blank!", error=True, reset=True)
                     Colors(default_color)
                 else:
                     break
@@ -7566,26 +7783,26 @@ def login(display_initiate, user_account_name, error_color, default_color, print
                 password_input = privacy_input(f"Password", 1)
                 if password_input == None or password_input.strip() == "":
                     animated_print(
-                        f"{error_color}WARNING: Password cannot be blank!")
+                        f"WARNING: Password cannot be blank!", error=True, reset=True)
                     Colors(default_color)
                 else:
                     break
         access = validate_login(username_input, password_input)
         if attempts == 0:
             if graphic_mode:
-                gui.Popup("0 Attempts left! Game over brother!",
-                          title="Warning", text_color="red", font="Courier 15")
+                gui.Popup(gui_translate("0 Attempts left! Game over brother!"),
+                          title=gui_translate("Warning"), text_color="red", font="Courier 15")
             else:
                 animated_print(f"0 Attempts left! Game over brother!")
             self_terminate(True)
         elif access:
             if graphic_mode:
                 if private_mode:
-                    gui.Popup(f"Access granted! Welcome @Anonymous!",
-                              title="FiEncrypt - Access Granted!", font="Courier 15")
+                    gui.Popup(gui_translate(f"Access granted! Welcome @Anonymous!"),
+                              title=gui_translate("FiEncrypt - Access Granted!"), font="Courier 15")
                 else:
-                    gui.Popup(
-                        f"Access granted! Welcome @{capitalize_user(username_input)}", title="FiEncrypt - Access Granted!", font="Courier 15")
+                    gui.Popup(gui_translate(
+                        f"Access granted! Welcome @{capitalize_user(username_input)}"), title=gui_translate("FiEncrypt - Access Granted!"), font="Courier 15")
             else:
                 if private_mode:
                     animated_print(f"Access granted! Welcome @Anonymous!")
@@ -7597,8 +7814,8 @@ def login(display_initiate, user_account_name, error_color, default_color, print
             current_user = username_input
         else:
             if graphic_mode:
-                gui.Popup(
-                    f"Incorrect Login! {attempts} attempts left! Try again!", title="Warning", text_color="red", font="Courier 15")
+                gui.Popup(gui_translate(
+                    f"Incorrect Login! {attempts} attempts left! Try again!"), title=gui_translate("Warning"), text_color="red", font="Courier 15")
                 try:
                     window.close()
                 except:
@@ -7613,7 +7830,7 @@ def login(display_initiate, user_account_name, error_color, default_color, print
                         sys.stdout.write("\033[F")
                         sys.stdout.write("\033[K")
                 animated_print(
-                    f"{error_color}WARNING: Incorrect Login! {attempts} attempts left! Try again!")
+                    f"WARNING: Incorrect Login! {attempts} attempts left! Try again!", error=True, reset=True)
                 Colors(default_color)
             log(f"Login attempt Success? False Attempts left: {str(attempts)}",
                 "loginManager", username_input, print_logs)
@@ -7623,7 +7840,7 @@ def login(display_initiate, user_account_name, error_color, default_color, print
 
 def initiate():
     """Startup script for FiEncrypt"""
-    global graphic_mode, gui_theme
+    global graphic_mode, gui_theme, translation, TranslationManager
     ImportStructure("logic")
     ImportStructure("system")
     log("--== FiEncrypt Warming Up! ==--", "", get_current_user(), False)
@@ -7634,7 +7851,11 @@ def initiate():
     ImportStructure("network")
     log("Network modules imported!", "moduleManager", get_current_user(), False)
     home_directory, operating_system, user = enter_home_directory()
-    print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme = retrieve_config_settings()
+    print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation, lang = retrieve_config_settings()
+    if translation:
+        TranslationManager = Translate(lang)
+    else:
+        TranslationManager = None
     error_color = "\033[91m"
     if color_enabled:
         Colors(default_color)

@@ -6,7 +6,7 @@ setup(
     version='1.2.3',
     packages=[],
     install_requires=['plyer', 'ntfy', 'scapy',
-                      'tqdm', 'Pillow', 'playsound', 'PySimpleGUI'],
+                      'tqdm', 'Pillow', 'playsound', 'PySimpleGUI', 'textblob', 'netifaces', 'pyaudio'],
     url='https://github.com/le-firehawk/FiEncrypt',
     license='AGPL v3',
     author='le_firehawk',
