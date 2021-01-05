@@ -33,7 +33,7 @@ class ImportStructure:
             import datetime
             from plyer import notification
         elif import_set == "system":
-            global os, sys, shutil, subprocess, zipfile, ctypes, hashlib, Image, pyaudio, wave, playsound
+            global os, sys, shutil, subprocess, zipfile, ctypes, hashlib, Image, pyaudio, wave, playsound, tk, filedialog
             import os
             import sys
             import shutil
@@ -41,6 +41,13 @@ class ImportStructure:
             import zipfile
             import ctypes
             import hashlib
+            try:
+                import tkinter as tk
+                from tkinter import filedialog
+                root = tk.Tk()
+                root.withdraw()
+            except:
+                pass
             try:
                 from PIL import Image
             except:
@@ -214,7 +221,7 @@ def display_license():
         if graphic_mode:
             layout = [[gui.Text("FiEncrypt, property of le_firehawk is pure Python, peer-to-peer communication software intended for personal use only.\nCopyright (C) 2020 le_firehawk\n\nFiEncrypt is free software: you can redistribute it and/or modify\nit under the terms of the GNU Affero General Public License as\npublished by the Free Software Foundation, either version 3 of the\nLicense, or (at your option) any later version.\n\nFiEncrypt is distributed in the hope that it will be useful,\nbut WITHOUT ANY WARRANTY; without even the implied warranty of\nMERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\nGNU Affero General Public License for more details.\n\nTo contact the owner of FiEncrypt, use the following:\nEmail: firehawk@opayq.net\n\nYou should have received a copy of the GNU Affero General Public License\nalong with this program.  If not, see <https://www.gnu.org/licenses/agpl-3.0.html>")], [gui.Text("Do you accept?")], [gui.Button("Accept"), gui.Button("Decline")]]
             window = gui.Window(title="FiEncrypt - License Notice", layout=layout,
-                                margins=(100, 50), font="Courier 20")
+                                margins=(50, 0), font="Courier 20")
             while True:
                 event, values = window.read()
                 if event == "Decline" or gui.WIN_CLOSED:
@@ -414,7 +421,7 @@ def maybe_quit():
     if graphic_mode:
         layout = [[gui.Text("Would you like to quit?")], [gui.Button("Yes", bind_return_key=True)], [gui.Button("No")], [
             gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-        window = gui.Window(title="FiEncrypt", layout=layout, margins=(100, 50), font="Courier 20")
+        window = gui.Window(title="FiEncrypt", layout=layout, margins=(50, 0), font="Courier 20")
         while True:
             event, values = window.read()
             if event == "Yes" or gui.WIN_CLOSED:
@@ -586,6 +593,8 @@ def establish_tree():
         pass
     urllib.request.urlretrieve(
         "https://www.gnu.org/licenses/agpl-3.0.txt", f"./LICENSE")
+    urllib.request.urlretrieve(
+        "https://cdn1.iconfinder.com/data/icons/hawcons/32/699001-icon-152-paperclip-512.png", f"./attach.png")
     os.mkdir(f"./cache")
     log("FiEncrypt directory structure established! ['./config.txt', './cache_settings.txt', './code.txt', './logs.txt', './messagein.txt', './messageout.txt', './CREDENTIALS.txt', './LICENSE', './cache']", "fileManager", get_current_user(), None)
     if sys.platform == "win32":
@@ -603,6 +612,16 @@ def disable_translation():
         for line in config_lines:
             config_file.write(f"{line}\n")
     translation = False
+
+
+def generate_filetypes(filename):
+    filetype = filename.split(".")
+    if filetype[1] == "txt":
+        return ("text files", "*.txt")
+    elif filetype[1] in ["jpg", "bmp", "png", "ico"]:
+        return ("images", f"*.{filetype[1].strip()}")
+    else:
+        return ("other files", f"*.{filetype[1].strip()}")
 
 
 def clear_cache():
@@ -625,7 +644,7 @@ def add_new_user():
             layout = [[gui.Text("Enter a username here"), gui.InputText(key="username")], [gui.Text("Enter a password here"), gui.InputText(
                 key="password", password_char="*")], [gui.Text("Confirm Password"), gui.InputText(key="confirm_password", password_char="*")], [gui.Button("Confirm", bind_return_key=True), gui.Button("Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title="FiEncrypt - Add User", layout=layout,
-                                margins=(100, 50), font="Courier 20")
+                                margins=(50, 0), font="Courier 20")
             event, values = window.read()
             window.close()
             if event == "Confirm":
@@ -767,7 +786,7 @@ def get_own_ip(print_logs, private_mode):
                 layout = [[gui.Text("Enter your IP in dottec decimal format"),
                            gui.InputText(key="ip")], [gui.Button("Submit", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=f"FiEncrypt - IP Resolution (Logged in as: {get_current_user()})", layout=layout,
-                                    margins=(100, 50), font="Courier 20")
+                                    margins=(50, 0), font="Courier 20")
                 event, values = window.read()
                 if event == "Submit":
                     your_ip = values.get("ip", None)
@@ -1009,7 +1028,7 @@ def contact_input(string):
         layout = [[gui.Text("Enter contact name"), gui.InputText(key="name")],
                   [gui.Button("Submit", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
         window = gui.Window(
-            title=f"FiEncrypt - Contact Input (Logged in as: {get_current_user()})", layout=layout, margins=(100, 50))
+            title=f"FiEncrypt - Contact Input (Logged in as: {get_current_user()})", layout=layout, margins=(50, 0))
         event, values = window.read()
         if event == "Submit":
             name = values.get("name", None)
@@ -1367,7 +1386,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
             layout = [[gui.Text(gui_translate("Enter IP, MAC address or contact name of the recipient")), gui.InputText(
                 key="ip_in")], [gui.Button(gui_translate("Send"), key="Send", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title=gui_translate(f"FiEncrypt - Recipient IP (Logged in as: {get_current_user()})"), layout=layout,
-                                margins=(100, 50), font="Courier 20")
+                                margins=(50, 0), font="Courier 20")
             event, values = window.read()
             if event == "Send":
                 ip = values.get("ip_in", None)
@@ -1432,7 +1451,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 layout = [[gui.Text(gui_translate(f"Unable to verify if recipient is {expected_user}!"), text_color="red")], [
                     gui.Text(gui_translate("Do you wish to proceed anyway?"))], [gui.Button(gui_translate("Yes"), key="Yes", bind_return_key=True), gui.Button(gui_translate("No"), key="No")]]
                 window = gui.Window(title=gui_translate("Warning"), layout=layout,
-                                    margins=(100, 50), font="Courier 20")
+                                    margins=(50, 0), font="Courier 20")
                 event, values = window.read()
                 if event == "Yes":
                     proceed = "y"
@@ -1534,7 +1553,7 @@ def gnu_ip_resolve(print_logs, private_mode):
             layout = [[gui.Text(gui_translate(graphic_interfaces))], [gui.Text(gui_translate("Select one of these")), gui.InputText(key="chosen_interface"), gui.Button(
                 gui_translate("Select"), bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title=gui_translate(f"FiEncrypt - Interface Selector (Logged in as: {get_current_user()})"),
-                                layout=layout, margins=(100, 50), font="Courier 20")
+                                layout=layout, margins=(50, 0), font="Courier 20")
             event, values = window.read()
             if event == "Select":
                 chosen_interface = values.get("chosen_interface", None)
@@ -1570,7 +1589,7 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
         layout = [[gui.Text(gui_translate("Enter the secret code here")), gui.InputText(key="secret_code")], [gui.Button(
             gui_translate("Submit"), bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
         window = gui.Window(title=gui_translate(f"FiEncrypt - Secret Code (Logged in as: {get_current_user()})"), layout=layout,
-                            margins=(100, 50), font="Courier 20")
+                            margins=(50, 0), font="Courier 20")
         event, values = window.read()
         window.close()
         if event == "Submit":
@@ -1660,7 +1679,7 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
         config_file = open("./config.txt", "w+")
         if graphic_mode:
             window = gui.Window(title=gui_translate(f"FiEncrypt - Config Editor (Logged in as: {get_current_user()})"), layout=[[gui.Text(gui_translate("Enter a semi-colon (;) in order for a line break"))], [gui.InputText(
-                key="new_code"), gui.Button("Write")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20")
+                key="new_code"), gui.Button("Write")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(50, 0), font="Courier 20")
             event, values = window.read()
             if event == "Write":
                 new_code = values.get("new_code", None)
@@ -1674,7 +1693,7 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
                 layout = [[gui.Text(gui_translate("Number of lines differs from the expected value!"), text_color="red")], [gui.Text(gui_translate("Do you wish to proceed?")), gui.Button(
                     gui_translate("Yes"), bind_return_key=True), gui.Button(gui_translate("No"), key="No")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Config Editor (Logged in as: {get_current_user()})"),
-                                    layout=layout, margins=(100, 50), font="Courier 20")
+                                    layout=layout, margins=(50, 0), font="Courier 20")
                 event, values = window.read()
                 if event == "Yes":
                     proceed = "y"
@@ -1723,7 +1742,7 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
             for i in range(30):
                 if graphic_mode:
                     window = gui.Window(title=gui_translate(f"FiEncrypt - BREADFISH!!! (Logged in as: {get_current_user()})"), layout=[[gui.Text(line1, text_color="blue")], [gui.Text(line2, text_color="blue")], [gui.Text(line3, text_color="blue")], [gui.Text(line4, text_color="blue")], [gui.Text(line5, text_color="blue")], [gui.Text(line6, text_color="blue")], [gui.Text(line7, text_color="blue")], [gui.Text(line8, text_color="blue")], [gui.Text(line9, text_color="blue")], [gui.Text(line10, text_color="blue")], [
-                                        gui.Text(line11, text_color="blue")], [gui.Text(line12, text_color="blue")], [gui.Text(line13, text_color="blue")], [gui.Text(line14, text_color="blue")], [gui.Text(line15, text_color="blue")], [gui.Text(line16, text_color="blue")], [gui.Text(line17, text_color="blue")]], margins=(100, 50), size=(random.randint(600, 1000), random.randint(400, 800)), font=f"Courier {random.randint(10, 20)}", finalize=True)
+                                        gui.Text(line11, text_color="blue")], [gui.Text(line12, text_color="blue")], [gui.Text(line13, text_color="blue")], [gui.Text(line14, text_color="blue")], [gui.Text(line15, text_color="blue")], [gui.Text(line16, text_color="blue")], [gui.Text(line17, text_color="blue")]], margins=(50, 0), size=(random.randint(600, 1000), random.randint(400, 800)), font=f"Courier {random.randint(10, 20)}", finalize=True)
                     time.sleep(0.5)
                     window.close()
                 else:
@@ -1832,7 +1851,7 @@ def showcode(user, current_user, private_mode, print_logs, error_color, default_
                 layout = [[gui.Text(gui_translate("This is the current code saved in the code.txt file"))], [gui.Text(code)], [
                     gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title=gui_translate(f"FiEncrypt - Current Code (Logged in as: {get_current_user()})"), layout=layout,
-                                margins=(100, 50), font="Courier 20", finalize=True)
+                                margins=(50, 0), font="Courier 20", finalize=True)
         else:
             animated_print(
                 f"This is the current code saved in the code.txt file:")
@@ -1982,7 +2001,7 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
             f"{gui_translate('New code generated as of')} {str(datetime.datetime.now())} {gui_translate('is')} ${str(a)}_{str(rand_code)}_${b}#")
         if graphic_mode:
             window = gui.Window(title=gui_translate(f"FiEncrypt - New Code (Logged in as: {get_current_user()})"), layout=[[gui.Text(gui_translate(temp_string))], [gui.Text(
-                "FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20", finalize=True)
+                "FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(50, 0), font="Courier 20", finalize=True)
         else:
             animated_print(temp_string)
     elif "y" in custom_code.lower():
@@ -1992,7 +2011,7 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
             # ?The user can input a code of their own, which will be combined with the prefix and timestamp that were automatically generated
             if graphic_mode:
                 window = gui.Window(title=gui_translate(f"FiEncrypt - New Code (Logged in as: {get_current_user()})"), layout=[[gui.Text(gui_translate("Enter the code you wish to set (or leave this blank to leave code empty)"))], [gui.InputText(
-                    key="manual_code"), gui.Button(gui_translate("Save"), key="Save", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20")
+                    key="manual_code"), gui.Button(gui_translate("Save"), key="Save", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(50, 0), font="Courier 20")
                 event, values = window.read()
                 if event == "Save":
                     rand_code = values.get("manual_code", None)
@@ -2025,7 +2044,7 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
         else:
             if graphic_mode:
                 window = gui.Window(title=gui_translate(f"FiEncrypt - New Code (Logged in as: {get_current_user()})"), layout=[[gui.Text(f"{gui_translate('New code generated as of')} {str(datetime.datetime.now())} {gui_translate('is')} ${str(a)}_{str(rand_code)}_${b}#")], [
-                                    gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20", finalize=True)
+                                    gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(50, 0), font="Courier 20", finalize=True)
             else:
                 animated_print(str(
                     f"Current code as of {str(datetime.datetime.now())} is ${str(a)}_{str(rand_code)}_${b}#"))
@@ -2169,7 +2188,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             temp_layout = [[gui.Text(gui_translate("Enter the encryption code for the message here! Or, leave it blank for the auto-generated key"))], [
                 gui.InputText(key="code")], [gui.Button(gui_translate("Set Code"), key="Set Code", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             temp_window = gui.Window(title=gui_translate(f"FiEncrypt - Code Input (Logged in as: {get_current_user()})"), layout=temp_layout,
-                                     margins=(100, 50), font="Courier 20")
+                                     margins=(50, 0), font="Courier 20")
             event, values = temp_window.read()
             temp_window.close()
             if event == "Set Code":
@@ -2362,18 +2381,31 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 message_text = stored_message
             else:
                 if graphic_mode:
-                    temp_display_name = get_foreign_user()
+                    temp_display_name, early_file = get_foreign_user(), None
                     if temp_display_name == None:
                         temp_display_name = recipient_ip
                     enter_home_directory()
                     os.chdir("./cache")
                     layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
-                                        layout=layout, margins=(100, 50), font="Courier 20")
-                    event, values = window.read()
-                    if event == ">>":
-                        message_text = values.get("message_input", "")
+                                        layout=layout, margins=(50, 0), font="Courier 20")
+                    while True:
+                        event, values = window.read()
+                        if event == ">>":
+                            message_text = values.get("message_input", "")
+                            break
+                        elif event == "file":
+                            if early_file == None:
+                                early_file = filedialog.askopenfilename(
+                                    title="FiEncrypt - Open File", filetypes=[("all files", "*")], initialdir="../../")
+                                print(early_file)
+                                if len(early_file) == 0:
+                                    early_file = None
+                            else:
+                                gui.Popup(gui_translate("Only one file can be sent at a time"),
+                                          title="Warning", font="Courier 20", text_color="red")
+                    window.close()
                 else:
                     message_text = privacy_input(
                         f"How do you feel", private_mode, line_break=True)
@@ -2383,17 +2415,31 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                      private_mode, error_color, print_speed=0)
             while message_text.strip() == "":
                 if graphic_mode:
+                    early_file = None
                     gui.Popup(gui_translate("No message was entered!"), title=gui_translate("Warning"),
                               text_color="red", font="Courier 15")
                     enter_home_directory()
                     os.chdir("./cache")
                     layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
-                                        layout=layout, margins=(100, 50), font="Courier 20")
-                    event, values = window.read()
-                    if event == ">>":
-                        message_text = values.get("message_input", "")
+                                        layout=layout, margins=(50, 0), font="Courier 20")
+                    while True:
+                        event, values = window.read()
+                        if event == ">>":
+                            message_text = values.get("message_input", "")
+                            break
+                        elif event == "file":
+                            if early_file == None:
+                                early_file = filedialog.askopenfilename(
+                                    title="FiEncrypt - Open File", filetypes=[("all files", "*")], initialdir="../../")
+                                print(early_file)
+                                if len(early_file) == 0:
+                                    early_file = None
+                            else:
+                                gui.Popup(gui_translate("Only one file can be sent at a time"),
+                                          title="Warning", font="Courier 20", text_color="red")
+                    window.close()
                 else:
                     animated_print(
                         f"WARNING: No message was entered!", error=True, reset=True)
@@ -2488,9 +2534,9 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 enter_home_directory()
                 os.chdir("./cache")
                 layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                    gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
-                                    layout=layout, margins=(100, 50), font="Courier 20")
+                                    layout=layout, margins=(50, 0), font="Courier 20")
 
         # *When the exit exits, the other client they have a TCP connection to automatically recieves the exit code, triggering their connection to close as well
         except KeyboardInterrupt:
@@ -2509,18 +2555,31 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 message_text = stored_message
             else:
                 if graphic_mode:
-                    temp_display_name = get_foreign_user()
+                    temp_display_name, early_file = get_foreign_user(), None
                     if temp_display_name == None:
                         temp_display_name = recipient_ip
                     enter_home_directory()
                     os.chdir("./cache")
                     layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
-                                        layout=layout, margins=(100, 50), font="Courier 20")
-                    event, values = window.read()
-                    if event == ">>":
-                        message_text = values.get("message_input", "")
+                                        layout=layout, margins=(50, 0), font="Courier 20")
+                    while True:
+                        event, values = window.read()
+                        if event == ">>":
+                            message_text = values.get("message_input", "")
+                            break
+                        elif event == "file":
+                            if early_file == None:
+                                early_file = filedialog.askopenfilename(
+                                    title="FiEncrypt - Open File", filetypes=[("all files", "*")], initialdir="../../")
+                                print(early_file)
+                                if len(early_file) == 0:
+                                    early_file = None
+                            else:
+                                gui.Popup(gui_translate("Only one file can be sent at a time"),
+                                          title="Warning", font="Courier 20", text_color="red")
+                    window.close()
                 else:
                     message_text = privacy_input(
                         f"Enter a reply here", private_mode, line_break=True)
@@ -2535,17 +2594,31 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                      private_mode, error_color, print_speed=0)
             while message_text.strip() == "":
                 if graphic_mode:
+                    early_file = None
                     gui.Popup("No message was entered!", title=gui_translate("Warning"),
                               text_color="red", font="Courier 15")
                     enter_home_directory()
                     os.chdir("./cache")
                     layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
-                                        layout=layout, margins=(100, 50), font="Courier 20")
-                    event, values = window.read()
-                    if event == ">>":
-                        message_text = values.get("message_input", "")
+                                        layout=layout, margins=(50, 0), font="Courier 20")
+                    while True:
+                        event, values = window.read()
+                        if event == ">>":
+                            message_text = values.get("message_input", "")
+                            break
+                        elif event == "file":
+                            if early_file == None:
+                                early_file = filedialog.askopenfilename(
+                                    title="FiEncrypt - Open File", filetypes=[("all files", "*")], initialdir="../../")
+                                print(early_file)
+                                if len(early_file) == 0:
+                                    early_file = None
+                            else:
+                                gui.Popup(gui_translate("Only one file can be sent at a time"),
+                                          title="Warning", font="Courier 20", text_color="red")
+                    window.close()
                 else:
                     animated_print(
                         f"WARNING: No message was entered!", error=True, reset=True)
@@ -2579,19 +2652,30 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             message_text = stored_message
         else:
             if graphic_mode:
-                temp_display_name = get_foreign_user()
+                temp_display_name, early_file = get_foreign_user(), None
                 if temp_display_name == None:
                     temp_display_name = recipient_ip
                 enter_home_directory()
                 os.chdir("./cache")
-
                 layout = [[gui.Text(gui_translate(f"New Conversation"), font="Courier 30", text_color="red")], [gui.Text(
-                    gui_translate(prev_message_temp), font="Courier 20")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    gui_translate(prev_message_temp), font="Courier 20")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - New Conversation (Logged in as: {get_current_user()})"),
-                                    layout=layout, margins=(100, 50))
-                event, values = window.read()
-                if event == ">>":
-                    message_text = values.get("message_input", "")
+                                    layout=layout, margins=(50, 0))
+                while True:
+                    event, values = window.read()
+                    if event == ">>":
+                        message_text = values.get("message_input", "")
+                        break
+                    elif event == "file":
+                        if early_file == None:
+                            early_file = filedialog.askopenfilename(
+                                title="FiEncrypt - Open File", filetypes=[("all files", "*")], initialdir="../../")
+                            print(early_file)
+                            if len(early_file) == 0:
+                                early_file = None
+                        else:
+                            gui.Popup(gui_translate("Only one file can be sent at a time"),
+                                      title="Warning", font="Courier 20", text_color="red")
                 window.close()
             else:
                 message_text = privacy_input(
@@ -2611,17 +2695,31 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                  private_mode, error_color, print_speed=0)
         while message_text.strip() == "":
             if graphic_mode:
+                early_file = None
                 gui.Popup("No message was entered!", title=gui_translate("Warning"),
                           text_color="red", font="Courier 15")
                 enter_home_directory()
                 os.chdir("./cache")
                 layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                    gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
-                                    layout=layout, margins=(100, 50), font="Courier 20")
-                event, values = window.read()
-                if event == ">>":
-                    message_text = values.get("message_input", "")
+                                    layout=layout, margins=(50, 0), font="Courier 20")
+                while True:
+                    event, values = window.read()
+                    if event == ">>":
+                        message_text = values.get("message_input", "")
+                        break
+                    elif event == "file":
+                        if early_file == None:
+                            early_file = filedialog.askopenfilename(
+                                title="FiEncrypt - Open File", filetypes=[("all files", "*")], initialdir="../../")
+                            print(early_file)
+                            if len(early_file) == 0:
+                                early_file = None
+                        else:
+                            gui.Popup(gui_translate("Only one file can be sent at a time"),
+                                      title="Warning", font="Courier 20", text_color="red")
+                window.close()
             else:
                 animated_print(
                     f"WARNING: No message was entered!", error=True, reset=True)
@@ -2712,9 +2810,9 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             enter_home_directory()
             os.chdir("./cache")
             layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
-                                layout=layout, margins=(100, 50), font="Courier 20")
+                                layout=layout, margins=(50, 0), font="Courier 20")
         elif graphic_mode:
             try:
                 prev_messages.append([message_text, temp_timestamp,
@@ -2792,9 +2890,9 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             enter_home_directory()
             os.chdir("./cache")
             layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
-                                layout=layout, margins=(100, 50), font="Courier 20")
+                                layout=layout, margins=(50, 0), font="Courier 20")
     try:
         window.close()
     except:
@@ -2896,6 +2994,8 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
     else:
         outbound_file = False
     if not skip:
+        if early_file != None:
+            message_text += "\\file"
         decrypted_message = []
         decrypted_current_user = []
         passs2 = 0
@@ -3465,7 +3565,17 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             error_link.close()
         except:
             pass
-        if outbound_file:
+        if early_file != None:
+            attach_image, filename = sftp_send(
+                ip, default_color, error_color, voice_message, code, prefix, sc, file_path=early_file)
+            try:
+                if attach_image:
+                    prev_messages[-1].append(filename)
+                else:
+                    prev_messages[-1].append(None)
+            except:
+                pass
+        elif outbound_file:
             attach_image, filename = sftp_send(
                 ip, default_color, error_color, voice_message, code, prefix, sc)
             try:
@@ -3663,7 +3773,7 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
         sc = temp_sc
     if graphic_mode:
         temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - User Validation (Logged in as: {get_current_user()})"), layout=[
-                                [gui.Text(gui_translate("Validating User..."))]], margins=(100, 50), font="Courier 20", finalize=True)
+                                [gui.Text(gui_translate("Validating User..."))]], margins=(50, 0), font="Courier 20", finalize=True)
     try:
         sc.send(
             f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
@@ -3688,7 +3798,7 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
         if graphic_mode:
             temp_popup.close()
             temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - User Validation (Logged in as: {get_current_user()})"), layout=[
-                                    [gui.Text(gui_translate("Validating User... Success!"))]], margins=(100, 50), font="Courier 20", finalize=True)
+                                    [gui.Text(gui_translate("Validating User... Success!"))]], margins=(50, 0), font="Courier 20", finalize=True)
             time.sleep(2)
             temp_popup.close()
         return True, sc
@@ -3700,7 +3810,7 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
             if graphic_mode:
                 temp_popup.close()
                 temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - User Validation (Logged in as: {get_current_user()})"), layout=[
-                                        [gui.Text(gui_translate("Validating User... Failed!"))]], margins=(100, 50), font="Courier 20", finalize=True)
+                                        [gui.Text(gui_translate("Validating User... Failed!"))]], margins=(50, 0), font="Courier 20", finalize=True)
                 time.sleep(2)
                 temp_popup.close()
             return None, sc
@@ -3719,7 +3829,7 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
             if graphic_mode:
                 temp_popup.close()
                 temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - User Validation (Logged in as: {get_current_user()})"), layout=[
-                                        [gui.Text(gui_translate("Validating User... Success!"))]], margins=(100, 50), font="Courier 20", finalize=True)
+                                        [gui.Text(gui_translate("Validating User... Success!"))]], margins=(50, 0), font="Courier 20", finalize=True)
                 time.sleep(2)
                 temp_popup.close()
             return True, sc
@@ -3729,7 +3839,7 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
             if graphic_mode:
                 temp_popup.close()
                 temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - User Validation (Logged in as: {get_current_user()})"), layout=[
-                                        [gui.Text(gui_translate("Validating User... Failed!"))]], margins=(100, 50), font="Courier 20", finalize=True)
+                                        [gui.Text(gui_translate("Validating User... Failed!"))]], margins=(50, 0), font="Courier 20", finalize=True)
                 time.sleep(2)
                 temp_popup.close()
             return False, sc
@@ -3862,13 +3972,12 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                 try:
                     if old_file_path == None:
                         if graphic_mode:
-                            layout = [[gui.Text(gui_translate(f"Enter path of file to send to {temp_foreign_user}")), gui.InputText(key="filename"), gui.Button(
-                                ">>", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                            layout = [[gui.Text(gui_translate(f"Select file to send to {temp_foreign_user}"))], [
+                                gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate(f"FiEncrypt - File Transfer (Logged in as: {get_current_user()})"),
-                                                layout=layout, margins=(100, 50), font="Courier 20")
-                            event, values = window.read()
-                            if event == ">>":
-                                filename = values.get("filename", None)
+                                                layout=layout, margins=(50, 0), font="Courier 20", finalize=True)
+                            filename = filedialog.askopenfilename(
+                                title="FiEncrypt - Open File", filetypes=[("all files", "*")], initialdir="../")
                             window.close()
                         else:
                             filename = privacy_input(
@@ -3926,7 +4035,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                 layout = [[gui.Text(gui_translate("Please confirm your login"))], [gui.Text(gui_translate("Username")), gui.InputText(
                                     key="username")], [gui.Text(gui_translate("Password")), gui.InputText(key="password", password_char="*")], [gui.Button(gui_translate("Login"), key="Login", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                                 window = gui.Window(title=gui_translate(f"FiEncrypt - Login"), layout=layout,
-                                                    margins=(100, 50), font="Courier 20")
+                                                    margins=(50, 0), font="Courier 20")
                                 event, values = window.read()
                                 if event == "Login":
                                     username = values.get("username", None)
@@ -3982,7 +4091,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                 layout = [[gui.Column([[gui.Text(gui_translate(graphic_options))]], scrollable=True, size=(800, 600))], [gui.Text(gui_translate("Select one of these")), gui.InputText(key="file_choice"), gui.Button(
                                     gui_translate("Send"), bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                                 window = gui.Window(title=gui_translate(f"FiEncrypt - File Transfer (Logged in as: {get_current_user()})"),
-                                                    layout=layout, margins=(100, 50), font="Courier 20")
+                                                    layout=layout, margins=(50, 0), font="Courier 20")
                                 event, values = window.read()
                                 if event == "Send":
                                     file_choice = values.get("file_choice", None)
@@ -4042,7 +4151,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                 layout = [[gui.Column([[gui.Text(gui_translate(graphic_options))]], scrollable=True, size=(800, 600))], [gui.Text(gui_translate("Select one of these files")), gui.InputText(key="filename"), gui.Button(
                                     gui_translate("Send"), bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                                 window = gui.Window(title=gui_translate(f"FiEncrypt - File Transfer (Logged in as: {get_current_user()})"),
-                                                    layout=layout, margins=(100, 50), font="Courier 20")
+                                                    layout=layout, margins=(50, 0), font="Courier 20")
                                 event, values = window.read()
                                 if event == "Send":
                                     file_choice = values.get("filename", None)
@@ -4315,6 +4424,12 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                     file_recipient.close()
             if graphic_mode:
                 temp_popup.close()
+                path_to_save = filedialog.asksaveasfilename(defaultextension=substring(os.path.basename(filename), ".", -1).strip(), filetypes=[generate_filetypes(os.path.basename(filename))],
+                                                            title=f"FiEncrypt - Save {os.path.basename(filename)}")
+                if len(path_to_save) != 0:
+                    with open(f"./cache/{filename}", "rb") as cached_file:
+                        with open(path_to_save, "wb") as save_file:
+                            save_file.write(cached_file.read())
             file_extension = filename.split(".")
             temp_name = file_extension[0]
             file_extension = file_extension[1]
@@ -4363,7 +4478,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                         layout = [[gui.Text(gui_translate(f"Copying {filename} to your private cache"))], [gui.Text(gui_translate(f"Size of {filename}: {parse_size(cache_transfer_size, filename)}"))], [
                             gui.Text(gui_translate(f"Max Size of Personal Cache: {max_size}"))], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                         window = gui.Window(title=gui_translate(f"FiEncrypt - Autosync (Logged in as: {get_current_user()})"), layout=layout,
-                                            margins=(100, 50), font="Courier 20", finalize=True)
+                                            margins=(50, 0), font="Courier 20", finalize=True)
                     if "gb" in max_size.lower():
                         max_size = max_size.lower().split("gb")
                         if "." in max_size[0]:
@@ -4412,7 +4527,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                         vm_layout = [[gui.Text(gui_translate("Storing voice messages in your Private Cache is discouraged!"), text_color="red")], [gui.Text(
                             gui_translate("Do you wish to proceed anyway?")), gui.Button(gui_translate("Yes"), key="Yes", bind_return_key=True), gui.Button(gui_translate("No"), key="No")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                         vm_window = gui.Window(title=gui_translate(f"FiEncrypt - Voice Message (Logged in as: {get_current_user()})"),
-                                               layout=vm_layout, margins=(100, 50), font="Courier 20")
+                                               layout=vm_layout, margins=(50, 0), font="Courier 20")
                         event, values = vm_window.read()
                         if event == "Yes":
                             override = "y"
@@ -4431,7 +4546,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                                 name_layout = [[gui.Text(gui_translate("Enter a new name for the voice message file")), gui.InputText(
                                     key="new_name"), gui.Button(gui_translate("Save"), key="Save", bind_return_key=True)]]
                                 name_window = gui.Window(
-                                    title=gui_translate("Alert"), layout=name_layout, margins=(100, 50), font="Courier 20")
+                                    title=gui_translate("Alert"), layout=name_layout, margins=(50, 0), font="Courier 20")
                                 event, values = name_window.read()
                                 if event == "Save":
                                     new_name = values.get("new_name", None)
@@ -4554,7 +4669,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
     while code2 == "" or old_code == "" or current_user != 2:
         if graphic_mode:
             window = gui.Window(title=gui_translate(f"FiEncrypt - Message Decryption (Logged in as: {get_current_user()})"), layout=[[gui.Text(gui_translate("Enter the encryption code for the message here! Or, leave it blank for the auto-generated key"))], [gui.InputText(key="manual_code")], [
-                                gui.Button(gui_translate("Decrypt"), key="Decrypt", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20")
+                                gui.Button(gui_translate("Decrypt"), key="Decrypt", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(50, 0), font="Courier 20")
             event, values = window.read()
             window.close()
             if event == "Decrypt":
@@ -4663,7 +4778,6 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
         date = date[1]
         months, rd_dates, st_dates, nd_dates, th_dates = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], [
             "3", "23"], ["1", "21", "31"], ["2", "22"], ["4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "24", "25", "26", "27", "28", "29", "30"]
-        print(date)
         if len(date) == 3:
             if date[0] == "0":
                 date = f"{date[-1]}/{date[0:len(date)-1]}"
@@ -5191,12 +5305,12 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
             os.chdir("./cache")
             if temp_display_name.strip() != "":
                 layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                    gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             else:
                 layout = [[gui.Text(gui_translate(f"Decrypted Message!"), font="Courier 30", text_color="red")], [gui.Text(gui_translate(f"From: UNKNOWN"))], [
                     gui.Text(temp_timestamp)], [gui.Text(gui_translate(temp_output_phrase))], [gui.Button(gui_translate("Delete"), key="Delete", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
-                                layout=layout, margins=(100, 50), font="Courier 20")
+                                layout=layout, margins=(50, 0), font="Courier 20")
         else:
             current_user = get_current_user().strip().lower()
             enter_home_directory()
@@ -5208,7 +5322,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
                 layout = [[gui.Text(gui_translate(f"Decrypted Message!"), font="Courier 30", text_color="red")], [gui.Text(gui_translate(f"From: UNKNOWN"))], [
                     gui.Text(temp_timestamp)], [gui.Text(gui_translate(temp_output_phrase))], [gui.Button(gui_translate("Delete"), key="Delete", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title=gui_translate(f"FiEncrypt - Mailbox (Logged in as: {get_current_user()})"),
-                                layout=layout, margins=(100, 50), font="Courier 20")
+                                layout=layout, margins=(50, 0), font="Courier 20")
             event, values = window.read()
             if event == "Reply":
                 window.close()
@@ -5340,7 +5454,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
         else:
             if graphic_mode:
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Message Decryption (Logged in as: {get_current_user()})"), layout=[[gui.Text(gui_translate("Was the decryption successful?"))], [gui.Button(gui_translate("Yes"), key="Yes", bind_return_key=True), gui.Button(
-                    gui_translate("No"))], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(100, 50), font="Courier 20")
+                    gui_translate("No"))], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]], margins=(50, 0), font="Courier 20")
                 event, values = window.read()
                 if event == "Yes":
                     success = "y"
@@ -5497,9 +5611,9 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             enter_home_directory()
             os.chdir("./cache")
             layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                gui_translate(prev_message_temp))], [gui.Text("...")]], scrollable=True, size=(1000, 600))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                gui_translate(prev_message_temp))], [gui.Text("...")]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
-                                layout=layout, margins=(100, 50), font="Courier 20", finalize=True)
+                                layout=layout, margins=(50, 0), font="Courier 20", finalize=True)
     enter_home_directory()
     if sys.platform.startswith("linux"):
         ip = gnu_ip_resolve(print_logs, private_mode)
@@ -5534,7 +5648,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
         elif graphic_mode:
             time.sleep(1)
             temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - Inbound Server (Logged in as: {get_current_user()})"),
-                                    layout=[[gui.Text(gui_translate("Awaiting Message"))]], margins=(100, 50), font="Courier 20", finalize=True)
+                                    layout=[[gui.Text(gui_translate("Awaiting Message"))]], margins=(50, 0), font="Courier 20", finalize=True)
         log(f"Server started on {ip}:15753", "networkManager",
             current_user, print_logs)
         if temp_sc == None:
@@ -5653,7 +5767,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
         connection_layout = [[gui.Text(gui_translate("Incoming Message"))], [
             gui.Text(key="progress")], [gui.Button(gui_translate("Dismiss"), key="Dismiss")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
         connection_window = gui.Window(title=gui_translate(f"FiEncrypt - Server (Logged in as: {get_current_user()})"),
-                                       layout=connection_layout, margins=(100, 50), font="Courier 20", finalize=True)
+                                       layout=connection_layout, margins=(50, 0), font="Courier 20", finalize=True)
     for i in range(1, 6):
         if not silent and not graphic_mode:
             sys.stdout.write("\033[F")
@@ -5917,6 +6031,8 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             if not graphic_mode:
                 sys.stdout.write("\033[F")
             if get_foreign_user() != None and foreign_user.strip().lower() != get_foreign_user().strip().lower():
+                print(foreign_user, get_foreign_user())
+                cont = input("")
                 if graphic_mode:
                     gui.Popup(gui_translate("The user sending the message has changed!"),
                               title=gui_translate("Warning"), font="Courier 20", text_color="red")
@@ -5986,7 +6102,7 @@ def send_conversation_invite(user, current_user, default_color, private_mode, er
                 layout = [[gui.Text(gui_translate("Enter your IP in dotted decimal format")), gui.InputText(key="ip"), gui.Button(
                     gui_translate("Set"), bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate("FiEncrypt - IP"), layout=layout,
-                                    margins=(100, 50), font="Courier 20")
+                                    margins=(50, 0), font="Courier 20")
                 event, values = window.read()
                 if event == "Set":
                     ip = values.get("ip", None)
@@ -6309,7 +6425,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 layout = [[gui.Text(f"{gui_translate('1. Debug mode:')} {debug_mode}")], [gui.Text(f"{gui_translate('2. Display initiate:')} {display_initiate}")], [gui.Text(f"{gui_translate('3. Print Speed:')} {printing_speed}")], [gui.Text(f"{gui_translate('4. Enable custom color scheme:')} {custom_scheme}")], [gui.Text(f"{gui_translate('5. Conversation mode:')} {conversation_mode}")], [gui.Text(f"{gui_translate('6. Graphic mode:')} {graphic_mode}")], [
                     gui.Text(f"{gui_translate('7. Privacy mode:')} {private_mode}")], [gui.Text(f"{gui_translate('8. Auto code:')} {auto_code}")], [gui.Text(f"{gui_translate('9. Voice Message Duration:')} {voice_record_time}")], [gui.Text(f"{gui_translate('10. GUI Theme:')} {gui_theme}")], [gui.Text(f"{gui_translate('11. Translation:')} {translation}")], [gui.Text(f"{gui_translate('12. Region:')} {lang}")], [gui.Text(gui_translate("13. Create new user..."))], [gui.Text(gui_translate("Which setting would you like to modify")), gui.InputText(key="choice"), gui.Button(gui_translate("Select"), key="Select", bind_return_key=True)], [gui.Button(gui_translate("Return to Main Menu"), key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title=gui_translate(f"FiEncrypt - Config Settings (Logged in as: {get_current_user()})"), layout=layout,
-                                margins=(100, 50), font="Courier 20")
+                                margins=(50, 0), font="Courier 20")
             event, values = window.read()
             if event == "Select":
                 choice = values.get("choice", "").strip()
@@ -6374,7 +6490,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="debug_mode")],
                           [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Debug Mode (Logged in as: {get_current_user()})"), layout=layout,
-                                    margins=(100, 50), font="Courier 20")
+                                    margins=(50, 0), font="Courier 20")
                 event, values = window.read()
                 if event == "Update":
                     debug_mode = values.get("debug_mode", False)
@@ -6387,7 +6503,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="display_initiate")],
                           [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Display Initiate (Logged in as: {get_current_user()})"), layout=layout,
-                                    margins=(100, 50), font="Courier 20")
+                                    margins=(50, 0), font="Courier 20")
                 event, values = window.read()
                 if event == "Update":
                     display_initiate = values.get("display_initiate", False)
@@ -6400,7 +6516,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 layout = [[gui.Text(gui_translate("Enter Print Speed")), gui.InputText(key="print_speed")],
                           [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Print Speed (Logged in as: {get_current_user()})"), layout=layout,
-                                    margins=(100, 50), font="Courier 20")
+                                    margins=(50, 0), font="Courier 20")
                 event, values = window.read()
                 if event == "Update":
                     new_print_speed = values.get("print_speed", 0.3)
@@ -6414,7 +6530,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="custom_scheme")],
                           [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Custom Color Scheme (Logged in as: {get_current_user()})"), layout=layout,
-                                    margins=(100, 50), font="Courier 20")
+                                    margins=(50, 0), font="Courier 20")
                 event, values = window.read()
                 if event == "Update":
                     true_false = values.get("custom_scheme", False)
@@ -6428,7 +6544,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("Enter Color")), gui.InputText(key="new_color")],
                               [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Update Color (Logged in as: {get_current_user()})"), layout=layout,
-                                        margins=(100, 50), font="Courier 20")
+                                        margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         new_color = values.get("new_color", False)
@@ -6447,7 +6563,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="conversation_mode")],
                               [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation Mode (Logged in as: {get_current_user()})"), layout=layout,
-                                        margins=(100, 50), font="Courier 20")
+                                        margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         conversation_mode = values.get("conversation_mode", False)
@@ -6462,7 +6578,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="conversation_mode")],
                               [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation Mode (Logged in as: {get_current_user()})"), layout=layout,
-                                        margins=(100, 50), font="Courier 20")
+                                        margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         conversation_mode = values.get("conversation_mode", False)
@@ -6476,7 +6592,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="graphic_mode")],
                               [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Graphic Mode (Logged in as: {get_current_user()})"), layout=layout,
-                                        margins=(100, 50), font="Courier 20")
+                                        margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         graphic_mode = values.get("graphic_mode", False)
@@ -6490,7 +6606,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="graphic_mode")],
                               [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Graphic Mode (Logged in as: {get_current_user()})"), layout=layout,
-                                        margins=(100, 50), font="Courier 20")
+                                        margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         graphic_mode = values.get("graphic_mode", False)
@@ -6503,7 +6619,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="private_mode")],
                               [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Private Mode (Logged in as: {get_current_user()})"), layout=layout,
-                                        margins=(100, 50), font="Courier 20")
+                                        margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         private_mode = values.get("private_mode", False)
@@ -6522,7 +6638,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="private_mode")],
                               [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Private Mode (Logged in as: {get_current_user()})"), layout=layout,
-                                        margins=(100, 50), font="Courier 20")
+                                        margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         private_mode = values.get("private_mode", False)
@@ -6540,7 +6656,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="autocode")],
                               [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Auto Code (Logged in as: {get_current_user()})"), layout=layout,
-                                        margins=(100, 50), font="Courier 20")
+                                        margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         autocode = values.get("autocode", False)
@@ -6554,7 +6670,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="autocode")],
                               [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Auto Code (Logged in as: {get_current_user()})"), layout=layout,
-                                        margins=(100, 50), font="Courier 20")
+                                        margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         autocode = values.get("autocode", False)
@@ -6570,7 +6686,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                             layout = [[gui.Text(gui_translate("Voice message duration")), gui.InputText(key="voice_time")],
                                       [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate(f"FiEncrypt - Voice Message Duration (Logged in as: {get_current_user()})"), layout=layout,
-                                                margins=(100, 50), font="Courier 20")
+                                                margins=(50, 0), font="Courier 20")
                             event, values = window.read()
                             if event == "Update":
                                 voice_record_time = values.get("voice_time", "15s").strip()
@@ -6597,7 +6713,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                             layout = [[gui.Text(gui_translate("Voice message duration")), gui.InputText(key="voice_time")],
                                       [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate(f"FiEncrypt - Voice Message Duration (Logged in as: {get_current_user()})"), layout=layout,
-                                                margins=(100, 50), font="Courier 20")
+                                                margins=(50, 0), font="Courier 20")
                             event, values = window.read()
                             if event == "Update":
                                 voice_record_time = values.get("voice_time", "15s").strip()
@@ -6621,7 +6737,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("Enter GUI Theme")), gui.InputText(key="new_theme")],
                               [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Update GUI Theme (Logged in as: {get_current_user()})"), layout=layout,
-                                        margins=(100, 50), font="Courier 20")
+                                        margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         gui_theme = values.get("new_theme", False)
@@ -6638,7 +6754,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("Enter GUI Theme")), gui.InputText(key="new_theme")],
                               [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Update GUI Theme (Logged in as: {get_current_user()})"), layout=layout,
-                                        margins=(100, 50), font="Courier 20")
+                                        margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         gui_theme = values.get("new_theme", "default")
@@ -6653,7 +6769,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="translate")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [
                         gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(
-                        title=gui_translate(f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})"), layout=layout, margins=(100, 50), font="Courier 20")
+                        title=gui_translate(f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})"), layout=layout, margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         translation = values.get("translate", False)
@@ -6667,7 +6783,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="translate")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [
                         gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(
-                        title=gui_translate(f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})"), layout=layout, margins=(100, 50), font="Courier 20")
+                        title=gui_translate(f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})"), layout=layout, margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         translation = values.get("translate", False)
@@ -6680,7 +6796,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("Enter Region Code or Language")), gui.InputText(key="region_code")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [
                         gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(
-                        title=gui_translate(f"FiEncrypt - Set Language (Logged in as: {get_current_user()})"), layout=layout, margins=(100, 50), font="Courier 20")
+                        title=gui_translate(f"FiEncrypt - Set Language (Logged in as: {get_current_user()})"), layout=layout, margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         lang = values.get("region_code", "en")
@@ -6698,7 +6814,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     layout = [[gui.Text(gui_translate("Enter Region Code or Language")), gui.InputText(key="region_code")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [
                         gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(
-                        title=gui_translate(f"FiEncrypt - Set Language (Logged in as: {get_current_user()})"), layout=layout, margins=(100, 50), font="Courier 20")
+                        title=gui_translate(f"FiEncrypt - Set Language (Logged in as: {get_current_user()})"), layout=layout, margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         lang = values.get("region_code", "en")
@@ -6773,7 +6889,7 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
             layout = [[gui.Text(f"{gui_translate('1. Auto Sync:')} {autosync}")], [gui.Text(f"{gui_translate('2. Max Personal Cache Size:')} {max_size}")], [gui.Text(gui_translate("Select option to modify")), gui.InputText(key="cache_setting")], [
                 gui.Button(gui_translate("Edit"), key="Edit", bind_return_key=True), gui.Button(gui_translate("Return to Cache Menu"), key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title=gui_translate(f"FiEncrypt - Cache Settings (Logged in as: {get_current_user()})"), layout=layout,
-                                margins=(100, 50), font="Courier 20")
+                                margins=(50, 0), font="Courier 20")
             event, values = window.read()
             if event == "Edit":
                 choice = values.get("cache_setting", None)
@@ -6792,7 +6908,7 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
                 layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="autosync")],
                           [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Autosync (Logged in as: {get_current_user()})"), layout=layout,
-                                    margins=(100, 50), font="Courier 20")
+                                    margins=(50, 0), font="Courier 20")
                 event, values = window.read()
                 if event == "Update":
                     autosync = values.get("autosync", False)
@@ -6807,7 +6923,7 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
                     layout = [[gui.Text(gui_translate("Enter size in MB or GB")), gui.InputText(
                         key="max_size")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Personal Cache Size (Logged in as: {get_current_user()})"),
-                                        layout=layout, margins=(100, 50), font="Courier 20")
+                                        layout=layout, margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         max_size = values.get("max_size", "2GB")
@@ -6947,7 +7063,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
         layout = [[gui.Text(gui_translate(f"{menu_state[0]}1. Archive public cache"))], [gui.Text(gui_translate(f"{menu_state[1]}2. Delete from public cache"))], [gui.Text(gui_translate(f"{menu_state[2]}3. Empty public cache"))], [gui.Text(gui_translate(f"{menu_state[3]}4. View private cache"))], [
             gui.Text(gui_translate(f"{menu_state[4]}5. Empty private cache"))], [gui.Text(gui_translate(f"{menu_state[5]}6. Cache settings"))], [gui.Text(gui_translate("Select an option")), gui.InputText(key="cache_option"), gui.Button(gui_translate("Launch!"), key="Launch!", bind_return_key=True)], [gui.Button(gui_translate("Return to Main Menu"), key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
         window = gui.Window(title=gui_translate(f"FiEncrypt - Cache manager (Logged in as: {get_current_user()})"), layout=layout,
-                            margins=(100, 50), font="Courier 20")
+                            margins=(50, 0), font="Courier 20")
     else:
         animated_print(f"{menu_state[0]}1. Archive public cache\033[0m", speed=0.01)
         Colors(default_color)
@@ -7080,7 +7196,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                 layout = [[gui.Text(gui_translate("Delete public cache?"))], [
                     gui.Button(gui_translate("Confirm"), key="Confirm", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Empty Public Cache (Logged in as: {get_current_user()})"), layout=layout,
-                                    margins=(100, 50), font="Courier 20")
+                                    margins=(50, 0), font="Courier 20")
                 events, values = window.read()
                 if events == "Confirm":
                     confirm = "y"
@@ -7109,7 +7225,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                     layout = [[gui.Text(gui_translate("Please confirm your login"))], [gui.Text(gui_translate("Username")), gui.InputText(
                         key="username")], [gui.Text(gui_translate("Password")), gui.InputText(key="password", password_char="*")], [gui.Button(gui_translate("Login"), key="Login", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate("FiEncrypt - Login Confirmation"),
-                                        layout=layout, margins=(100, 50), font="Courier 20")
+                                        layout=layout, margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Login":
                         username = values.get("username", None)
@@ -7161,7 +7277,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                     layout = [[gui.Text(gui_translate("Please confirm your login"))], [gui.Text(gui_translate("Username")), gui.InputText(
                         key="username")], [gui.Text(gui_translate("Password")), gui.InputText(key="password", password_char="*")], [gui.Button(gui_translate("Login"), key="Login", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate("FiEncrypt - Login Confirmation"),
-                                        layout=layout, margins=(100, 50), font="Courier 20")
+                                        layout=layout, margins=(50, 0), font="Courier 20")
                     event, values = window.read()
                     if event == "Login":
                         username = values.get("username", None)
@@ -7284,7 +7400,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                     layout = [[gui.Text(gui_translate("1. Encrypt New Message"))], [gui.Text(gui_translate("2. Decrypt Message"))], [gui.Text(gui_translate("3. Show Current Code"))], [gui.Text(gui_translate("4. Request Random Code"))], [gui.Text(gui_translate("5. Encryption Helper"))], [gui.Text(gui_translate("6. Secret Code"))], [gui.Text(gui_translate("7. Open Inbound Server"))], [gui.Text(gui_translate("8. Invite to Conversation"))], [
                         gui.Text(gui_translate("9. Check Mailbox"))], [gui.Text(gui_translate("10. Manage Contacts"))], [gui.Text(gui_translate("11. Config Settings"))], [gui.Text(gui_translate("12. Manage Cache"))], [gui.Text(gui_translate("Select one of these functions")), gui.InputText(key="func"), gui.Button(gui_translate("Launch!"), key="Launch!", bind_return_key=True)], [gui.Button(gui_translate("Reload"), key="Reload"), gui.Button(gui_translate("Quit"), key="Quit")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Main Menu (Logged in as: {get_current_user()})"), layout=layout,
-                                    margins=(100, 50), font="Courier 20")
+                                    margins=(50, 0), font="Courier 20")
                 event, values = window.read()
                 if event == "Launch!":
                     func = values.get("func", 0)
@@ -7435,7 +7551,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                     layout = [[gui.Text(gui_translate("1. Add Contact"))], [gui.Text(gui_translate("2. Remove Contact"))], [gui.Text(gui_translate("3. Search For Contact"))], [gui.Text(gui_translate("4. List All Contacts"))], [gui.Text(gui_translate("Select a function")), gui.InputText(
                         key="contact_func"), gui.Button(gui_translate("Launch!"), key="Launch!", bind_return_key=True)], [gui.Button(gui_translate("Return to Main Menu"), key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Contact Manager (Logged in as: {get_current_user()})"),
-                                        layout=layout, margins=(100, 50), font="Courier 20")
+                                        layout=layout, margins=(50, 0), font="Courier 20")
                 else:
                     animated_print(f"Contact manager:")
                     animated_print(f"1. Add Contact")
@@ -7473,7 +7589,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             layout = [[gui.Text(gui_translate("Enter contact name here")), gui.InputText(key="new_name")], [gui.Text(gui_translate("Enter MAC address here")), gui.InputText(
                                 key="new_ip")], [gui.Text(gui_translate("Enter any additional details here")), gui.InputText(key="new_details")], [gui.Button(gui_translate("Save"), key="Save", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate(f"FiEncrypt - New Contact (Logged in as: {get_current_user()})"),
-                                                layout=layout, margins=(100, 50), font="Courier 20")
+                                                layout=layout, margins=(50, 0), font="Courier 20")
                             event, values = window.read()
                             if event == "Save":
                                 new_name, new_ip, new_details = values.get("new_name", ""), values.get(
@@ -7502,7 +7618,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             layout = [[gui.Text(gui_translate("Enter name of contact to be removed")), gui.InputText(
                                 key="target_name")], [gui.Button(gui_translate("Delete"), key="Delete", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate("FiEncrypt - Delete Contact"),
-                                                layout=layout, margins=(100, 50), font="Courier 20")
+                                                layout=layout, margins=(50, 0), font="Courier 20")
                             event, values = window.read()
                             if event == "Delete":
                                 target_name = values.get("target_name", "")
@@ -7526,7 +7642,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             layout = [[gui.Text(gui_translate("Enter the contact name here")), gui.InputText(key="search")], [
                                 gui.Button(gui_translate("Search"), key="Search", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate("FiEncrypt - Search for contact"),
-                                                layout=layout, margins=(100, 50), font="Courier 20")
+                                                layout=layout, margins=(50, 0), font="Courier 20")
                             event, values = window.read()
                             if event == "Search":
                                 search = values.get("search", "")
@@ -7562,7 +7678,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             layout = [[gui.Text(gui_translate("1. Add Contact"))], [gui.Text(gui_translate("2. Remove Contact"))], [gui.Text(gui_translate("3. Search For Contact"))], [gui.Text(gui_translate("4. List All Contacts"))], [
                                 gui.Text(gui_translate("5. Return to Main Menu"))], [gui.Text(gui_translate("Select a function")), gui.InputText(key="contact_func"), gui.Button(gui_translate("Launch!"), key="Launch!", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate(f"FiEncrypt - Contact Manager (Logged in as: {get_current_user()})"),
-                                                layout=layout, margins=(100, 50), font="Courier 20")
+                                                layout=layout, margins=(50, 0), font="Courier 20")
                         else:
                             animated_print(
                                 f"Inavlid option selected!")
@@ -7573,7 +7689,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                     layout = [[gui.Text(gui_translate("1. Add Contact"))], [gui.Text(gui_translate("2. Remove Contact"))], [gui.Text(gui_translate("3. Search For Contact"))], [gui.Text(gui_translate("4. List All Contacts"))], [
                         gui.Text(gui_translate("5. Return to Main Menu"))], [gui.Text(gui_translate("Select a function")), gui.InputText(key="contact_func"), gui.Button(gui_translate("Launch!"), key="Launch!", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Contact Manager (Logged in as: {get_current_user()})"),
-                                        layout=layout, margins=(100, 50), font="Courier 20")
+                                        layout=layout, margins=(50, 0), font="Courier 20")
                 else:
                     animated_print(f"Contact manager:")
                     animated_print(f"1. Add Contact")
@@ -7609,7 +7725,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             layout = [[gui.Text(gui_translate("Enter contact name here")), gui.InputText(key="new_name")], [gui.Text(gui_translate("Enter MAC address here")), gui.InputText(
                                 key="new_ip")], [gui.Text(gui_translate("Enter any additional details here")), gui.InputText(key="new_details")], [gui.Button(gui_translate("Save"), key="Save", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate(f"FiEncrypt - New Contact (Logged in as: {get_current_user()})"),
-                                                layout=layout, margins=(100, 50), font="Courier 20")
+                                                layout=layout, margins=(50, 0), font="Courier 20")
                             event, values = window.read()
                             if event == "Save":
                                 new_name, new_ip, new_details = values.get("new_name", ""), values.get(
@@ -7638,7 +7754,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             layout = [[gui.Text(gui_translate("Enter name of contact to be removed")), gui.InputText(
                                 key="target_name")], [gui.Button(gui_translate("Delete"), key="Delete", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate(f"FiEncrypt - Delete Contact (Logged in as: {get_current_user()})"),
-                                                layout=layout, margins=(100, 50), font="Courier 20")
+                                                layout=layout, margins=(50, 0), font="Courier 20")
                             event, values = window.read()
                             if event == "Delete":
                                 target_name = values.get("target_name", "")
@@ -7662,7 +7778,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             layout = [[gui.Text(gui_translate("Enter the contact name here")), gui.InputText(key="search")], [
                                 gui.Button(gui_translate("Search"), key="Search", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate(f"FiEncrypt - Search for contact (Logged in as: {get_current_user()})"),
-                                                layout=layout, margins=(100, 50), font="Courier 20")
+                                                layout=layout, margins=(50, 0), font="Courier 20")
                             event, values = window.read()
                             if event == "Search":
                                 search = values.get("search", "")
@@ -7698,7 +7814,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             layout = [[gui.Text(gui_translate("1. Add Contact"))], [gui.Text(gui_translate("2. Remove Contact"))], [gui.Text(gui_translate("3. Search For Contact"))], [gui.Text(gui_translate("4. List All Contacts"))], [
                                 gui.Text(gui_translate("5. Return to Main Menu"))], [gui.Text(gui_translate("Select a function")), gui.InputText(key="contact_func"), gui.Button(gui_translate("Launch!"), key="Launch!", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate(f"FiEncrypt - Contact Manager (Logged in as: {get_current_user()})"),
-                                                layout=layout, margins=(100, 50), font="Courier 20")
+                                                layout=layout, margins=(50, 0), font="Courier 20")
                         else:
                             animated_print(
                                 f"Inavlid option selected!")
@@ -7755,7 +7871,7 @@ def login(display_initiate, user_account_name, error_color, default_color, print
                 layout = [[gui.Text(gui_translate("Welcome to FiEncrypt! Enter your credientials below!"))], [gui.Text(gui_translate("Username")), gui.InputText(
                     key="username")], [gui.Text(gui_translate("Password")), gui.InputText(key="password", password_char="*")], [gui.Button(gui_translate("Login"), key="Login", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title="FiEncrypt", layout=layout,
-                                    margins=(100, 50), font="Courier 20")
+                                    margins=(50, 0), font="Courier 20")
                 event, values = window.read()
                 if event == "Login":
                     username_input = values.get("username", None)
