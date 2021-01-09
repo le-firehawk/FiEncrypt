@@ -281,13 +281,16 @@ def main():
                             name = name[1].strip()
                             if name == "" or name == "Anonymous":
                                 name = "Anonymous"
-                            notification.notify(
-                                title='Conversation Request!',
-                                message=f'{name} has invited you to a conversation! \nUse IP {ip}!',
-                                app_name='FiEncrypt',
-                                app_icon=src,
-                                timeout=50
-                            )
+                            try:
+                                notification.notify(
+                                    title='Conversation Request!',
+                                    message=f'{name} has invited you to a conversation! \nUse IP {ip}!',
+                                    app_name='FiEncrypt',
+                                    app_icon=src,
+                                    timeout=50
+                                )
+                            except:
+                                pass
                         elif "target" in message[-1].lower() and "True" in message[0]:
                             request = True
                             ip = message[1].split(":")

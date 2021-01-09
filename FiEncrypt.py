@@ -200,6 +200,8 @@ class Contacts:
 
 
 class Translate:
+    """Translates strings passed through to the language defined in the config file"""
+
     def __init__(self, lang):
         self.lang = lang
 
@@ -292,6 +294,7 @@ def parse_colors(color):
 
 
 def parse_region(lang, **kwargs):
+    """Turns the region code for a language into the language name, and vice versa"""
     order = kwargs.get("order", 0)
     languages = {"en": "English", "de": "German", "zh": "Chinese", "cs": "Czech", "es": "Spanish", "af": "Afrikaans", "sq": "Albanian", "am": "Amharic", "ar": "Arabic", "hy": "Armenian", "az": "Azerbaijani", "eu": "Basque", "be": "Belarusian", "bn": "Bengali", "bs": "Bosnian", "bg": "Bulgarian", "my": "Burmese", "ca": "Catalan", "ny": "Chichewa", "co": "Corsican", "hr": "Croatian", "da": "Danish", "nl": "Dutch", "eo": "Esperanto", "et": "Estonian", "fi": "Finnish", "fr": "French", "gl": "Galician", "ka": "Georgian", "el": "Greek", "gu": "Gujarati", "ht": "Haitian", "ha": "Hausa", "he": "Hebrew", "hi": "Hindi", "hu": "Hungarian", "id": "Indonesian", "ga": "Irish", "ig": "Igbo", "is": "Icelandic", "it": "Italian", "ja": "Japanese", "jv": "Javanese", "kn": "Kannada", "kk": "Kazakh", "km": "Central Khmer", "rw": "Kinyarwanda", "ky": "Kirghiz", "kg": "Kongo", "ko": "Korean", "ku": "Kurdish", "la": "Latin", "lb": "Luxembourgish", "lo": "Lao",
                  "lt": "Lithuanian", "lv": "Latvian", "mk": "Macedonian", "mg": "Malagasy", "ms": "Malay", "ml": "Malayalam", "mt": "Maltese", "mi": "Maori", "mr": "Marathi", "mn": "Monogolian", "ne": "Nepali", "nb": "Norwegian Bokmal", "nn": "Norwegian Nynorsk", "no": "Norsk", "or": "Oriya", "pa": "Punjabi", "fa": "Persian", "pl": "Polish", "ps": "Pashto", "pt": "Portuguese", "ro": "Romanian", "ru": "Russian", "sd": "Sindhi", "sm": "Samoan", "sr": "Serbian", "gd": "Gaelic", "sn": "Shona", "si": "Sinhala", "sk": "Slovak", "sl": "Slovenian", "so": "Somali", "st": "Southern Sotho", "su": "Sundanese", "sw": "Swahili", "sv": "Swedish", "ta": "Tamil", "te": "Telugu", "tg": "Tajik", "th": "Thai", "tk": "Turkmen", "tl": "Tagalog", "tr": "Turkish", "tt": "Tatar", "ug": "Uighur", "uk": "Ukrainian", "ur": "Urdu", "uz": "Uzbek", "vi": "Vietnamese", "cy": "Welsh", "fy": "Western Frisian", "xh": "Xhosa", "yi": "Yiddish", "yo": "Yoruba", "zu": "Zulu"}
@@ -305,17 +308,19 @@ def parse_region(lang, **kwargs):
 
 
 def apply_theme(theme):
+    """Applies the theme in config file to PySimpleGUI"""
     try:
         gui.theme(theme)
     except:
         gui.theme("default")
         if graphic_mode:
             gui.Popup("Invalid Theme! Launching Theme Previewer!",
-                      title=gui_translate("Warning"), font="Courier 20", text_color="red")
+                      title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
             gui.theme_previewer()
 
 
 def gui_translate(string):
+    """Translates the string passed through in simplified form, for PySimpleGUI Text elements"""
     if translation:
         string = TranslationManager.translate(string)
     return string
@@ -602,6 +607,7 @@ def establish_tree():
 
 
 def disable_translation():
+    """When needed, forcefully disables translations in both the current instance of FiEncrypt and the config file"""
     global translation
     enter_home_directory()
     with open("./config.txt", "r+") as config_file:
@@ -615,13 +621,20 @@ def disable_translation():
 
 
 def generate_filetypes(filename):
+    """Returns the tuples needed for tkinter's file open/save dialog"""
     filetype = filename.split(".")
-    if filetype[1] == "txt":
+    if filetype[-1] == "txt":
         return ("text files", "*.txt")
-    elif filetype[1] in ["jpg", "bmp", "png", "ico"]:
-        return ("images", f"*.{filetype[1].strip()}")
+    elif filetype[-1] in ["jpg", "bmp", "png", "ico"]:
+        return ("images", f"*.{filetype[-1].strip()}")
+    elif filetype[-1] in ["deb", "rpn", "exe"]:
+        return ("program files", f"*.{filetype[-1].strip()}")
+    elif filetype[-1] in ["odf", "odp", "py", "html", "cshtml", "js"]:
+        return ("document files", f"*.{filetype[-1].strip()}")
+    elif filetype[-1] in ["zip", "xz", "rar"]:
+        return ("archives", f"*.{filetype[-1].strip()}")
     else:
-        return ("other files", f"*.{filetype[1].strip()}")
+        return ("other files", f"*.{filetype[-1].strip()}")
 
 
 def clear_cache():
@@ -659,7 +672,7 @@ def add_new_user():
                         for line in credential_lines:
                             if hash_user in line:
                                 gui.Popup("Username aleady taken!", title=gui_translate("Warning"),
-                                          font="Courier 15", text_color="red")
+                                          font="Courier 15", text_color="red", auto_close=True, auto_close_duration=5)
                                 valid_username = False
                                 break
                             else:
@@ -672,11 +685,11 @@ def add_new_user():
                     if hash_pass != hashlib.sha256(confirm_password).hexdigest():
                         valid_password = False
                         gui.Popup("Passwords do not match!", title=gui_translate("Warning"),
-                                  font="Courier 15", text_color="red")
+                                  font="Courier 15", text_color="red", auto_close=True, auto_close_duration=5)
                     elif len(password) <= 8:
                         valid_password = False
                         gui.Popup("Password is too short!", title=gui_translate("Warning"),
-                                  font="Courier 15", text_color="red")
+                                  font="Courier 15", text_color="red", auto_close=True, auto_close_duration=5)
                     else:
                         valid_password = True
             elif event == "Cancel":
@@ -734,7 +747,7 @@ def add_new_user():
             pass
         if graphic_mode:
             gui.Popup(f"New user {username} successfully added to FiEncrypt!",
-                      title="FiEncrypt - Success", font="Courier 15")
+                      title="FiEncrypt - Success", font="Courier 15", auto_close=True, auto_close_duration=5)
         else:
             animated_print(f"New user {username} successfully added to FiEncrypt!")
         log(f"New user {username} added to FiEncrypt and personal file tree created!",
@@ -839,7 +852,7 @@ def mac_resolve(mac, print_logs):
             if result == None:
                 if graphic_mode:
                     gui.Popup(
-                        f"ARP Resolution unavailable on {pass_os()}!", title=gui_translate("Warning"), font="Courier 20", text_color="red")
+                        f"ARP Resolution unavailable on {pass_os()}!", title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                 return None
             for mapping in result:
                 # ?Strips both results to avoid rampant fucking spaces from affecting the comparison query lol
@@ -1169,7 +1182,7 @@ def get_poked(foreign_user, **poke_num):
     if graphic_mode:
         for poke in range(pokes):
             gui.Popup(f"{line1}\n{line2}\n{line3}\n{line4}\n{line5}\n{line6}\n{line7}\n{line8}\n{line9}\n{line10}\n{line11}\n{line12}\n{line13}\n{line14}\n{line15}\n{line15}\n{line16}",
-                      title=f"FiEncrypt - Poke (Logged in as: {get_current_user()})", font="Courier 20")
+                      title=f"FiEncrypt - Poke (Logged in as: {get_current_user()})", font="Courier 20", auto_close=True, auto_close_duration=5)
     else:
         for poke in range(pokes):
             if pass_os() != "win32":
@@ -1222,7 +1235,7 @@ def get_poked(foreign_user, **poke_num):
     if capitalize_user(get_current_user()).strip().lower() == foreign_user.strip().lower():
         if graphic_mode:
             gui.Popup(gui_translate("You have poked yourself... Don't you think that is a little weird?"),
-                      title=gui_translate(f"FiEncrypt - Poke (Logged in as: {get_current_user()})"), font="Courier 20")
+                      title=gui_translate(f"FiEncrypt - Poke (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
         else:
             animated_print(
                 f"You have poked yourself... Don't you think that is a little weird?")
@@ -1230,10 +1243,10 @@ def get_poked(foreign_user, **poke_num):
         if graphic_mode:
             if pokes > 1:
                 gui.Popup(gui_translate(
-                    f"Hey {capitalize_user(get_current_user())}...\n{foreign_user.capitalize()} has poked you {pokes} times!"), title=gui_translate(f"FiEncrypt - Poke (Logged in as: {get_current_user()})"), font="Courier 20")
+                    f"Hey {capitalize_user(get_current_user())}...\n{foreign_user.capitalize()} has poked you {pokes} times!"), title=gui_translate(f"FiEncrypt - Poke (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
             else:
                 gui.Popup(gui_translate(
-                    f"Hey {capitalize_user(get_current_user())}...\n{foreign_user.capitalize()} has poked you!"), title=gui_translate(f"FiEncrypt - Poke (Logged in as: {get_current_user()})"), font="Courier 20")
+                    f"Hey {capitalize_user(get_current_user())}...\n{foreign_user.capitalize()} has poked you!"), title=gui_translate(f"FiEncrypt - Poke (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
         else:
             animated_print(f"Hey {capitalize_user(get_current_user())}...")
             if pokes > 1:
@@ -1284,13 +1297,13 @@ def you_are_loved(foreign_user, **hearts):
             if hearts > 1:
                 if hearts == 2:
                     gui.Popup(gui_translate(
-                        f"No... those are not boobs! I swear...\n{foreign_user.capitalize()} loves you {hearts} times over!"), title=gui_translate(f"FiEncrypt - You Are Loved (Logged in as: {get_current_user()})"), font="Courier 20")
+                        f"No... those are not boobs! I swear...\n{foreign_user.capitalize()} loves you {hearts} times over!"), title=gui_translate(f"FiEncrypt - You Are Loved (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
                 else:
                     gui.Popup(gui_translate(f"{foreign_user.capitalize()} loves you {hearts} times over!"),
-                              title=gui_translate(f"FiEncrypt - You Are Loved (Logged in as: {get_current_user()})"), font="Courier 20")
+                              title=gui_translate(f"FiEncrypt - You Are Loved (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
             else:
                 gui.Popup(gui_translate(f"{foreign_user.capitalize()} loves you {capitalize_user(get_current_user())}!"),
-                          title=gui_translate(f"FiEncrypt - You Are Loved (Logged in as: {get_current_user()})"), font="Courier 20")
+                          title=gui_translate(f"FiEncrypt - You Are Loved (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
         else:
             if hearts > 1:
                 if hearts == 2:
@@ -1399,110 +1412,20 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
     if ip == None:
         menu(user, None, print_logs, default_color,
              private_mode, error_color, print_speed=0)
-    if is_invite:
-        if "@" in ip:
-            ip = ip.split("@")
-            target_name = ip[0].strip()
-            ip = ip[1].strip()
-            if "." not in ip:
-                contact_search = Contacts(user, get_current_user().lower().strip(
-                ), print_logs, default_color, error_color, private_mode)
-                target_name, target_mac, target_ip, details = contact_search.check_for(
-                    ip)
-                target_name = target_name.replace("\n", "")
-                if target_ip != None:
-                    ip = target_ip
-                else:
-                    ip = mac_resolve(target_mac, print_logs)
-                if ip == None:
-                    animated_print(
-                        f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
-                    Colors(default_color)
-                    connected = False
-                else:
-                    contact_search.add_ip(target_name, ip)
-            else:
-                target_mac = None
-    elif "@" in ip:
-        ip = ip.split("@")
-        expected_user = ip[0].strip()
-        ip = ip[1].strip()
-        if "." not in ip:
-            contact_search = Contacts(user, get_current_user().lower().strip(
-            ), print_logs, default_color, error_color, private_mode)
-            target_name, target_mac, target_ip, details = contact_search.check_for(
-                ip)
-            target_name = target_name.replace("\n", "")
-            if target_ip != None:
-                ip = target_ip.strip()
-            else:
-                ip = mac_resolve(target_mac.strip(), print_logs)
-            if ip == None:
-                animated_print(
-                    f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
-                Colors(default_color)
-                connected = False
-            else:
-                contact_search.add_ip(target_name, ip)
-        validated, temp_sc = validate_foreign_user(
-            ip, expected_user, print_logs, temp_sc, message=message)
-        if not validated:
-            if graphic_mode:
-                layout = [[gui.Text(gui_translate(f"Unable to verify if recipient is {expected_user}!"), text_color="red")], [
-                    gui.Text(gui_translate("Do you wish to proceed anyway?"))], [gui.Button(gui_translate("Yes"), key="Yes", bind_return_key=True), gui.Button(gui_translate("No"), key="No")]]
-                window = gui.Window(title=gui_translate("Warning"), layout=layout,
-                                    margins=(100, 50), font="Courier 20")
-                event, values = window.read()
-                if event == "Yes":
-                    proceed = "y"
-                else:
-                    proceed = "n"
-                window.close()
-            else:
-                animated_print(
-                    f"WARNING: Unable to verify if recipient is {expected_user}!", error=True, reset=True)
-                Colors(default_color)
-                proceed = privacy_input(
-                    f"Do you wish to proceed anyway? [Y|N]", private_mode)
-            if "y" in proceed.lower():
-                pass
-            else:
-                ip, target_mac, target_name, temp_sc = get_recipient_ip(user, display_initiate, print_logs,
-                                                                        default_color, private_mode, error_color, temp_sc)
-        time.sleep(8)
-    if "." not in ip:
-        if ":" in ip:
-            temp = ip
-            contact_search = Contacts(user, get_current_user().lower().strip(
-            ), print_logs, default_color, error_color, private_mode)
-            target_name, target_mac, target_ip, details = contact_search.check_for(
-                temp)
-            target_name = target_name.replace("\n", "")
-            if target_ip.strip() != None:
-                ip = target_ip.strip()
-            else:
-                ip = mac_resolve(target_mac.strip(), print_logs)
-            if ip == None:
-                animated_print(
-                    f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
-                Colors(default_color)
-                connected = False
-            else:
-                contact_search.add_ip(target_name, ip)
-        else:
-            try:
-                contact_search = Contacts(user, get_current_user().lower().strip(
-                ), print_logs, default_color, error_color, private_mode)
-                target_name, mac, target_ip, details = contact_search.check_for(
-                    ip)
-                target_name = target_name.replace("\n", "")
-                if mac.strip() == "":
-                    animated_print(
-                        f"WARNING: MAC address for contact is blank!", error=True, reset=True)
-                    Colors(default_color)
-                    connected = False
-                else:
-                    target_mac = mac
+    elif "," in ip:
+        ip = ip.split(",")
+    if type(ip) == str:
+        if is_invite:
+            if "@" in ip:
+                ip = ip.split("@")
+                target_name = ip[0].strip()
+                ip = ip[1].strip()
+                if "." not in ip:
+                    contact_search = Contacts(user, get_current_user().lower().strip(
+                    ), print_logs, default_color, error_color, private_mode)
+                    target_name, target_mac, target_ip, details = contact_search.check_for(
+                        ip)
+                    target_name = target_name.replace("\n", "")
                     if target_ip != None:
                         ip = target_ip
                     else:
@@ -1514,27 +1437,260 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                         connected = False
                     else:
                         contact_search.add_ip(target_name, ip)
-            except ValueError:
-                animated_print(
-                    f"WARNING: Invalid contact name entered!", error=True, reset=True)
-                Colors(default_color)
-                connected = False
-                get_recipient_ip(user, display_initiate, print_logs,
-                                 default_color, private_mode, error_color, temp_sc)
-            except TypeError:
-                animated_print(
-                    f"WARNING: Invalid contact details!", error=True, reset=True)
-                Colors(default_color)
-                connected = False
-                get_recipient_ip(user, display_initiate, print_logs,
-                                 default_color, private_mode, error_color, temp_sc)
-            except AttributeError:
-                animated_print(
-                    f"WARNING: Invalid contact details!", error=True, reset=True)
-                Colors(default_color)
-                connected = False
-                get_recipient_ip(user, display_initiate, print_logs,
-                                 default_color, private_mode, error_color, temp_sc)
+                else:
+                    target_mac = None
+        elif "@" in ip:
+            ip = ip.split("@")
+            expected_user = ip[0].strip()
+            ip = ip[1].strip()
+            if "." not in ip:
+                contact_search = Contacts(user, get_current_user().lower().strip(
+                ), print_logs, default_color, error_color, private_mode)
+                target_name, target_mac, target_ip, details = contact_search.check_for(
+                    ip)
+                target_name = target_name.replace("\n", "")
+                if target_ip != None:
+                    ip = target_ip.strip()
+                else:
+                    ip = mac_resolve(target_mac.strip(), print_logs)
+                if ip == None:
+                    animated_print(
+                        f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
+                    Colors(default_color)
+                    connected = False
+                else:
+                    contact_search.add_ip(target_name, ip)
+            validated, temp_sc = validate_foreign_user(
+                ip, expected_user, print_logs, temp_sc, message=message)
+            if not validated:
+                if graphic_mode:
+                    layout = [[gui.Text(gui_translate(f"Unable to verify if recipient is {expected_user}!"), text_color="red")], [
+                        gui.Text(gui_translate("Do you wish to proceed anyway?"))], [gui.Button(gui_translate("Yes"), key="Yes", bind_return_key=True), gui.Button(gui_translate("No"), key="No")]]
+                    window = gui.Window(title=gui_translate("Warning"), layout=layout,
+                                        margins=(100, 50), font="Courier 20")
+                    event, values = window.read()
+                    if event == "Yes":
+                        proceed = "y"
+                    else:
+                        proceed = "n"
+                    window.close()
+                else:
+                    animated_print(
+                        f"WARNING: Unable to verify if recipient is {expected_user}!", error=True, reset=True)
+                    Colors(default_color)
+                    proceed = privacy_input(
+                        f"Do you wish to proceed anyway? [Y|N]", private_mode)
+                if "y" in proceed.lower():
+                    pass
+                else:
+                    ip, target_mac, target_name, temp_sc = get_recipient_ip(user, display_initiate, print_logs,
+                                                                            default_color, private_mode, error_color, temp_sc)
+            time.sleep(8)
+        elif "." not in ip:
+            if ":" in ip:
+                temp = ip
+                contact_search = Contacts(user, get_current_user().lower().strip(
+                ), print_logs, default_color, error_color, private_mode)
+                target_name, target_mac, target_ip, details = contact_search.check_for(
+                    temp)
+                target_name = target_name.replace("\n", "")
+                if target_ip.strip() != None:
+                    ip = target_ip.strip()
+                else:
+                    ip = mac_resolve(target_mac.strip(), print_logs)
+                if ip == None:
+                    animated_print(
+                        f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
+                    Colors(default_color)
+                    connected = False
+                else:
+                    contact_search.add_ip(target_name, ip)
+            else:
+                try:
+                    contact_search = Contacts(user, get_current_user().lower().strip(
+                    ), print_logs, default_color, error_color, private_mode)
+                    target_name, mac, target_ip, details = contact_search.check_for(
+                        ip)
+                    target_name = target_name.replace("\n", "")
+                    if mac.strip() == "":
+                        animated_print(
+                            f"WARNING: MAC address for contact is blank!", error=True, reset=True)
+                        Colors(default_color)
+                        connected = False
+                    else:
+                        target_mac = mac
+                        if target_ip != None:
+                            ip = target_ip
+                        else:
+                            ip = mac_resolve(target_mac, print_logs)
+                        if ip == None:
+                            animated_print(
+                                f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
+                            Colors(default_color)
+                            connected = False
+                        else:
+                            contact_search.add_ip(target_name, ip)
+                except ValueError:
+                    animated_print(
+                        f"WARNING: Invalid contact name entered!", error=True, reset=True)
+                    Colors(default_color)
+                    connected = False
+                    get_recipient_ip(user, display_initiate, print_logs,
+                                     default_color, private_mode, error_color, temp_sc)
+                except TypeError:
+                    animated_print(
+                        f"WARNING: Invalid contact details!", error=True, reset=True)
+                    Colors(default_color)
+                    connected = False
+                    get_recipient_ip(user, display_initiate, print_logs,
+                                     default_color, private_mode, error_color, temp_sc)
+                except AttributeError:
+                    animated_print(
+                        f"WARNING: Invalid contact details!", error=True, reset=True)
+                    Colors(default_color)
+                    connected = False
+                    get_recipient_ip(user, display_initiate, print_logs,
+                                     default_color, private_mode, error_color, temp_sc)
+    elif type(ip) == list:
+        temp_sc = []
+        for address in ip:
+            if is_invite:
+                if "@" in address:
+                    address = address.split("@")
+                    target_name = address[0].strip()
+                    address = address[1].strip()
+                    if "." not in address:
+                        contact_search = Contacts(user, get_current_user().lower().strip(
+                        ), print_logs, default_color, error_color, private_mode)
+                        target_name, target_mac, target_ip, details = contact_search.check_for(
+                            address)
+                        target_name = target_name.replace("\n", "")
+                        if target_ip != None:
+                            address = target_ip
+                        else:
+                            address = mac_resolve(target_mac, print_logs)
+                        if address == None:
+                            animated_print(
+                                f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
+                            Colors(default_color)
+                            connected = False
+                        else:
+                            contact_search.add_ip(target_name, address)
+                    else:
+                        target_mac = None
+            elif "@" in address:
+                address = address.split("@")
+                expected_user = address[0].strip()
+                address = address[1].strip()
+                if "." not in address:
+                    contact_search = Contacts(user, get_current_user().lower().strip(
+                    ), print_logs, default_color, error_color, private_mode)
+                    target_name, target_mac, target_ip, details = contact_search.check_for(
+                        address)
+                    target_name = target_name.replace("\n", "")
+                    if target_ip != None:
+                        address = target_ip.strip()
+                    else:
+                        address = mac_resolve(target_mac.strip(), print_logs)
+                    if address == None:
+                        animated_print(
+                            f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
+                        Colors(default_color)
+                        connected = False
+                    else:
+                        contact_search.add_ip(target_name, address)
+                validated, validiate_sc = validate_foreign_user(
+                    address, expected_user, print_logs, temp_sc, message=message)
+                temp_sc.append(validate_sc)
+                if not validated:
+                    if graphic_mode:
+                        layout = [[gui.Text(gui_translate(f"Unable to verify if recipient is {expected_user}!"), text_color="red")], [
+                            gui.Text(gui_translate("Do you wish to proceed anyway?"))], [gui.Button(gui_translate("Yes"), key="Yes", bind_return_key=True), gui.Button(gui_translate("No"), key="No")]]
+                        window = gui.Window(title=gui_translate("Warning"), layout=layout,
+                                            margins=(100, 50), font="Courier 20")
+                        event, values = window.read()
+                        if event == "Yes":
+                            proceed = "y"
+                        else:
+                            proceed = "n"
+                        window.close()
+                    else:
+                        animated_print(
+                            f"WARNING: Unable to verify if recipient is {expected_user}!", error=True, reset=True)
+                        Colors(default_color)
+                        proceed = privacy_input(
+                            f"Do you wish to proceed anyway? [Y|N]", private_mode)
+                    if "y" in proceed.lower():
+                        pass
+                    else:
+                        address, target_mac, target_name, temp_sc = get_recipient_ip(
+                            user, display_initiate, print_logs,                                                                    default_color, private_mode, error_color, temp_sc)
+                time.sleep(8)
+            elif "." not in address:
+                if ":" in address:
+                    temp = address
+                    contact_search = Contacts(user, get_current_user().lower().strip(
+                    ), print_logs, default_color, error_color, private_mode)
+                    target_name, target_mac, target_ip, details = contact_search.check_for(
+                        temp)
+                    target_name = target_name.replace("\n", "")
+                    if target_ip.strip() != None:
+                        address = target_ip.strip()
+                    else:
+                        address = mac_resolve(target_mac.strip(), print_logs)
+                    if address == None:
+                        animated_print(
+                            f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
+                        Colors(default_color)
+                        connected = False
+                    else:
+                        contact_search.add_ip(target_name, address)
+                else:
+                    try:
+                        contact_search = Contacts(user, get_current_user().lower().strip(
+                        ), print_logs, default_color, error_color, private_mode)
+                        target_name, mac, target_ip, details = contact_search.check_for(
+                            address)
+                        target_name = target_name.replace("\n", "")
+                        if mac.strip() == "":
+                            animated_print(
+                                f"WARNING: MAC address for contact is blank!", error=True, reset=True)
+                            Colors(default_color)
+                            connected = False
+                        else:
+                            target_mac = mac
+                            if target_ip != None:
+                                address = target_ip
+                            else:
+                                address = mac_resolve(target_mac, print_logs)
+                            if address == None:
+                                animated_print(
+                                    f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
+                                Colors(default_color)
+                                connected = False
+                            else:
+                                contact_search.add_ip(target_name, address)
+                    except ValueError:
+                        animated_print(
+                            f"WARNING: Invalid contact name entered!", error=True, reset=True)
+                        Colors(default_color)
+                        connected = False
+                        get_recipient_ip(user, display_initiate, print_logs,
+                                         default_color, private_mode, error_color, temp_sc)
+                    except TypeError:
+                        animated_print(
+                            f"WARNING: Invalid contact details!", error=True, reset=True)
+                        Colors(default_color)
+                        connected = False
+                        get_recipient_ip(user, display_initiate, print_logs,
+                                         default_color, private_mode, error_color, temp_sc)
+                    except AttributeError:
+                        animated_print(
+                            f"WARNING: Invalid contact details!", error=True, reset=True)
+                        Colors(default_color)
+                        connected = False
+                        get_recipient_ip(user, display_initiate, print_logs,
+                                         default_color, private_mode, error_color, temp_sc)
     valid_vars = check_vars(ip, target_mac, target_name)
     return valid_vars[0], valid_vars[1], valid_vars[2], temp_sc
 
@@ -1607,7 +1763,7 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
         if ((int(len(secret_code)) % 2) / 2) != 0:
             if graphic_mode:
                 gui.Popup(gui_translate("Code format not valid!"),
-                          title=gui_translate("Warning"), font="Courier 20")
+                          title=gui_translate("Warning"), font="Courier 20", auto_close=True, auto_close_duration=5)
             else:
                 animated_print(
                     f"WARNING: Code format not valid!", error=True, reset=True)
@@ -1621,7 +1777,7 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
     except ValueError:
         if graphic_mode:
             gui.Popup(gui_translate("Code format not valid!"),
-                      title=gui_translate("Warning"), font="Courier 20")
+                      title=gui_translate("Warning"), font="Courier 20", auto_close=True, auto_close_duration=5)
         else:
             animated_print(
                 f"WARNING: Code format not valid!", error=True, reset=True)
@@ -1638,7 +1794,7 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
     if not valid:
         if graphic_mode:
             gui.Popup(gui_translate(f"Secret code {secret_code} does not exist!"),
-                      title=gui_translate("Warning"), font="Courier 20")
+                      title=gui_translate("Warning"), font="Courier 20", auto_close=True, auto_close_duration=5)
         else:
             animated_print(
                 f"WARNING: Code format not valid!", error=True, reset=True)
@@ -1671,7 +1827,7 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
         os.remove(f"./config.txt")
         if graphic_mode:
             gui.Popup(gui_translate("Writing a custom config file can cause the program to break. Delete the FiEncrypt folder if you have any issues! Good luck"),
-                      title=gui_translate("Warning"), font="Courier 20", text_color="red")
+                      title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
         else:
             animated_print(
                 f"WARNING: Writing a custom config file can cause the program to break. Delete the FiEncrypt folder if you have any issues! Good Luck!", error=True, reset=True)
@@ -2022,7 +2178,7 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
             if rand_code == None or rand_code.strip() == "":
                 if graphic_mode:
                     gui.Popup(gui_translate("No code entered!"), title=gui_translate("Warning"),
-                              font="Courier 20", text_color="red")
+                              font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                 else:
                     animated_print("No code entered!")
                 randomcode(user, current_user, auto_request, private_mode,
@@ -2086,8 +2242,8 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
 def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self, error_color, default_color, private_mode, print_logs, mailing, display_initiate, auto_code, **kwargs):
     """Allows user to create and send an encrypted message"""
     previous_message, poked, voice_message, outbound_file, manual, faulty_override, stored_message, sc, prev_messages, window, early_file = kwargs.get(
-        "message", ""), kwargs.get("poked", False), False, False, False, kwargs.get("faulty", False), kwargs.get("stored_message", ""), temp_sc, kwargs.get("prev", []), kwargs.get("window", None)
-    temp_display_name, prev_message_temp, images = get_foreign_user(), "", [], None
+        "message", ""), kwargs.get("poked", False), False, False, False, kwargs.get("faulty", False), kwargs.get("stored_message", ""), temp_sc, kwargs.get("prev", []), kwargs.get("window", None), None
+    temp_display_name, prev_message_temp, images = get_foreign_user(), "", []
     if temp_display_name == None:
         temp_display_name = recipient_ip
     for messages in prev_messages:
@@ -2387,7 +2543,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     enter_home_directory()
                     os.chdir("./cache")
                     layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     while True:
@@ -2404,7 +2560,11 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                     early_file = None
                             else:
                                 gui.Popup(gui_translate("Only one file can be sent at a time"),
-                                          title="Warning", font="Courier 20", text_color="red")
+                                          title="Warning", font="Courier 20", text_color="red", grab_anywhere=True, auto_close=True, auto_close_duration=5)
+                        elif event == "exit":
+                            message_text = values.get("message_input", "")
+                            message_text += "\\exit"
+                            break
                     window.close()
                 else:
                     message_text = privacy_input(
@@ -2417,11 +2577,11 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 if graphic_mode:
                     early_file = None
                     gui.Popup(gui_translate("No message was entered!"), title=gui_translate("Warning"),
-                              text_color="red", font="Courier 15")
+                              text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                     enter_home_directory()
                     os.chdir("./cache")
                     layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     while True:
@@ -2438,7 +2598,11 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                     early_file = None
                             else:
                                 gui.Popup(gui_translate("Only one file can be sent at a time"),
-                                          title="Warning", font="Courier 20", text_color="red")
+                                          title="Warning", font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                        elif event == "exit":
+                            message_text = values.get("message_input", "")
+                            message_text += "\\exit"
+                            break
                     window.close()
                 else:
                     animated_print(
@@ -2561,7 +2725,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     enter_home_directory()
                     os.chdir("./cache")
                     layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     while True:
@@ -2578,7 +2742,11 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                     early_file = None
                             else:
                                 gui.Popup(gui_translate("Only one file can be sent at a time"),
-                                          title="Warning", font="Courier 20", text_color="red")
+                                          title="Warning", font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                        elif event == "exit":
+                            message_text = values.get("message_input", "")
+                            message_text += "\\exit"
+                            break
                     window.close()
                 else:
                     message_text = privacy_input(
@@ -2596,11 +2764,11 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 if graphic_mode:
                     early_file = None
                     gui.Popup("No message was entered!", title=gui_translate("Warning"),
-                              text_color="red", font="Courier 15")
+                              text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                     enter_home_directory()
                     os.chdir("./cache")
                     layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     while True:
@@ -2617,7 +2785,11 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                     early_file = None
                             else:
                                 gui.Popup(gui_translate("Only one file can be sent at a time"),
-                                          title="Warning", font="Courier 20", text_color="red")
+                                          title="Warning", font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                        elif event == "exit":
+                            message_text = values.get("message_input", "")
+                            message_text += "\\exit"
+                            break
                     window.close()
                 else:
                     animated_print(
@@ -2675,7 +2847,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                 early_file = None
                         else:
                             gui.Popup(gui_translate("Only one file can be sent at a time"),
-                                      title="Warning", font="Courier 20", text_color="red")
+                                      title="Warning", font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                 window.close()
             else:
                 message_text = privacy_input(
@@ -2697,11 +2869,11 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             if graphic_mode:
                 early_file = None
                 gui.Popup("No message was entered!", title=gui_translate("Warning"),
-                          text_color="red", font="Courier 15")
+                          text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                 enter_home_directory()
                 os.chdir("./cache")
                 layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                    gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                     layout=layout, margins=(100, 50), font="Courier 20")
                 while True:
@@ -2718,7 +2890,11 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                 early_file = None
                         else:
                             gui.Popup(gui_translate("Only one file can be sent at a time"),
-                                      title="Warning", font="Courier 20", text_color="red")
+                                      title="Warning", font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                    elif event == "exit":
+                        message_text = values.get("message_input", "")
+                        message_text += "\\exit"
+                        break
                 window.close()
             else:
                 animated_print(
@@ -2906,10 +3082,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
     if "\\ip" in message_text.strip().lower():
         if graphic_mode and get_foreign_user() != None:
             gui.Popup(gui_translate(f"{get_foreign_user().strip().capitalize()}'s IP address is {recipient_ip}"),
-                      title=gui_translate("IP Address"), font="Courier 20")
+                      title=gui_translate("IP Address"), font="Courier 20", auto_close=True, auto_close_duration=5)
         elif graphic_mode:
             gui.Popup(gui_translate(f"Peer's IP address is {recipient_ip}"), title=gui_translate(
-                "IP Address"), font="Courier 20")
+                "IP Address"), font="Courier 20", auto_close=True, auto_close_duration=5)
         elif get_foreign_user() != None:
             animated_print(
                 f"{get_foreign_user().strip().capitalize()}'s IP address is {recipient_ip}")
@@ -2947,7 +3123,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 else:
                     if graphic_mode:
                         gui.Popup(gui_translate("Microphone functionality currently unavailable on Windows!"),
-                                  title=gui_translate("Warning"), font="Courier 20", text_color="red")
+                                  title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                     else:
                         animated_print(
                             f"WARNING: Microphone functionality currently unavailable on Windows!", error=True, reset=True)
@@ -3149,7 +3325,8 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 elif recipient_ip == "":
                     ip, target_mac, target_name, sc = get_recipient_ip(user, display_initiate, print_logs,
                                                                        default_color, private_mode, error_color, sc, message=scrambled_output_phrase)
-                    recipient_ip = ip.strip().replace("\n", "")
+                    if type(ip) != list:
+                        recipient_ip = ip.strip().replace("\n", "")
                 if ip == None:
                     ip = recipient_ip
                 your_ip = get_own_ip(print_logs, private_mode)
@@ -3175,8 +3352,15 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             code, user, 2, backup_prefix, recipient_ip, temp_sc, timestamp, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, window=window)
                 else:
                     if sc == None:
-                        link.connect((recipient_ip, 15753))
-                        sc = link
+                        if type(ip) == list:
+                            for connection_num in range(len(ip)):
+                                locals()[f"link{connection_num}"] = socket.socket()
+                                locals()[f"link{connection_num}"].connect(
+                                    (ip[connection_num].strip(), 15753))
+                                locals()[f"sc{connection_num}"] = locals()[f"link{connection_num}"]
+                        else:
+                            link.connect((recipient_ip, 15753))
+                            sc = link
                     connected = True
                     mailbox = False
             except ConnectionRefusedError:
@@ -3543,16 +3727,24 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             packet = message_text
         if sc == None:
             try:
-                link.send(packet.encode())
+                if type(ip) == list:
+                    for connection_num in range(len(ip)):
+                        locals()[f"link{connection_num}"].send(packet.encode())
+                else:
+                    link.send(packet.encode())
             except:
                 error_link.send(packet.encode())
         else:
             try:
-                sc.send(packet.encode())
+                if type(sc) == list:
+                    for connection_num in range(len(sc)):
+                        locals()[f"sc{connection_num}"].send(packet.encode())
+                else:
+                    sc.send(packet.encode())
             except:
                 if graphic_mode:
                     gui.Popup(gui_translate("Connection lost! Returning to menu..."),
-                              title=gui_translate("Warning"), font="Courier 20", text_color="red")
+                              title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                 else:
                     animated_print(f"WARNING: Connection lost! Returning to menu",
                                    error=True, reset=True)
@@ -3614,24 +3806,24 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             else:
                 if get_foreign_user() != None:
                     gui.Popup(gui_translate(f"{get_foreign_user().capitalize()} is not available! Message left in their mailbox!"),
-                              title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20")
+                              title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
                     get_foreign_user(new_user="\\reset")
                 else:
                     gui.Popup(gui_translate(f"{recipient_ip} unavailable! Message left in their mailbox!"),
-                              title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20")
+                              title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
         elif mailbox:
             if not graphic_mode:
                 animated_print(f"Message left!")
             else:
                 gui.Popup(gui_translate(f"{recipient_ip} unavailable! Message left in their mailbox!"),
-                          title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20")
+                          title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
         elif poke:
             if not graphic_mode:
                 animated_print(f"Poke sent!")
         else:
             if graphic_mode:
                 gui.Popup(gui_translate(f"Leaving conversation with {foreign_user.capitalize()}!"),
-                          title=gui_translate(f"FiEncrypt - Leaving Conversation (Logged in as: {get_current_user()})"), font="Courier 20")
+                          title=gui_translate(f"FiEncrypt - Leaving Conversation (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
             else:
                 animated_print(
                     f"Leaving conversation with {foreign_user.capitalize()}!")
@@ -3852,6 +4044,7 @@ def get_auto_code():
 
 
 def private_file_integrity(filename):
+    """Checks file to be sent, and prevents it should it violate the integrity of the FiEncrypt filestructure"""
     private_cache_queried = False
     enter_home_directory()
     with open(f"./CREDENTIALS.txt", "r+") as credentials:
@@ -3859,7 +4052,7 @@ def private_file_integrity(filename):
         for i, line in enumerate(credential_lines):
             if line.strip().lower() in filename.strip().lower() or "$mycache" in filename.strip().lower():
                 private_cache_queried = True
-    if "FiEncrypt" in filename and not private_cache_queried:
+    if ("FiEncrypt/" in filename or "FiEncrypt.py" in filename) and not private_cache_queried:
         temp_path = filename.split("/")
         try:
             if "cache" in temp_path[-2] or "cache" in temp_path[-1]:
@@ -3922,15 +4115,14 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
         sc, address = file_link.accept()
     except:
         if graphic_mode:
-            gui.Popup(gui_translate("Connection failed! Aborting file transfer"),
-                      title=gui_translate("Warning"), font="Courier 20", text_color="red")
+            gui.popup_no_wait(gui_translate("Connection failed! Aborting file transfer"),
+                              title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
         else:
             animated_print(f"WARNING: Connection failed! Aborting file transfer!",
                            error=True, reset=True)
         Colors(default_color)
         temp_sc.send("\\exit".encode())
         temp_sc.close()
-        raise
         assisted_menu()
     alphabet, valid_file, old_file_path, is_directory, attach_image = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
                                                                        'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'], False, kwargs.get("file_path", None), False, False
@@ -3991,7 +4183,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                     ), None)
                     if graphic_mode:
                         gui.Popup(gui_translate("File transfer aborted!"), title=gui_translate("Warning"),
-                                  font="Courier 20", text_color="red")
+                                  font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                     else:
                         animated_print(f"WARNING: File transfer aborted!", error=True, reset=True)
                         Colors(default_color)
@@ -4003,7 +4195,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                 if return_value == 1:
                     if graphic_mode:
                         gui.Popup(gui_translate("You cannot access core FiEncrypt files outside of the public or private cache!"),
-                                  title=gui_translate("Warning"), font="Courier 20", text_color="red")
+                                  title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                     else:
                         animated_print(
                             f"WARNING: You cannot access core FiEncrypt files outside of the public or private cache!", error=True, reset=True)
@@ -4013,7 +4205,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                 elif return_value == 2:
                     if graphic_mode:
                         gui.Popup(gui_translate("You cannot access the private cache of any other user!"),
-                                  title=gui_translate("Warning"), font="Courier 20", text_color="red")
+                                  title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                     else:
                         animated_print(
                             f"WARNING: You cannot access the private cache of any other user!", error=True, reset=True)
@@ -4055,7 +4247,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                             else:
                                 if graphic_mode:
                                     gui.Popup(gui_translate("Invalid login!"), title=gui_translate("Warning"),
-                                              font="Courier 20", text_color="red")
+                                              font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                                 else:
                                     animated_print(f"WARNING: Inavlid login!",
                                                    error=True, reset=True)
@@ -4116,7 +4308,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                 cached_image.save(f"./cache/{os.path.basename(temp_name)}.png")
                                 filename = f"{os.getcwd()}/cache/{os.path.basename(temp_name)}.png"
                     except:
-                        raise
+                        pass
                     filesize = os.path.getsize(filename)
                     try:
                         with open(filename, "rb") as test_file:
@@ -4168,7 +4360,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                     except:
                         if graphic_mode:
                             gui.Popup(gui_translate("File not found!"), title=gui_translate("Warning"),
-                                      font="Courier 20", text_color="red")
+                                      font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                         else:
                             animated_print(f"WARNING: File not found!", error=True, reset=True)
                             Colors(default_color)
@@ -4236,12 +4428,11 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                         if not bytes_read:
                                             break
                                         sc.sendall(bytes_read)
-                                        if not graphic_mode:
-                                            progress.update(len(bytes_read))
+                                        progress.update(len(bytes_read))
                                 except BrokenPipeError:
                                     if graphic_mode:
                                         gui.Popup(gui_translate("Pipe Broken!"), title=gui_translate("Warning"),
-                                                  font="Courier 20", text_color="red")
+                                                  font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                                     else:
                                         animated_print(f"WARNING: Pipe Broken!",
                                                        error=True, reset=True)
@@ -4270,7 +4461,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                     except OverflowError:
                         if graphic_mode:
                             gui.Popup(gui_translate("File too large! Aborting..."), title=gui_translate("Warning"),
-                                      font="Courier 20", text_color="red")
+                                      font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                         else:
                             animated_print(f"WARNING: File too large! Aborting...",
                                            error=True, reset=True)
@@ -4281,10 +4472,10 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                         if graphic_mode:
                             if foreign_user != None:
                                 gui.Popup(gui_translate(f"{foreign_user.capitalize()} has reset the conenction!"),
-                                          title=gui_translate("Warning"), font="Courier 20", text_color="red")
+                                          title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                             else:
                                 gui.Popup(gui_translate("Peer has reset the connection!"),
-                                          title=gui_translate("Warning"), font="Courier 20", text_color="red")
+                                          title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                         else:
                             if foreign_user != None:
                                 animated_print(
@@ -4393,8 +4584,6 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                 fallback = False
             else:
                 temp_popup.close()
-                temp_popup = gui.Window(layout=[[gui.Text("Recieving file...")]],
-                                        title=gui_translate("Alert"), font="Courier 20", finalize=True)
                 try:
                     progress = tqdm.tqdm(range(int(filesize)),
                                          f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
@@ -4414,17 +4603,20 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                             break
                         inbound_file.write(bytes_read)
                         progress.update(len(bytes_read))
+                        if graphic_mode:
+                            gui_recieve = gui.one_line_progress_meter(title=gui_translate(
+                                f"FiEncrypt - Recieving File (Logged in as: {get_current_user()})"), current_value=os.path.getsize(f"./cache/{filename}"), max_value=int(filesize), orientation="h", auto_close=True, auto_close_duration=5)
+                            gui_recieve.close()
                 else:
                     if graphic_mode:
                         gui.Popup("File transfer failed", title=gui_translate("Warning"),
-                                  font="Courier 20", text_color="red")
+                                  font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                     else:
                         animated_print(f"WARNING: File transfer failed!", error=True, reset=True)
                         Colors(default_color)
                     file_recipient.close()
             if graphic_mode:
-                temp_popup.close()
-                path_to_save = filedialog.asksaveasfilename(defaultextension=substring(os.path.basename(filename), ".", -1).strip(), filetypes=[generate_filetypes(os.path.basename(filename))],
+                path_to_save = filedialog.asksaveasfilename(defaultextension="."+substring(os.path.basename(filename), ".", -1).strip(), filetypes=[generate_filetypes(os.path.basename(filename))],
                                                             title=f"FiEncrypt - Save {os.path.basename(filename)}")
                 if len(path_to_save) != 0:
                     with open(f"./cache/{filename}", "rb") as cached_file:
@@ -4452,7 +4644,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                     except:
                         if graphic_mode:
                             gui.Popup("Unable to open image!", title=gui_translate("Warning"),
-                                      font="Courier 20", text_color="red")
+                                      font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                         else:
                             animated_print(f"WARNING: Unable to open image!",
                                            error=True, reset=True)
@@ -4466,7 +4658,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                 if not voice_message:
                     if graphic_mode:
                         gui.Popup(gui_translate(
-                            f"File {filename} saved to {os.getcwd()}/cache/{filename}"), title=gui_translate("Alert"), font="Courier 20")
+                            f"File {filename} saved to {os.getcwd()}/cache/{filename}"), title=gui_translate("Alert"), font="Courier 20", auto_close=True, auto_close_duration=5)
                     else:
                         animated_print(f"File {filename} saved to {os.getcwd()}/cache/{filename}")
                 if autosync and filename.lower().strip() != "foreign_voice_message.wav" and filename.lower().strip() != "voice_message.wav":
@@ -4504,7 +4696,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                     if (int(cache_transfer_size) + int(personal_cache_total_size)) > max_size:
                         if graphic_mode:
                             gui.Popup(gui_translate(f"Size of {filename} would exceed max allocated size of your private cache!"),
-                                      title=gui_translate("Warning"), font="Courier 20", text_color="red")
+                                      title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                             window.close()
                         else:
                             animated_print(
@@ -4582,7 +4774,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                             else:
                                 if graphic_mode:
                                     gui.Popup(gui_translate("Names still match!"), title=gui_translate("Warning"),
-                                              font="Courier 20", text_color="red")
+                                              font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                                 else:
                                     animated_print(f"WARNING: Names still match!",
                                                    error=True, reset=True)
@@ -4594,7 +4786,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
             else:
                 if graphic_mode:
                     gui.Popup(
-                        gui_translate(f"File corrupt or incomplete! Check {os.getcwd()}/cache/{filename}"), title=gui_translate("Warning"), font="Courier 20")
+                        gui_translate(f"File corrupt or incomplete! Check {os.getcwd()}/cache/{filename}"), title=gui_translate("Warning"), font="Courier 20", auto_close=True, auto_close_duration=5)
                 else:
                     animated_print(
                         f"WARNING: File corrupt or incomplete! Check {os.getcwd()}/cache/{filename}", error=True, reset=True)
@@ -4605,7 +4797,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
         ), None)
         if graphic_mode:
             gui.Popup(gui_translate("File too large! Aborting..."), title=gui_translate("Warning"),
-                      font="Courier 20", text_color="red")
+                      font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
         else:
             animated_print(f"WARNING: File too large! Aborting...", error=True, reset=True)
             Colors(default_color)
@@ -5487,14 +5679,14 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
                         f"Message successfully decrypted!", "encryptionManager", current_user, print_logs)
                     if graphic_mode:
                         gui.Popup(gui_translate("The code used to decrypt this message will be deleted from local storage, for your security"),
-                                  title=gui_translate("Alert"), font="Courier 20")
+                                  title=gui_translate("Alert"), font="Courier 20", auto_close=True, auto_close_duration=5)
                     else:
                         animated_print(
                             f"The code used to decrypt this message will be deleted from local storage, for your security")
                 else:
                     if graphic_mode:
                         gui.Popup(gui_translate("Manual code decryption concluded. It is not recommended that you use this code again!"),
-                                  title=gui_translate("Alert"), font="Courier 20")
+                                  title=gui_translate("Alert"), font="Courier 20", auto_close=True, auto_close_duration=5)
                     else:
                         animated_print(
                             f"Manual code decryption concluded. It is not recommended that you use this code again!")
@@ -5506,7 +5698,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
                     f"Message not successfully decrypted!", "encryptionManager", current_user, print_logs)
                 if graphic_mode:
                     gui.Popup(
-                        gui_translate("That is unfortunate :( We will launch the encryption assistant momentarily"), title=gui_translate("Alert"), font="Courier 20")
+                        gui_translate("That is unfortunate :( We will launch the encryption assistant momentarily"), title=gui_translate("Alert"), font="Courier 20", auto_close=True, auto_close_duration=5)
                 else:
                     animated_print(
                         f"That is unfortunate :( We will launch the encryption assistant momentarily")
@@ -5682,7 +5874,11 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
         sys.stdout.write("\033[F")
         animated_print("Connection established!")
     try:
-        info = sc.recv(1024)
+        if type(sc) == list:
+            for pipe in range(len(sc)):
+                locals()[f"info{pipe}"] = sc[pipe].recv(1024)
+        else:
+            info = sc.recv(1024)
         if graphic_mode:
             temp_popup.close()
     except KeyboardInterrupt:
@@ -5723,7 +5919,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             pass
         if graphic_mode:
             gui.Popup(gui_translate("Server Connection Aborted!"), title=gui_translate("Warning"),
-                      font="Courier 20", text_color="red")
+                      font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
             try:
                 window.close()
                 connection_window.close()
@@ -5774,18 +5970,24 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             print(f"{'-'*(i*2)}> {i*20}%")
             time.sleep(0.5)
         elif graphic_mode:
-            connection_window.Element("progress").Update(value=f"{'-'*(i*2)}> {i*20}%")
-            time.sleep(1)
+            gui.one_line_progress_meter(title=gui_translate(
+                f"FiEncrypt - Server (Logged in as: {get_current_user()})"), current_value=i*20, max_value=100, orientation="h")
+            time.sleep(0.5)
     try:
         connection_window.close()
     except:
         pass
-    info = info.decode()
+    if type(sc) == list:
+        info = []
+        for pipe in range(len(sc)):
+            info.append(locals()[f"info{pipe}"].decode())
+    else:
+        info = info.decode()
     if to_boolean(info):
         if graphic_mode:
             gui.Popup(gui_translate(f"{recipient_ip} unavailable! Message left in their mailbox!"),
-                      title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20")
-        elif not silent:
+                      title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
+        else:
             for _ in range(2):
                 sys.stdout.write("\033[F")
                 sys.stdout.write("\033[K")
@@ -5804,69 +6006,427 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             pass
         menu(user, None, print_logs, default_color,
              private_mode, error_color, print_speed=0)
-    message = info.split(" |||| ")
-    if "\\user_confirm" in message[0]:
-        message[0] = message[0].split("=")
-        expected_user = message[0][1]
-        message[0] = message[0][0]
-        reply_ip = message[1]
-        if expected_user.strip().lower() == capitalize_user(get_current_user()).strip().lower():
-            sc.send(str(True).encode())
-            if not graphic_mode and not silent:
-                animated_print(f"Foreign user validated!")
-                for _ in range(7):
-                    sys.stdout.write("\033[F")
-                    sys.stdout.write("\033[K")
+    if type(info) == list:
+        for info_set, temp_info in enumerate(info):
+            message = temp_info.split(" |||| ")
+            if "\\user_confirm" in message[0]:
+                message[0] = message[0].split("=")
+                expected_user = message[0][1]
+                message[0] = message[0][0]
+                reply_ip = message[1]
+                if expected_user.strip().lower() == capitalize_user(get_current_user()).strip().lower():
+                    sc[info_set].send(str(True).encode())
+                    if not graphic_mode and not silent:
+                        animated_print(f"Foreign user validated!")
+                        for _ in range(7):
+                            sys.stdout.write("\033[F")
+                            sys.stdout.write("\033[K")
+                    try:
+                        link.close()
+                    except:
+                        pass
+                    try:
+                        window.close()
+                        connection_window.close()
+                    except:
+                        pass
+                    server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
+                                   date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
+                else:
+                    sc[info_set].send(str(False).encode())
+                    if graphic_mode:
+                        gui.Popup(gui_translate("Foreign user validation failed!"), title=gui_translate("Warning"),
+                                  font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                    elif not silent:
+                        animated_print(
+                            f"WARNING: Foreign user validation failed!", error=True, reset=True)
+                        Colors(default_color)
+                        for _ in range(7):
+                            sys.stdout.write("\033[F")
+                            sys.stdout.write("\033[K")
+                    try:
+                        link.close()
+                    except:
+                        pass
+                    try:
+                        window.close()
+                        connection_window.close()
+                    except:
+                        pass
+                    server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
+                                   date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
+            else:
+                try:
+                    if "\\exit" in message or "\\poke" in message:
+                        pass
+                    else:
+                        temp_info = message[1]
+                    message = message[0]
+                except IndexError:
+                    if message[0].strip() == "":
+                        if graphic_mode:
+                            gui.Popup(gui_translate("Pipe Broken! Returning to menu!"), title=gui_translate("Warning"),
+                                      font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                        else:
+                            animated_print(f"WARNING: Pipe broken! Returning to menu!",
+                                           error=True, reset=True)
+                            Colors(default_color)
+                        try:
+                            sc[info_set].close()
+                        except:
+                            pass
+                        try:
+                            link.shutdown(socket.SHUT_RDWR)
+                        except:
+                            pass
+                        try:
+                            link.close()
+                        except:
+                            pass
+                        try:
+                            window.close()
+                            connection_window.close()
+                        except:
+                            pass
+                        menu(user, None, print_logs, default_color,
+                             private_mode, error_color, print_speed=0)
+                    else:
+                        log("Invalid message recieved! Server channel restarting",
+                            "networkManager", get_current_user(), print_logs)
+                        if graphic_mode:
+                            gui.Popup(gui_translate("Invalid message recieved!"), title=gui_translate("Warning"),
+                                      font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                        else:
+                            animated_print(
+                                f"WARNING: {message} recieved but not valid! Restarting Server!", error=True, reset=True)
+                        Colors(default_color)
+                        try:
+                            link.close()
+                        except:
+                            pass
+                        try:
+                            window.close()
+                            connection_window.close()
+                        except:
+                            pass
+                        server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, prefix,
+                                       date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
+                if not silent and not graphic_mode:
+                    animated_print("Done!")
             try:
-                link.close()
+                link.shutdown(socket.SHUT_RDWR)
             except:
                 pass
+            temp_info = temp_info.split(" | ")
             try:
-                window.close()
-                connection_window.close()
-            except:
-                pass
-            server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
-        else:
-            sc.send(str(False).encode())
-            if graphic_mode:
-                gui.Popup(gui_translate("Foreign user validation failed!"), title=gui_translate("Warning"),
-                          font="Courier 20", text_color="red")
-            elif not silent:
-                animated_print(
-                    f"WARNING: Foreign user validation failed!", error=True, reset=True)
-                Colors(default_color)
-                for _ in range(7):
-                    sys.stdout.write("\033[F")
-                    sys.stdout.write("\033[K")
-            try:
-                link.close()
-            except:
+                message = message.decode()
+            except AttributeError:
                 pass
             try:
-                window.close()
-                connection_window.close()
-            except:
-                pass
-            server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
+                foreign_user = temp_info[1]
+                temp_info[0] = temp_info[0].split("|")
+                temp_info[0][1] = temp_info[0][1].split("_")
+                date = temp_info[0][1][0]
+            except IndexError:
+                if "\\exit" in message or "\\poke" in message:
+                    pass
+                else:
+                    if print_logs:
+                        animated_print(temp_info)
+                    animated_print(
+                        f"WARNING: Error with date formatting! Returning to menu!", error=True, reset=True)
+                    Colors(default_color)
+                    try:
+                        sc[info_set].close()
+                    except:
+                        pass
+                    try:
+                        link.shutdown(socket.SHUT_RDWR)
+                    except:
+                        pass
+                    try:
+                        link.close()
+                    except:
+                        pass
+                    try:
+                        window.close()
+                        connection_window.close()
+                    except:
+                        pass
+                    menu(user, None, print_logs, default_color,
+                         private_mode, error_color, print_speed=0)
+            if "\\exit" in message:
+                skip = True
+                if get_foreign_user() == None:
+                    foreign_user = "Anonymous"
+                else:
+                    foreign_user = get_foreign_user()
+                if graphic_mode:
+                    gui.Popup(gui_translate(f"{foreign_user.capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!"),
+                              title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                else:
+                    animated_print(
+                        f"{foreign_user.capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
+                backup_current_user = user
+            # ?Removes any remnants of the .encode() attribute added to messages before they are sent
+            elif message.startswith("b'") or message.startswith("b\""):
+                message = message[2: int(len(message))]
+                message = message[0: int(len(message)-1)]
+                skip = False
+            else:
+                # ?These kind of scripts address specific issues I encountered during development. For some reason, an extra backslash used to randomly appear and distort messages being decrypted
+                skip = False
+            if not skip:
+                message = message.replace('"', '\"').replace("'", "\'")
+                timer = str(datetime.datetime.now())
+                timer = timer.split("-")
+                if "\\'" in message:
+                    message = message.replace("\\'", "'")
+                enter_home_directory()
+                os.remove(f"./messagein.txt")
+                with open(f"./messagein.txt", "w+") as output_file:
+                    output_file.write(message)
+                # Manually replace binary encapsulation due to imutability being given during split process
+                code = temp_info[0][1][1].replace("'", "")
+                if recipient_ip.strip() == "" and temp_sc[info_set] == None:
+                    recipient_ip = address[0]
+                if print_logs and not graphic_mode:
+                    animated_print(
+                        f"Message {message} successfully recieved from {address[0]} and written to messagein.txt!")
+                else:
+                    if foreign_user != None and foreign_user.strip() != "":
+                        temp_foreign_user = ""
+                        for i in foreign_user:
+                            if i.strip() == "":
+                                pass
+                            else:
+                                temp_foreign_user += i
+                        temp_foreign_user = temp_foreign_user.replace("\033[F", "").replace(
+                            "\033[K", "").replace("\n", "")
+                        if not silent and not graphic_mode:
+                            animated_print(f"Message from {temp_foreign_user} received!")
+                    else:
+                        foreign_user = "Anonymous"
+                prefix = temp_info[0][1][2]
+                if temp_info[0][2].strip() != "":
+                    prefix = f"{prefix}||{temp_info[0][2]}"
+                    hrs = int(str(timer[2][3: 5])) + int(info[0][2].replace("#", ""))
+                    mns = int(str(timer[2][6: 8])) + int(info[0][2].replace("#", ""))
+                else:
+                    prefix = f"{prefix}||{temp_info[0][3]}"
+                    hrs = int(str(timer[2][3: 5])) + int(info[0][3].replace("#", ""))
+                    mns = int(str(timer[2][6: 8])) + int(info[0][3].replace("#", ""))
+                # timestamp = info[0][0]
+                # timestamp = f"{timestamp}|{date}"
+                # ?The old method of retrieving the timestamp has been replaced with a new timestamp made when the server recieves the message
+                new_time = str(hrs)
+                new_time += "A"
+                new_time += str(mns)
+                date = f"{int(timer[1])}{int(timer[2][0:2])}"
+                timestamp = f"{new_time}|{date}"
+                log("Encrypted message recieved!",
+                    "networkManager", current_user, print_logs)
+                try:
+                    try:
+                        create_notification(recipient_ip)
+                    except:
+                        pass
+                    if "Anonymous" not in foreign_user:
+                        foreign_user = decode_foreign_user(
+                            code, prefix, foreign_user, default_color)
+                    if not graphic_mode:
+                        sys.stdout.write("\033[F")
+                    if get_foreign_user() != None and foreign_user.strip().lower() != get_foreign_user().strip().lower():
+                        if get_foreign_user() != None and foreign_user.strip().lower() == "Anonymous":
+                            pass
+                        else:
+                            if graphic_mode:
+                                gui.Popup(gui_translate("The user sending the message has changed!"),
+                                          title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                            else:
+                                animated_print(
+                                    f"WARNING: The user sending the message has changed!", error=True, reset=True)
+                                Colors(default_color)
+                            foreign_user = get_foreign_user(new_user=foreign_user)
+                    if not silent and not graphic_mode:
+                        animated_print(
+                            f"Message from {foreign_user.capitalize()} recieved!")
+                    try:
+                        window.close()
+                        connection_window.close()
+                    except:
+                        pass
+                    retrievemessage(code, user, 2, prefix, recipient_ip, sc, timestamp, False, False,
+                                    default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, temp_user=foreign_user, window=window)
+                except KeyboardInterrupt:
+                    try:
+                        sc[info_set].close()
+                    except:
+                        pass
+                    try:
+                        link.shutdown(socket.SHUT_RDWR)
+                    except:
+                        pass
+                    try:
+                        link.close()
+                    except:
+                        pass
+                    try:
+                        window.close()
+                        connection_window.close()
+                    except:
+                        pass
+                    menu(user, display_initiate, print_logs,
+                         default_color, private_mode, error_color, print_speed=0)
+            else:
+                try:
+                    sc[info_set].close()
+                except:
+                    pass
+                try:
+                    link.shutdown(socket.SHUT_RDWR)
+                except:
+                    pass
+                try:
+                    link.close()
+                except:
+                    pass
+                try:
+                    window.close()
+                    connection_window.close()
+                except:
+                    pass
+                menu(user, display_initiate, print_logs,
+                     default_color, private_mode, error_color, print_speed=0)
     else:
+        message = info.split(" |||| ")
+        if "\\user_confirm" in message[0]:
+            message[0] = message[0].split("=")
+            expected_user = message[0][1]
+            message[0] = message[0][0]
+            reply_ip = message[1]
+            if expected_user.strip().lower() == capitalize_user(get_current_user()).strip().lower():
+                sc.send(str(True).encode())
+                if not graphic_mode and not silent:
+                    animated_print(f"Foreign user validated!")
+                    for _ in range(7):
+                        sys.stdout.write("\033[F")
+                        sys.stdout.write("\033[K")
+                try:
+                    link.close()
+                except:
+                    pass
+                try:
+                    window.close()
+                    connection_window.close()
+                except:
+                    pass
+                server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
+                               date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
+            else:
+                sc.send(str(False).encode())
+                if graphic_mode:
+                    gui.Popup(gui_translate("Foreign user validation failed!"), title=gui_translate("Warning"),
+                              font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                elif not silent:
+                    animated_print(
+                        f"WARNING: Foreign user validation failed!", error=True, reset=True)
+                    Colors(default_color)
+                    for _ in range(7):
+                        sys.stdout.write("\033[F")
+                        sys.stdout.write("\033[K")
+                try:
+                    link.close()
+                except:
+                    pass
+                try:
+                    window.close()
+                    connection_window.close()
+                except:
+                    pass
+                server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
+                               date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
+        else:
+            try:
+                if "\\exit" in message or "\\poke" in message:
+                    pass
+                else:
+                    info = message[1]
+                message = message[0]
+            except IndexError:
+                if message[0].strip() == "":
+                    if graphic_mode:
+                        gui.Popup(gui_translate("Pipe Broken! Returning to menu!"), title=gui_translate("Warning"),
+                                  font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                    else:
+                        animated_print(f"WARNING: Pipe broken! Returning to menu!",
+                                       error=True, reset=True)
+                        Colors(default_color)
+                    try:
+                        sc.close()
+                    except:
+                        pass
+                    try:
+                        link.shutdown(socket.SHUT_RDWR)
+                    except:
+                        pass
+                    try:
+                        link.close()
+                    except:
+                        pass
+                    try:
+                        window.close()
+                        connection_window.close()
+                    except:
+                        pass
+                    menu(user, None, print_logs, default_color,
+                         private_mode, error_color, print_speed=0)
+                else:
+                    log("Invalid message recieved! Server channel restarting",
+                        "networkManager", get_current_user(), print_logs)
+                    if graphic_mode:
+                        gui.Popup(gui_translate("Invalid message recieved!"), title=gui_translate("Warning"),
+                                  font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                    else:
+                        animated_print(
+                            f"WARNING: {message} recieved but not valid! Restarting Server!", error=True, reset=True)
+                    Colors(default_color)
+                    try:
+                        link.close()
+                    except:
+                        pass
+                    try:
+                        window.close()
+                        connection_window.close()
+                    except:
+                        pass
+                    server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, prefix,
+                                   date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
+            if not silent and not graphic_mode:
+                animated_print("Done!")
         try:
+            link.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+        info = info.split(" | ")
+        try:
+            message = message.decode()
+        except AttributeError:
+            pass
+        try:
+            foreign_user = info[1]
+            info[0] = info[0].split("|")
+            info[0][1] = info[0][1].split("_")
+            date = info[0][1][0]
+        except IndexError:
             if "\\exit" in message or "\\poke" in message:
                 pass
             else:
-                info = message[1]
-            message = message[0]
-        except IndexError:
-            if message[0].strip() == "":
-                if graphic_mode:
-                    gui.Popup(gui_translate("Pipe Broken! Returning to menu!"), title=gui_translate("Warning"),
-                              font="Courier 20", text_color="red")
-                else:
-                    animated_print(f"WARNING: Pipe broken! Returning to menu!",
-                                   error=True, reset=True)
-                    Colors(default_color)
+                if print_logs:
+                    animated_print(info)
+                animated_print(
+                    f"WARNING: Error with date formatting! Returning to menu!", error=True, reset=True)
+                Colors(default_color)
                 try:
                     sc.close()
                 except:
@@ -5886,16 +6446,117 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                     pass
                 menu(user, None, print_logs, default_color,
                      private_mode, error_color, print_speed=0)
+        if "\\exit" in message:
+            skip = True
+            if get_foreign_user() == None:
+                foreign_user = "Anonymous"
             else:
-                log("Invalid message recieved! Server channel restarting",
-                    "networkManager", get_current_user(), print_logs)
-                if graphic_mode:
-                    gui.Popup(gui_translate("Invalid message recieved!"), title=gui_translate("Warning"),
-                              font="Courier 20", text_color="red")
+                foreign_user = get_foreign_user()
+            if graphic_mode:
+                gui.Popup(gui_translate(f"{foreign_user.capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!"),
+                          title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+            else:
+                animated_print(
+                    f"{foreign_user.capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
+            backup_current_user = user
+        # ?Removes any remnants of the .encode() attribute added to messages before they are sent
+        elif message.startswith("b'") or message.startswith("b\""):
+            message = message[2: int(len(message))]
+            message = message[0: int(len(message)-1)]
+            skip = False
+        else:
+            # ?These kind of scripts address specific issues I encountered during development. For some reason, an extra backslash used to randomly appear and distort messages being decrypted
+            skip = False
+        if not skip:
+            message = message.replace('"', '\"').replace("'", "\'")
+            timer = str(datetime.datetime.now())
+            timer = timer.split("-")
+            if "\\'" in message:
+                message = message.replace("\\'", "'")
+            enter_home_directory()
+            os.remove(f"./messagein.txt")
+            with open(f"./messagein.txt", "w+") as output_file:
+                output_file.write(message)
+            # Manually replace binary encapsulation due to imutability being given during split process
+            code = info[0][1][1].replace("'", "")
+            if recipient_ip.strip() == "" and temp_sc == None:
+                recipient_ip = address[0]
+            if print_logs and not graphic_mode:
+                animated_print(
+                    f"Message {message} successfully recieved from {address[0]} and written to messagein.txt!")
+            else:
+                if foreign_user != None and foreign_user.strip() != "":
+                    temp_foreign_user = ""
+                    for i in foreign_user:
+                        if i.strip() == "":
+                            pass
+                        else:
+                            temp_foreign_user += i
+                    temp_foreign_user = temp_foreign_user.replace("\033[F", "").replace(
+                        "\033[K", "").replace("\n", "")
+                    if not silent and not graphic_mode:
+                        animated_print(f"Message from {temp_foreign_user} received!")
                 else:
+                    foreign_user = "Anonymous"
+            prefix = info[0][1][2]
+            if info[0][2].strip() != "":
+                prefix = f"{prefix}||{info[0][2]}"
+                hrs = int(str(timer[2][3: 5])) + int(info[0][2].replace("#", ""))
+                mns = int(str(timer[2][6: 8])) + int(info[0][2].replace("#", ""))
+            else:
+                prefix = f"{prefix}||{info[0][3]}"
+                hrs = int(str(timer[2][3: 5])) + int(info[0][3].replace("#", ""))
+                mns = int(str(timer[2][6: 8])) + int(info[0][3].replace("#", ""))
+            # timestamp = info[0][0]
+            # timestamp = f"{timestamp}|{date}"
+            # ?The old method of retrieving the timestamp has been replaced with a new timestamp made when the server recieves the message
+            new_time = str(hrs)
+            new_time += "A"
+            new_time += str(mns)
+            date = f"{int(timer[1])}{int(timer[2][0:2])}"
+            timestamp = f"{new_time}|{date}"
+            log("Encrypted message recieved!",
+                "networkManager", current_user, print_logs)
+            try:
+                try:
+                    create_notification(recipient_ip)
+                except:
+                    pass
+                if "Anonymous" not in foreign_user:
+                    foreign_user = decode_foreign_user(code, prefix, foreign_user, default_color)
+                if not graphic_mode:
+                    sys.stdout.write("\033[F")
+                if get_foreign_user() != None and foreign_user.strip().lower() != get_foreign_user().strip().lower():
+                    if get_foreign_user() != None and foreign_user.strip().lower() == "Anonymous":
+                        pass
+                    else:
+                        if graphic_mode:
+                            gui.Popup(gui_translate("The user sending the message has changed!"),
+                                      title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                        else:
+                            animated_print(
+                                f"WARNING: The user sending the message has changed!", error=True, reset=True)
+                            Colors(default_color)
+                        foreign_user = get_foreign_user(new_user=foreign_user)
+                if not silent and not graphic_mode:
                     animated_print(
-                        f"WARNING: {message} recieved but not valid! Restarting Server!", error=True, reset=True)
-                Colors(default_color)
+                        f"Message from {foreign_user.capitalize()} recieved!")
+                try:
+                    window.close()
+                    connection_window.close()
+                except:
+                    pass
+                retrievemessage(code, user, 2, prefix, recipient_ip, sc, timestamp, False, False,
+                                default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, temp_user=foreign_user, window=window)
+            except KeyboardInterrupt:
+                try:
+                    sc.close()
+                except:
+                    pass
+                try:
+                    link.shutdown(socket.SHUT_RDWR)
+                except:
+                    pass
                 try:
                     link.close()
                 except:
@@ -5905,153 +6566,9 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                     connection_window.close()
                 except:
                     pass
-                server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, prefix,
-                               date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
-        if not silent and not graphic_mode:
-            animated_print("Done!")
-    try:
-        link.shutdown(socket.SHUT_RDWR)
-    except:
-        pass
-    info = info.split(" | ")
-    try:
-        message = message.decode()
-    except AttributeError:
-        pass
-    try:
-        foreign_user = info[1]
-        info[0] = info[0].split("|")
-        info[0][1] = info[0][1].split("_")
-        date = info[0][1][0]
-    except IndexError:
-        if "\\exit" in message or "\\poke" in message:
-            pass
+                menu(user, display_initiate, print_logs,
+                     default_color, private_mode, error_color, print_speed=0)
         else:
-            print(info)
-            animated_print(
-                f"WARNING: Error with date formatting! Returning to menu!", error=True, reset=True)
-            Colors(default_color)
-            try:
-                sc.close()
-            except:
-                pass
-            try:
-                link.shutdown(socket.SHUT_RDWR)
-            except:
-                pass
-            try:
-                link.close()
-            except:
-                pass
-            try:
-                window.close()
-                connection_window.close()
-            except:
-                pass
-            menu(user, None, print_logs, default_color,
-                 private_mode, error_color, print_speed=0)
-    if "\\exit" in message:
-        skip = True
-        if get_foreign_user() == None:
-            foreign_user = "Anonymous"
-        else:
-            foreign_user = get_foreign_user()
-        if graphic_mode:
-            gui.Popup(gui_translate(f"{foreign_user.capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!"),
-                      title=gui_translate("Warning"), font="Courier 20", text_color="red")
-        else:
-            animated_print(
-                f"{foreign_user.capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
-        backup_current_user = user
-    # ?Removes any remnants of the .encode() attribute added to messages before they are sent
-    elif message.startswith("b'") or message.startswith("b\""):
-        message = message[2: int(len(message))]
-        message = message[0: int(len(message)-1)]
-        skip = False
-    else:
-        # ?These kind of scripts address specific issues I encountered during development. For some reason, an extra backslash used to randomly appear and distort messages being decrypted
-        skip = False
-    if not skip:
-        message = message.replace('"', '\"').replace("'", "\'")
-        timer = str(datetime.datetime.now())
-        timer = timer.split("-")
-        if "\\'" in message:
-            message = message.replace("\\'", "'")
-        enter_home_directory()
-        os.remove(f"./messagein.txt")
-        with open(f"./messagein.txt", "w+") as output_file:
-            output_file.write(message)
-        # Manually replace binary encapsulation due to imutability being given during split process
-        code = info[0][1][1].replace("'", "")
-        if recipient_ip.strip() == "" and temp_sc == None:
-            recipient_ip = address[0]
-        if print_logs and not graphic_mode:
-            animated_print(
-                f"Message {message} successfully recieved from {address[0]} and written to messagein.txt!")
-        else:
-            if foreign_user != None and foreign_user.strip() != "":
-                temp_foreign_user = ""
-                for i in foreign_user:
-                    if i.strip() == "":
-                        pass
-                    else:
-                        temp_foreign_user += i
-                temp_foreign_user = temp_foreign_user.replace("\033[F", "").replace(
-                    "\033[K", "").replace("\n", "")
-                if not silent and not graphic_mode:
-                    animated_print(f"Message from {temp_foreign_user} received!")
-            else:
-                foreign_user = "Anonymous"
-        prefix = info[0][1][2]
-        if info[0][2].strip() != "":
-            prefix = f"{prefix}||{info[0][2]}"
-            hrs = int(str(timer[2][3: 5])) + int(info[0][2].replace("#", ""))
-            mns = int(str(timer[2][6: 8])) + int(info[0][2].replace("#", ""))
-        else:
-            prefix = f"{prefix}||{info[0][3]}"
-            hrs = int(str(timer[2][3: 5])) + int(info[0][3].replace("#", ""))
-            mns = int(str(timer[2][6: 8])) + int(info[0][3].replace("#", ""))
-        # timestamp = info[0][0]
-        # timestamp = f"{timestamp}|{date}"
-        # ?The old method of retrieving the timestamp has been replaced with a new timestamp made when the server recieves the message
-        new_time = str(hrs)
-        new_time += "A"
-        new_time += str(mns)
-        date = f"{int(timer[1])}{int(timer[2][0:2])}"
-        timestamp = f"{new_time}|{date}"
-        log("Encrypted message recieved!",
-            "networkManager", current_user, print_logs)
-        try:
-            try:
-                create_notification(recipient_ip)
-            except:
-                pass
-            if "Anonymous" not in foreign_user:
-                foreign_user = decode_foreign_user(code, prefix, foreign_user, default_color)
-            if not graphic_mode:
-                sys.stdout.write("\033[F")
-            if get_foreign_user() != None and foreign_user.strip().lower() != get_foreign_user().strip().lower():
-                print(foreign_user, get_foreign_user())
-                cont = input("")
-                if graphic_mode:
-                    gui.Popup(gui_translate("The user sending the message has changed!"),
-                              title=gui_translate("Warning"), font="Courier 20", text_color="red")
-                else:
-                    animated_print(
-                        f"WARNING: The user sending the message has changed!", error=True, reset=True)
-                    Colors(default_color)
-            if not silent and not graphic_mode:
-                animated_print(
-                    f"Message from {foreign_user.capitalize()} recieved!")
-            foreign_user = get_foreign_user(new_user=foreign_user)
-            try:
-                window.close()
-                connection_window.close()
-            except:
-                pass
-            retrievemessage(code, user, 2, prefix, recipient_ip, sc, timestamp, False, False,
-                            default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, temp_user=foreign_user, window=window)
-        except KeyboardInterrupt:
             try:
                 sc.close()
             except:
@@ -6071,26 +6588,6 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 pass
             menu(user, display_initiate, print_logs,
                  default_color, private_mode, error_color, print_speed=0)
-    else:
-        try:
-            sc.close()
-        except:
-            pass
-        try:
-            link.shutdown(socket.SHUT_RDWR)
-        except:
-            pass
-        try:
-            link.close()
-        except:
-            pass
-        try:
-            window.close()
-            connection_window.close()
-        except:
-            pass
-        menu(user, display_initiate, print_logs,
-             default_color, private_mode, error_color, print_speed=0)
 
 
 def send_conversation_invite(user, current_user, default_color, private_mode, error_color, print_logs, display_initiate):
@@ -6114,97 +6611,123 @@ def send_conversation_invite(user, current_user, default_color, private_mode, er
     try:
         dest_ip, target_mac, target_name, empty_sc = get_recipient_ip(user, display_initiate, print_logs,
                                                                       default_color, private_mode, error_color, None, is_invite=True)
-        dest_ip = dest_ip.strip()
+        if type(dest_ip) != list:
+            dest_ip = dest_ip.strip()
     except KeyboardInterrupt:
         print("")
         menu(user, None, print_logs, default_color,
              private_mode, error_color, print_speed=0)
-    link = socket.socket()
     connected = False
     while not connected:
         try:
-            link.connect((dest_ip, 19507))
+            if type(dest_ip) == list:
+                for connection_num in range(len(dest_ip)):
+                    try:
+                        locals()[f"link{connection_num}"] = socket.socket()
+                        locals()[f"link{connection_num}"].connect(
+                            (dest_ip[connection_num].strip(), 19507))
+                    except Exception as e:
+                        raise
+                        print(e)
+            else:
+                link = socket.socket()
+                link.connect((dest_ip, 19507))
             connected = True
-        except ConnectionRefusedError:
-            log(f"Invite delivery refused!", "networkManager", get_current_user(
-            ), print_logs)
-            connected = False
-            if graphic_mode:
-                gui.Popup(gui_translate("Connection to recipient unexpectedly terminated! Try again!"),
-                          title=gui_translate("Warning"), font="Courier 20", text_color="red")
-            else:
-                animated_print(
-                    f"WARNING: Connection to recipient unexpectedly terminated! Try again!", error=True, reset=True)
-                Colors(default_color)
-            menu(user, None, print_logs, default_color,
-                 private_mode, error_color, print_speed=0)
-        except TimeoutError:
-            log(f"Invite delivery timeout!", "networkManager", get_current_user(
-            ), print_logs)
-            connected = False
-            if graphic_mode:
-                gui.Popup(gui_translate("Unable to obtain a response from recipient address! Try again!"),
-                          title=gui_translate("Warning"), font="Courier 20", text_color="red")
-            else:
-                animated_print(
-                    f"WARNING: Unable to obtain a response from recipient address! Try again!", error=True, reset=True)
-                Colors(default_color)
-            send_conversation_invite(user, current_user, default_color,
-                                     private_mode, error_color, print_logs, display_initiate)
-        except OSError:
-            log(f"Invite delivery OSError!", "networkManager", get_current_user(
-            ), print_logs)
-            connected = False
-            if graphic_mode:
-                gui.Popup(gui_translate("Unable to obtain a response from recipient address! Try again!"),
-                          title=gui_translate("Warning"), font="Courier 20", text_color="red")
-            else:
-                animated_print(
-                    f"WARNING: Unable to obtain a response from recipient address! Try again!", error=True, reset=True)
-                Colors(default_color)
-            send_conversation_invite(user, current_user, default_color,
-                                     private_mode, error_color, print_logs, display_initiate)
-        except KeyboardInterrupt:
-            log(f"Invite delivery interrupted!", "networkManager", get_current_user(
-            ), print_logs)
-            if graphic_mode:
-                gui.Popup(gui_translate("Aborting!"), title=gui_translate("Warning"),
-                          font="Courier 20", text_color="red")
-            else:
-                animated_print(f"\nAborting!")
-            try:
-                sc.close()
-            except:
-                pass
-            try:
-                link.close()
-            except:
-                pass
-            menu(user, None, print_logs, default_color,
-                 private_mode, error_color, print_speed=0)
-    log(f"Conversation invite sent to {dest_ip}",
-        "networkManager", current_user, print_logs)
+        except:
+            raise
+        # except ConnectionRefusedError:
+        #     log(f"Invite delivery refused!", "networkManager", get_current_user(
+        #     ), print_logs)
+        #     connected = False
+        #     if graphic_mode:
+        #         gui.Popup(gui_translate("Connection to recipient unexpectedly terminated! Try again!"),
+        #                   title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+        #     else:
+        #         animated_print(
+        #             f"WARNING: Connection to recipient unexpectedly terminated! Try again!", error=True, reset=True)
+        #         Colors(default_color)
+        #     menu(user, None, print_logs, default_color,
+        #          private_mode, error_color, print_speed=0)
+        # except TimeoutError:
+        #     log(f"Invite delivery timeout!", "networkManager", get_current_user(
+        #     ), print_logs)
+        #     connected = False
+        #     if graphic_mode:
+        #         gui.Popup(gui_translate("Unable to obtain a response from recipient address! Try again!"),
+        #                   title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+        #     else:
+        #         animated_print(
+        #             f"WARNING: Unable to obtain a response from recipient address! Try again!", error=True, reset=True)
+        #         Colors(default_color)
+        #     send_conversation_invite(user, current_user, default_color,
+        #                              private_mode, error_color, print_logs, display_initiate)
+        # except OSError:
+        #     log(f"Invite delivery OSError!", "networkManager", get_current_user(
+        #     ), print_logs)
+        #     connected = False
+        #     if graphic_mode:
+        #         gui.Popup(gui_translate("Unable to obtain a response from recipient address! Try again!"),
+        #                   title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+        #     else:
+        #         animated_print(
+        #             f"WARNING: Unable to obtain a response from recipient address! Try again!", error=True, reset=True)
+        #         Colors(default_color)
+        #     send_conversation_invite(user, current_user, default_color,
+        #                              private_mode, error_color, print_logs, display_initiate)
+        # except KeyboardInterrupt:
+        #     log(f"Invite delivery interrupted!", "networkManager", get_current_user(
+        #     ), print_logs)
+        #     if graphic_mode:
+        #         gui.Popup(gui_translate("Aborting!"), title=gui_translate("Warning"),
+        #                   font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+        #     else:
+        #         animated_print(f"\nAborting!")
+        #     try:
+        #         sc.close()
+        #     except:
+        #         pass
+        #     try:
+        #         link.close()
+        #     except:
+        #         pass
+        #     menu(user, None, print_logs, default_color,
+        #          private_mode, error_color, print_speed=0)
     if target_name != None:
         content = f"Request:True | Source_IP:{ip} | Name:{current_user} |||| Target:{target_name}"
     else:
         content = f"Request:True | Source_IP:{ip} | Name:{current_user}"
     packet = content.encode()
-    link.send(packet)
-    try:
-        link.shutdown(socket.SHUT_RDWR)
-    except:
-        pass
-    link.close()
+    if type(dest_ip) == list:
+        for connection_num in range(len(dest_ip)):
+            locals()[f"link{connection_num}"].send(packet)
+            try:
+                locals()[f"link{connection_num}"].shutdown(socket.SHUT_RDWR)
+            except:
+                pass
+            locals()[f"link{connection_num}"].close()
+    else:
+        link.send(packet)
+        log(f"Conversation invite sent to {dest_ip}",
+            "networkManager", current_user, print_logs)
+        try:
+            link.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+        link.close()
     # *The code 1 will tell listener.py that it is recieving a conversation request, not a message
     code, prefix, timestamp = showcode(user, 1, private_mode,
                                        print_logs, error_color, default_color)
     date = timestamp.split("|")
     date = date[1]
     if graphic_mode:
-        layout = [[gui.Text(gui_translate(f"{dest_ip} has been invited!"))], [gui.Text(gui_translate("Start server?")), gui.Button(
-            gui_translate("Yes"), bind_return_key=True), gui.Button(gui_translate("No"), key="No")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+        if type(dest_ip) == list:
+            layout = [[gui.Text(gui_translate(f"Contact(s) have been invited!"))], [gui.Text(gui_translate("Start server?")), gui.Button(
+                gui_translate("Yes"), bind_return_key=True), gui.Button(gui_translate("No"), key="No")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+        else:
+            layout = [[gui.Text(gui_translate(f"{dest_ip} has been invited!"))], [gui.Text(gui_translate("Start server?")), gui.Button(
+                gui_translate("Yes"), bind_return_key=True), gui.Button(gui_translate("No"), key="No")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
         window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation Invite (Logged in as: {get_current_user()})"),
-                            layout=layout, magins=(100, 50), font="Courier 20")
+                            layout=layout, margins=(100, 50), font="Courier 20")
         event, values = window.read()
         if event == "Yes":
             start_server = "y"
@@ -6212,7 +6735,10 @@ def send_conversation_invite(user, current_user, default_color, private_mode, er
             start_server = "n"
         window.close()
     else:
-        animated_print(f"{dest_ip} has been invited!")
+        if type(dest_ip) == list:
+            animated_print(f"Contacts have been invited!")
+        else:
+            animated_print(f"{dest_ip} has been invited!")
         start_server = privacy_input(f"Start server? [Y|N]", private_mode)
     if start_server == None:
         menu(user, None, print_logs, default_color,
@@ -6240,7 +6766,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_color, de
         # ?Due to the formatting of the mailbox entries made by listener.py, each message uses two lines, so the printed value is half the length
         if graphic_mode:
             gui.Popup(gui_translate(f"You have {int(len(letters)/2)} unread messages!"),
-                      title=gui_translate(f"{int(len(letters)/2)} Unread Messages! (Logged in as: {get_current_user()})"), font="Courier 20")
+                      title=gui_translate(f"{int(len(letters)/2)} Unread Messages! (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
         else:
             animated_print(f"You have {int(len(letters)/2)} unread messages!\n")
         log(f"Mailbox accessed! Unread messages: {int(len(letters)/2)}",
@@ -6360,6 +6886,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
             printing_speed = printing_speed[1]
         else:
             printing_speed = 0.05
+        master_print_speed = printing_speed
         if "default" in config_lines[5].lower():
             display_color = config_lines[5].split(" = ")
             display_color = display_color[1]
@@ -6550,7 +7077,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                         new_color = values.get("new_color", False)
                     window.close()
                     gui.Popup(gui_translate("Program restart will be required for color change!"),
-                              title=gui_translate("Warning"), text_color="red", font="Courier 15")
+                              title=gui_translate("Warning"), text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                 else:
                     new_color = privacy_input(
                         f"Enter color (in plain text)", private_mode)
@@ -6625,7 +7152,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                         private_mode = values.get("private_mode", False)
                     window.close()
                     gui.Popup(gui_translate("Program restart will be required for privacy mode change!"),
-                              title=gui_translate("Warning"), text_color="red")
+                              title=gui_translate("Warning"), text_color="red", auto_close=True, auto_close_duration=5)
                 else:
                     private_mode = privacy_input(f"True/False", private_mode)
                     animated_print(
@@ -6644,7 +7171,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                         private_mode = values.get("private_mode", False)
                     window.close()
                     gui.Popup(gui_translate("Program restart will be required for privacy mode change!"),
-                              title=gui_translate("Warning"), text_color="red")
+                              title=gui_translate("Warning"), text_color="red", auto_close=True, auto_close_duration=5)
                 else:
                     private_mode = privacy_input(f"True/False", private_mode)
                     animated_print(
@@ -6937,7 +7464,7 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
                         assumed_type = "MB"
                     if graphic_mode:
                         gui.Popup(gui_translate(
-                            f"Data unit not declared... assuming {assumed_type}"), title=gui_translate("Warning"), text_color="red", font="Courier 15")
+                            f"Data unit not declared... assuming {assumed_type}"), title=gui_translate("Warning"), text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                     else:
                         animated_print(
                             f"WARNING: Data unit not declared... assuming {assumed_type}", error=True, reset=True)
@@ -6952,7 +7479,7 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
                     except:
                         if graphic_mode:
                             gui.Popup(gui_translate("Invalid personal cache size!"), title=gui_translate("Warning"),
-                                      text_color="red", font="Courier 15")
+                                      text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                         else:
                             animated_print(f"WARNING: Invalid personal cache size!",
                                            error=True, reset=True)
@@ -6967,7 +7494,7 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
                     else:
                         if graphic_mode:
                             gui.Popup(gui_translate("Invalid data unit... assuming MB"), title=gui_translate("Warning"),
-                                      text_color="red", font="Courier 15")
+                                      text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                         else:
                             animated_print(
                                 f"WARNING: Invalid data unit... assuming MB", error=True, reset=True)
@@ -6983,7 +7510,7 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
                     except:
                         if graphic_mode:
                             gui.Popup(gui_translate("Invalid personal cache size!"), title=gui_translate("Warning"),
-                                      text_color="red", font="Courier 15")
+                                      text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                         else:
                             animated_print(f"WARNING: Invalid personal cache size!",
                                            error=True, reset=True)
@@ -6993,7 +7520,7 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
         else:
             if graphic_mode:
                 gui.Popup(gui_translate("Invalid Option!"), title=gui_translate(
-                    "Warning"), text_color="red", font="Courier 15")
+                    "Warning"), text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
             else:
                 animated_print(f"WARNING: Invalid option!", error=True, reset=True)
                 Colors(default_color)
@@ -7018,7 +7545,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                     temp_files = str(files).replace(
                         "[", "").replace("]", "").replace("'", "").strip()
                     gui.Popup(temp_files.replace(",", "\n"),
-                              title=gui_translate(f"FiEncrypt - Public Cache (Logged in as: {get_current_user()})"), font="Courier 20")
+                              title=gui_translate(f"FiEncrypt - Public Cache (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
                 else:
                     animated_print(files)
         enter_home_directory()
@@ -7028,7 +7555,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
             if not straight_to_menu:
                 if graphic_mode:
                     gui.Popup(gui_translate("Private cache is empty!"), title=gui_translate("Warning"),
-                              text_color="red", font="Courier 15")
+                              text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                     menu_state = ["", "", "", "*Unavailable* ", "*Unavailable* ", ""]
                 else:
                     animated_print(f"WARNING: Private cache is empty!", error=True, reset=True)
@@ -7041,7 +7568,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
             if not straight_to_menu:
                 if graphic_mode:
                     gui.Popup(gui_translate("Public cache is empty!"), title=gui_translate("Warning"),
-                              text_color="red", font="Courier 15")
+                              text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                     menu_state = ["*Unavailable* ", "*Unavailable* ", "*Unavailable* ", "", "", ""]
                 else:
                     animated_print(f"WARNING: Public cache is empty!", error=True, reset=True)
@@ -7051,7 +7578,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
             if not straight_to_menu:
                 if graphic_mode:
                     gui.Popup(gui_translate("Private and Public caches are empty!"),
-                              title=gui_translate("Warning"), text_color="red", font="Courier 15")
+                              title=gui_translate("Warning"), text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                     menu_state = ["*Unavailable* ", "*Unavailable* ",
                                   "*Unavailable* ", "*Unavailable* ", "*Unavailable* ", ""]
                 else:
@@ -7095,7 +7622,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
         except:
             if graphic_mode:
                 gui.Popup(gui_translate("Invalid Selection!"), title=gui_translate("Warning"),
-                          text_color="red", font="Courier 15")
+                          text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
             animated_print(f"WARNING: Invalid selection!", error=True, reset=True)
             Colors(default_color)
     if cache_option == 1:
@@ -7132,7 +7659,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
             if (int(cache_total_size) + int(personal_cache_total_size)) > max_size:
                 if graphic_mode:
                     gui.Popup(gui_translate(
-                        "Size of files in public cache exceeds max allocated size of your private cache!"), title=gui_translate("Warning"), text_color="red", font="Courier 15")
+                        "Size of files in public cache exceeds max allocated size of your private cache!"), title=gui_translate("Warning"), text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                 else:
                     animated_print(
                         f"WARNING: Size of files in public cache exceeds max allocated size of your private cache!", error=True, reset=True)
@@ -7161,7 +7688,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                     else:
                         if graphic_mode:
                             gui.Popup(gui_translate("Files in public cache no longer accessible!"),
-                                      title=gui_translate("Warning"), text_color="red", font="Courier 15")
+                                      title=gui_translate("Warning"), text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                         else:
                             animated_print(
                                 f"WARNING: Files in public cache no longer accessible!", error=True, reset=True)
@@ -7170,7 +7697,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
         else:
             if graphic_mode:
                 gui.Popup(gui_translate("Option not available!"), title=gui_translate("Warning"),
-                          text_color="red", font="Courier 15")
+                          text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
             else:
                 animated_print(f"WARNING: Option not available!", error=True, reset=True)
                 Colors(default_color)
@@ -7186,7 +7713,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
         else:
             if graphic_mode:
                 gui.Popup(gui_translate("Option not available!"), title=gui_translate("Warning"),
-                          text_color="red", font="Courier 15")
+                          text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
             else:
                 animated_print(f"WARNING: Option not available!", error=True, reset=True)
                 Colors(default_color)
@@ -7212,7 +7739,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
         else:
             if graphic_mode:
                 gui.Popup(gui_translate("Option not available!"), title=gui_translate("Warning"),
-                          text_color="red", font="Courier 15")
+                          text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
             else:
                 animated_print(f"WARNING: Option not available!", error=True, reset=True)
                 Colors(default_color)
@@ -7232,10 +7759,10 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                         password = values.get("password", None)
                         if username == None or username.strip() == "":
                             gui.Popup(gui_translate("Username cannot be blank!"), title=gui_translate("Warning"),
-                                      text_color="red", font="Courier 15")
+                                      text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                         elif password == None or password.strip() == "":
                             gui.Popup(gui_translate("Password cannot be blank!"), title=gui_translate("Warning"),
-                                      text_color="red", font="Courier 15")
+                                      text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                     window.close()
             else:
                 animated_print(f"Please confirm your login: ")
@@ -7253,18 +7780,18 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                         temp_files = str(files).replace(
                             "[", "").replace("]", "").replace("'", "").strip()
                         gui.Popup(temp_files.replace(",", "\n"),
-                                  title=gui_translate(f"FiEncrypt - Private Cache (Logged in as: {get_current_user()})"), font="Courier 20")
+                                  title=gui_translate(f"FiEncrypt - Private Cache (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
             else:
                 if graphic_mode:
                     gui.Popup(gui_translate("Access Denied!"), title=gui_translate("Warning"),
-                              text_color="red", font="Courier 15")
+                              text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                 else:
                     animated_print(f"WARNING: Access Denied!", error=True, reset=True)
                     Colors(default_color)
         else:
             if graphic_mode:
                 gui.Popup(gui_translate("Option not available!"), title=gui_translate("Warning"),
-                          text_color="red", font="Courier 15")
+                          text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
             else:
                 animated_print(f"WARNING: Option not available!", error=True, reset=True)
                 Colors(default_color)
@@ -7284,10 +7811,10 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                         password = values.get("password", None)
                         if username == None or username.strip() == "":
                             gui.Popup(gui_translate("Username cannot be blank!"), title=gui_translate("Warning"),
-                                      text_color="red", font="Courier 15")
+                                      text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                         elif password == None or password.strip() == "":
                             gui.Popup(gui_translate("Password cannot be blank!"), title=gui_translate("Warning"),
-                                      text_color="red", font="Courier 15")
+                                      text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                     window.close()
             else:
                 animated_print(f"Please confirm your login: ")
@@ -7302,14 +7829,14 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
             else:
                 if graphic_mode:
                     gui.Popup(gui_translate("Access Denied!"), title=gui_translate("Warning"),
-                              text_color="red", font="Courier 15")
+                              text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                 else:
                     animated_print(f"WARNING: Access Denied!", error=True, reset=True)
                     Colors(default_color)
         else:
             if graphic_mode:
                 gui.Popup(gui_translate("Option not available!"), title=gui_translate("Warning"),
-                          text_color="red", font="Courier 15")
+                          text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
             else:
                 animated_print(f"WARNING: Option not available!", error=True, reset=True)
                 Colors(default_color)
@@ -7607,7 +8134,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                         else:
                             if graphic_mode:
                                 gui.Popup(gui_translate("Contact name cannot be blank!"), title=gui_translate("Warning"),
-                                          text_color="red", font="Courier 15")
+                                          text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                             else:
                                 animated_print(
                                     f"WARNING: Contact name cannot be blank!", error=True, reset=True)
@@ -7631,7 +8158,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                         else:
                             if graphic_mode:
                                 gui.Popup(gui_translate("Contact name cannot be blank!"), title=gui_translate("Warning"),
-                                          text_color="red", font="Courier 15")
+                                          text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                             else:
                                 animated_print(
                                     f"WARNING: Contact name cannot be blank!", error=True, reset=True)
@@ -7659,7 +8186,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                                     gui_translate(f"{result[0].strip()}\n{result[1].strip()}\n{result[2]}\n{result[3]}"), title=gui_translate(f"FiEncrypt - Search Result (Logged in as: {get_current_user()})"), font="Courier 20")
                             else:
                                 gui.Popup(gui_translate(
-                                    f"No contact matching {search} found!"), title=gui_translate(f"FiEncrypt - Search Result (Logged in as: {get_current_user()})"), font="Courier 15")
+                                    f"No contact matching {search} found!"), title=gui_translate(f"FiEncrypt - Search Result (Logged in as: {get_current_user()})"), font="Courier 15", auto_close=True, auto_close_duration=5)
                         else:
                             if result != None:
                                 animated_print(result)
@@ -7743,7 +8270,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                         else:
                             if graphic_mode:
                                 gui.Popup(gui_translate("Contact name cannot be blank!"), title=gui_translate("Warning"),
-                                          text_color="red", font="Courier 15")
+                                          text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                             else:
                                 animated_print(
                                     f"WARNING: Contact name cannot be blank!", error=True, reset=True)
@@ -7767,7 +8294,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                         else:
                             if graphic_mode:
                                 gui.Popup(gui_translate("Contact name cannot be blank!"), title=gui_translate("Warning"),
-                                          text_color="red", font="Courier 15")
+                                          text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                             else:
                                 animated_print(
                                     f"WARNING: Contact name cannot be blank!", error=True, reset=True)
@@ -7795,7 +8322,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                                     f"{result[0].strip()}\n{result[1].strip()}\n{result[2]}\n{result[3]}"), title=gui_translate(f"FiEncrypt - Search Result (Logged in as: {get_current_user()})"), font="Courier 20")
                             else:
                                 gui.Popup(gui_translate(
-                                    f"No contact matching {search} found!"), title=gui_translate(f"FiEncrypt - Search Result (Logged in as: {get_current_user()})"), font="Courier 15")
+                                    f"No contact matching {search} found!"), title=gui_translate(f"FiEncrypt - Search Result (Logged in as: {get_current_user()})"), font="Courier 15", auto_close=True, auto_close_duration=5)
                         else:
                             if result != None:
                                 animated_print(result)
@@ -7851,7 +8378,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
         else:
             if graphic_mode:
                 gui.Popup(gui_translate("Invalid Function!"),
-                          title=gui_translate("Warning"), text_color="red")
+                          title=gui_translate("Warning"), text_color="red", auto_close=True, auto_close_duration=5)
             else:
                 animated_print(f"Invalid Fuction!")
 
@@ -7878,10 +8405,10 @@ def login(display_initiate, user_account_name, error_color, default_color, print
                     password_input = values.get("password", None)
                     if username_input == None or username_input.strip() == "":
                         gui.Popup(gui_translate("Username cannot be blank!"), title=gui_translate("Warning"),
-                                  text_color="red", font="Courier 15")
+                                  text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                     elif password_input == None or password_input.strip() == "":
                         gui.Popup(gui_translate("Password cannot be blank!"), title=gui_translate("Warning"),
-                                  text_color="red", font="Courier 15")
+                                  text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                 elif event == "Cancel":
                     window.close()
                     maybe_quit()
@@ -7907,18 +8434,18 @@ def login(display_initiate, user_account_name, error_color, default_color, print
         if attempts == 0:
             if graphic_mode:
                 gui.Popup(gui_translate("0 Attempts left! Game over brother!"),
-                          title=gui_translate("Warning"), text_color="red", font="Courier 15")
+                          title=gui_translate("Warning"), text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
             else:
                 animated_print(f"0 Attempts left! Game over brother!")
             self_terminate(True)
         elif access:
             if graphic_mode:
                 if private_mode:
-                    gui.Popup(gui_translate(f"Access granted! Welcome @Anonymous!"),
-                              title=gui_translate("FiEncrypt - Access Granted!"), font="Courier 15")
+                    gui.popup_no_wait(gui_translate(f"Access granted! Welcome @Anonymous!"),
+                                      title=gui_translate("FiEncrypt - Access Granted!"), font="Courier 15", auto_close=True, auto_close_duration=5)
                 else:
-                    gui.Popup(gui_translate(
-                        f"Access granted! Welcome @{capitalize_user(username_input)}"), title=gui_translate("FiEncrypt - Access Granted!"), font="Courier 15")
+                    gui.popup_no_wait(gui_translate(
+                        f"Access granted! Welcome @{capitalize_user(username_input)}"), title=gui_translate("FiEncrypt - Access Granted!"), font="Courier 15", auto_close=True, auto_close_duration=5)
             else:
                 if private_mode:
                     animated_print(f"Access granted! Welcome @Anonymous!")
@@ -7931,7 +8458,7 @@ def login(display_initiate, user_account_name, error_color, default_color, print
         else:
             if graphic_mode:
                 gui.Popup(gui_translate(
-                    f"Incorrect Login! {attempts} attempts left! Try again!"), title=gui_translate("Warning"), text_color="red", font="Courier 15")
+                    f"Incorrect Login! {attempts} attempts left! Try again!"), title=gui_translate("Warning"), text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                 try:
                     window.close()
                 except:
