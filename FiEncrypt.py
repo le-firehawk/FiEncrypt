@@ -119,21 +119,27 @@ class Contacts:
                     contact_lines = contact_file.readlines()
                 if "-" in contact_lines[2]:
                     contact_lines[2] = None
+                if "agreed" in contact_lines[3].lower():
+                    contact_lines[3] = substring(contact_lines[3], " = ", -1).strip()
+                    if contact_lines[3].strip() == "None":
+                        contact_lines[3] = None
+                else:
+                    contact_lines[3] = None
                 try:
-                    contact_lines[3] = contact_lines[3]
+                    contact_lines[4] = contact_lines[4]
                 except IndexError:
                     contact_lines.append("No details provided!")
-                return contact_lines[0], contact_lines[1], contact_lines[2], contact_lines[3]
+                return contact_lines[0], contact_lines[1], contact_lines[2], contact_lines[3], contact_lines[4]
             elif ":" in contact_name:
                 with open(f"./{contact}.txt", "r+") as contact_file:
                     contact_lines = contact_file.readlines()
                 if contact_name in contact_lines[1]:
                     log(f"Contact Search: {contact_name} - {contact_lines}",
                         "contactManager", self.current_user, self.print_logs)
-                    return contact_lines[0], contact_lines[1], contact_lines[2], contact_lines[3]
-        log(f"Contact Search: {contact_name} - {[None, None, None, None]}",
+                    return contact_lines[0], contact_lines[1], contact_lines[2], contact_lines[3], contact_lines[4]
+        log(f"Contact Search: {contact_name} - {[None, None, None, None, None]}",
             "contactManager", self.current_user, self.print_logs)
-        return None, None, None, None
+        return None, None, None, None, None
 
     def add_ip(self, contact_name, ip):
         """Locates a contact's file and appends the ip parameter into the relevant line of said file"""
@@ -144,20 +150,20 @@ class Contacts:
             update_contact.seek(0)
             update_contact.truncate()
             update_contact.write(
-                f"{contact_lines[0]}{contact_lines[1]}{ip}\n")
+                f"{contact_lines[0]}{contact_lines[1]}{ip}\n{contact_lines[3]}\n")
             for i, contact_details in enumerate(contact_lines):
-                if i > 2 and contact_details.strip() != "" and contact_details != None:
+                if i > 3 and contact_details.strip() != "" and contact_details != None:
                     contact_details = contact_details.replace("\n", "")
                     update_contact.write(f"{contact_details}")
         log(f"Contact Updated: {contact_name}({contact_lines[1]}) New IP: {ip}",
             "contactManager", self.current_user, self.print_logs)
 
-    def add(self, contact_name, mac, details):
+    def add(self, contact_name, mac, agreed_code, details):
         """Adds a new contact file into the Contacts directory, with all details being written"""
         enter_home_directory()
         os.chdir(f"./{hash_current_user(current_user.lower().strip())}/contacts")
         with open(f"./{contact_name}.txt", "w+") as new_contact:
-            new_contact.write(f"{contact_name}\n{mac}\n-\n{details}")
+            new_contact.write(f"{contact_name}\n{mac}\n-\nAgreed Code = {agreed_code}\n{details}")
         log(f"New Contact: {contact_name}({mac})",
             "contactManager", self.current_user, self.print_logs)
 
@@ -165,7 +171,7 @@ class Contacts:
         """Deletes a contact's file, if the search returns a result"""
         enter_home_directory()
         os.chdir(f"./{hash_current_user(current_user.lower().strip())}/contacts")
-        name, mac, ip, details = self.check_for(contact_name)
+        name, mac, ip, agreed_code, details = self.check_for(contact_name)
         if None in [name, mac, ip, details]:
             if not graphic_mode:
                 animated_print(f"WARNING: Unable to locate contact to delete!",
@@ -175,26 +181,43 @@ class Contacts:
             log(f"Contact Removed: {name}({mac})", "contactManager",
                 self.current_user, self.print_logs)
 
-    def list_all(self):
+    def list_all(self, **kwargs):
         """Lists every contact name found within the Contacts directory"""
+        mac_check, target_mac, ip_wipe = kwargs.get("mac_check", False), kwargs.get("target_mac", None), kwargs.get("ip_wipe", False)
         if self.contact_names == []:
             animated_print(f"WARNING: No contacts found in FiEncrypt directory!",
                            error=True, reset=True)
         else:
             for i, name in enumerate(self.contact_names):
-                animated_print(f"Contact {i+1}: ")
+                if not mac_check and ip_wipe:
+                    animated_print(f"Contact {i+1}: ")
                 enter_home_directory()
                 os.chdir(f"./{hash_current_user(current_user.lower().strip())}/contacts")
                 with open(f"./{name}.txt", "r+") as contact:
                     contact_lines = contact.readlines()
-                    if not graphic_mode:
-                        animated_print(
-                            f"Name: {contact_lines[0]}\nMAC Address: {contact_lines[1]}\nLast IP: {contact_lines[2]}\nDetails:")
-                    for i, line in enumerate(contact_lines):
-                        if i > 2 and line != "\n":
-                            spec_print = contact_lines[i].replace("\n", "")
-                            if not graphic_mode:
-                                animated_print(f"{spec_print}\n")
+                    if not mac_check and ip_wipe:
+                        if not graphic_mode:
+                            animated_print(
+                                f"Name: {contact_lines[0]}\nMAC Address: {contact_lines[1]}\nLast IP: {contact_lines[2]}\nAgreed Code: {contact_lines[3]}\nDetails:")
+                            for i, line in enumerate(contact_lines):
+                                if i > 3 and line != "\n":
+                                    spec_print = contact_lines[i].replace("\n", "")
+                                    animated_print(f"{spec_print}\n")
+                        else:
+                            temp_details = ""
+                            for i, line in enumerate(contact_lines):
+                                if i > 3 and line != "\n":
+                                    temp_details += f"{line}\n"
+                            layout = [[gui.Text(gui_translate("Name:")), gui.Text(contact_lines[0])], [gui.Text(gui_translate("MAC Address:")), gui.Text(contact_lines[1])], [gui.Text(gui_translate("Last IP:")), gui.Text(contact_lines[2])], [gui.Text(gui_translate("Agreed Code: ")), gui.Text(contact_lines[3])], [gui.Text(gui_translate("Details:")), gui.Text(temp_details)]]
+                            gui.Window(title=f"FiEncrypt - Contact Search (Currently logged in as: {get_current_user()}", layout=layout, finalize=True, auto_close=True, auto_close_duration=20)
+                            time.sleep(5)
+                    elif ip_wipe:
+                        self.add_ip(contact_lines[0], "-")
+                    else:
+                        if hash_current_user(contact_lines[1].strip()) == target_mac.strip():
+                            return True, [contact_line for contact_line in contact_lines]
+            if mac_check:
+                return False, None
         log(f"Contact Dump: {self.contact_names}",
             "contactManager", self.current_user, self.print_logs)
 
@@ -1392,8 +1415,8 @@ def create_notification(ip, name):
 
 def get_recipient_ip(user, display_initiate, print_logs, default_color, private_mode, error_color, temp_sc, **kwargs):
     """Obtains the desired IP, MAC, or contact name that a message is to be sent to. Calls arp_scan() and mac_resolve() modules as appropiate"""
-    target_mac, target_name, is_invite, confirm_ip, message, ip = None, None, kwargs.get(
-        "is_invite", False), kwargs.get("confirm_ip", None), kwargs.get("message", None), None
+    target_mac, target_name, is_invite, confirm_ip, message, ip, agreed_code = None, None, kwargs.get(
+        "is_invite", False), kwargs.get("confirm_ip", None), kwargs.get("message", None), None, None
     if confirm_ip == None:
         if graphic_mode:
             layout = [[gui.Text(gui_translate("Enter IP, MAC address or contact name of the recipient")), gui.InputText(
@@ -1423,7 +1446,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 if "." not in ip:
                     contact_search = Contacts(user, get_current_user().lower().strip(
                     ), print_logs, default_color, error_color, private_mode)
-                    target_name, target_mac, target_ip, details = contact_search.check_for(
+                    target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
                         ip)
                     target_name = target_name.replace("\n", "")
                     if target_ip != None:
@@ -1446,7 +1469,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
             if "." not in ip:
                 contact_search = Contacts(user, get_current_user().lower().strip(
                 ), print_logs, default_color, error_color, private_mode)
-                target_name, target_mac, target_ip, details = contact_search.check_for(
+                target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
                     ip)
                 target_name = target_name.replace("\n", "")
                 if target_ip != None:
@@ -1483,7 +1506,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 if "y" in proceed.lower():
                     pass
                 else:
-                    ip, target_mac, target_name, temp_sc = get_recipient_ip(user, display_initiate, print_logs,
+                    ip, target_mac, target_name, temp_sc, agreed_code = get_recipient_ip(user, display_initiate, print_logs,
                                                                             default_color, private_mode, error_color, temp_sc)
             time.sleep(8)
         elif "." not in ip:
@@ -1491,7 +1514,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 temp = ip
                 contact_search = Contacts(user, get_current_user().lower().strip(
                 ), print_logs, default_color, error_color, private_mode)
-                target_name, target_mac, target_ip, details = contact_search.check_for(
+                target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
                     temp)
                 target_name = target_name.replace("\n", "")
                 if target_ip.strip() != None:
@@ -1509,7 +1532,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 try:
                     contact_search = Contacts(user, get_current_user().lower().strip(
                     ), print_logs, default_color, error_color, private_mode)
-                    target_name, mac, target_ip, details = contact_search.check_for(
+                    target_name, mac, target_ip, agreed_code, details = contact_search.check_for(
                         ip)
                     target_name = target_name.replace("\n", "")
                     if mac.strip() == "":
@@ -1562,7 +1585,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     if "." not in address:
                         contact_search = Contacts(user, get_current_user().lower().strip(
                         ), print_logs, default_color, error_color, private_mode)
-                        target_name, target_mac, target_ip, details = contact_search.check_for(
+                        target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
                             address)
                         target_name = target_name.replace("\n", "")
                         if target_ip != None:
@@ -1585,7 +1608,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 if "." not in address:
                     contact_search = Contacts(user, get_current_user().lower().strip(
                     ), print_logs, default_color, error_color, private_mode)
-                    target_name, target_mac, target_ip, details = contact_search.check_for(
+                    target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
                         address)
                     target_name = target_name.replace("\n", "")
                     if target_ip != None:
@@ -1623,7 +1646,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     if "y" in proceed.lower():
                         pass
                     else:
-                        address, target_mac, target_name, temp_sc = get_recipient_ip(
+                        address, target_mac, target_name, temp_sc, agreed_code = get_recipient_ip(
                             user, display_initiate, print_logs,                                                                    default_color, private_mode, error_color, temp_sc)
                 time.sleep(8)
             elif "." not in address:
@@ -1631,7 +1654,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     temp = address
                     contact_search = Contacts(user, get_current_user().lower().strip(
                     ), print_logs, default_color, error_color, private_mode)
-                    target_name, target_mac, target_ip, details = contact_search.check_for(
+                    target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
                         temp)
                     target_name = target_name.replace("\n", "")
                     if target_ip.strip() != None:
@@ -1649,7 +1672,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     try:
                         contact_search = Contacts(user, get_current_user().lower().strip(
                         ), print_logs, default_color, error_color, private_mode)
-                        target_name, mac, target_ip, details = contact_search.check_for(
+                        target_name, mac, target_ip, agreed_code, details = contact_search.check_for(
                             address)
                         target_name = target_name.replace("\n", "")
                         if mac.strip() == "":
@@ -1692,7 +1715,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                         get_recipient_ip(user, display_initiate, print_logs,
                                          default_color, private_mode, error_color, temp_sc)
     valid_vars = check_vars(ip, target_mac, target_name)
-    return valid_vars[0], valid_vars[1], valid_vars[2], temp_sc
+    return valid_vars[0], valid_vars[1], valid_vars[2], temp_sc, agreed_code
 
 
 def gnu_ip_resolve(print_logs, private_mode):
@@ -1736,6 +1759,54 @@ def gnu_ip_resolve(print_logs, private_mode):
                 pass
     log(f"IP of GNU/Linux system requested! IP: {ip}", "networkManager", get_current_user(), None)
     return ip
+
+def request_username(sc, **kwargs):
+    mode, ip, code_details = kwargs.get("mode", None), kwargs.get("ip", None), kwargs.get("code", None)
+    if mode == "send":
+        sc.send(f"\\request_user".encode())
+        info = sc.recv(1024).decode()
+        if info == None or "None" in info:
+            return sc, None
+        else:
+            #info = decode_foreign_user(code_details[0], code_details[1], info.strip(), applied_default_color)
+            info = info[::-1].strip()
+            decrypted_info, encrypted_info = [], []
+            for i, char in enumerate(info):
+                encrypted_info.append(ord(char))
+                decrypted_info.append(chr(int(encrypted_info[i])-22))
+            info = ""
+            for char in decrypted_info:
+                info += char
+            get_foreign_user(new_user=info.strip().capitalize())
+            return sc, info.strip()
+    elif mode == "recieve":
+        if ip.strip() == "":
+            ip = "Unknown"
+        if graphic_mode:
+            layout = [[gui.Text(gui_translate(f"Do you wish to reveal your username to {ip}?")), gui.Button(gui_translate("Yes"), key="yes"), gui.Button(gui_translate("No"), key="no")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+            confirm_window = gui.Window(title=f"FiEncrypt - Username Request (Logged in as: {get_current_user()})", layout=layout, font="Courier 20")
+            event, values = confirm_window.read()
+            if event == "yes":
+                accepted = True
+            else:
+                accepted = False
+            confirm_window.close()
+        else:
+            accepted = privacy_input(f"Do you wish to reveal your username to {ip}? [Y|N]", 0)
+            if "y" in accepted.lower():
+                accepted = True
+            else:
+                accepted = False
+        if accepted:
+            decrypted_username, encrypted_username, temp_encrypted_username = [], [], ""
+            for i, char in enumerate(get_current_user().lower()[::-1]):
+                decrypted_username.append(ord(char))
+                encrypted_username.append(chr(int(decrypted_username[i])+22))
+            for char in encrypted_username:
+                temp_encrypted_username += char
+            sc.send(temp_encrypted_username.encode())
+        else:
+            sc.send(str(None).encode())
 
 
 def secretcode(user, current_user, default_color, print_logs, private_mode, error_color):
@@ -2241,15 +2312,15 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
 
 def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self, error_color, default_color, private_mode, print_logs, mailing, display_initiate, auto_code, **kwargs):
     """Allows user to create and send an encrypted message"""
-    previous_message, poked, voice_message, outbound_file, manual, faulty_override, stored_message, sc, prev_messages, window, early_file = kwargs.get(
-        "message", ""), kwargs.get("poked", False), False, False, False, kwargs.get("faulty", False), kwargs.get("stored_message", ""), temp_sc, kwargs.get("prev", []), kwargs.get("window", None), None
-    temp_display_name, prev_message_temp, images = get_foreign_user(), "", []
+    previous_message, poked, voice_message, outbound_file, manual, faulty_override, stored_message, sc, prev_messages, window, early_file, in_contacts, priority_code = kwargs.get(
+        "message", ""), kwargs.get("poked", False), False, False, False, kwargs.get("faulty", False), kwargs.get("stored_message", ""), temp_sc, kwargs.get("prev", []), kwargs.get("window", None), None, kwargs.get("in_contacts", None), kwargs.get("priority_code", None)
+    temp_display_name, prev_message_temp, images, agreed_code, get_username = get_foreign_user(), "", [], None, False
     if temp_display_name == None:
         temp_display_name = recipient_ip
     for messages in prev_messages:
         if len(messages) == 4 or len(messages) == 5:
             message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
-                "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").strip()
+                "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").strip()
             if messages[2].strip().lower() == get_current_user().strip().lower():
                 gap = 30
             else:
@@ -2620,7 +2691,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 sc.close()
                 log("Server channel shutting down!", "networkManager", get_current_user(), print_logs)
                 newmessage(code, user, "", temp_sc, prefix, date, talking_to_self,
-                           error_color, default_color, private_mode, print_logs, mailing, display_initiate, message=previous_message, prev=prev_messages)
+                           error_color, default_color, private_mode, print_logs, mailing, display_initiate, message=previous_message, prev=prev_messages, in_contacts=in_contacts, priority_code=priority_code)
             elif graphic_mode:
                 prev_message_temp, images = "", []
                 try:
@@ -2630,7 +2701,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 for messages in prev_messages:
                     if len(messages) == 4 or len(messages) == 5:
                         message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
-                            "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").strip()
+                            "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").strip()
                         if messages[2].strip().lower() == get_current_user().strip().lower():
                             gap = 30
                         else:
@@ -2807,7 +2878,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 sc.close()
                 log("Server channel shutting down!", "networkManager", get_current_user(), print_logs)
                 newmessage(code, user, "", temp_sc, prefix, date, talking_to_self,
-                           error_color, default_color, private_mode, print_logs, mailing, display_initiate, message=previous_message, prev=prev_messages)
+                           error_color, default_color, private_mode, print_logs, mailing, display_initiate, message=previous_message, prev=prev_messages, in_contacts=in_contacts, priority_code=priority_code)
         # *When the exit exits, the other client they have a TCP connection to automatically recieves the exit code, triggering their connection to close as well
         except KeyboardInterrupt:
             animated_print(f"\nKilling server channel!")
@@ -2918,7 +2989,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             for messages in prev_messages:
                 if len(messages) == 4 or len(messages) == 5:
                     message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
-                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").strip()
+                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").strip()
                     if messages[2].strip().lower() == get_current_user().strip().lower():
                         gap = 30
                     else:
@@ -2998,7 +3069,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             for messages in prev_messages:
                 if len(messages) == 4 or len(messages) == 5:
                     message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
-                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").strip()
+                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").strip()
                     if messages[2].strip().lower() == get_current_user().strip().lower():
                         gap = 30
                     else:
@@ -3091,6 +3162,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 f"{get_foreign_user().strip().capitalize()}'s IP address is {recipient_ip}")
         else:
             animated_print(f"Peer's IP address is {recipient_ip}")
+    if "\\request_user" in message_text.strip().lower() and recipient_ip != "" and (get_foreign_user() == None or get_foreign_user().strip() == ""):
+        message_text = message_text.replace("\\request_user", "")
+        get_username = True
+        sc, username = request_username(sc, code=[code2, prefix], mode="send")
     if "\\v" in message_text.strip().lower():
         enter_home_directory()
         voice_file = f"./cache/voice_message.wav"
@@ -3274,7 +3349,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     code, prefix, timestamp = showcode(
                         user, 1, private_mode, print_logs, error_color, default_color)
                     newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self, error_color,
-                               default_color, private_mode, print_logs, mailing, display_initiate, True, faulty=True, stored_message=message_text, prev=prev_messages)
+                               default_color, private_mode, print_logs, mailing, display_initiate, True, faulty=True, stored_message=message_text, prev=prev_messages, in_contacts=in_contacts, priority_code=priority_code)
             else:
                 pass
         else:
@@ -3323,12 +3398,19 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 if conversation_mode and recipient_ip != "":
                     ip = recipient_ip
                 elif recipient_ip == "":
-                    ip, target_mac, target_name, sc = get_recipient_ip(user, display_initiate, print_logs,
+                    ip, target_mac, target_name, sc, agreed_code = get_recipient_ip(user, display_initiate, print_logs,
                                                                        default_color, private_mode, error_color, sc, message=scrambled_output_phrase)
+                    reset_ip = Contacts(user, get_current_user(), print_logs, default_color, error_color, private_mode)
+                    try:
+                        reset_ip.add_ip(target_name, "-")
+                    except:
+                        pass
                     if type(ip) != list:
                         recipient_ip = ip.strip().replace("\n", "")
                 if ip == None:
                     ip = recipient_ip
+                else:
+                    ip = ip.replace("\n", "").strip()
                 your_ip = get_own_ip(print_logs, private_mode)
                 if recipient_ip == your_ip or recipient_ip == "127.0.0.1":
                     foreign_user = get_foreign_user(new_user=get_current_user())
@@ -3343,13 +3425,13 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         "networkManager", current_user, print_logs)
                     if len(str(code2)) != 2 and not manual:
                         retrievemessage(
-                            code, user, 2, backup_prefix, recipient_ip, temp_sc, timestamp, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, window=window)
+                            code, user, 2, backup_prefix, recipient_ip, temp_sc, timestamp, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
                     elif manual != None and manual:
                         retrievemessage(
-                            code2, user, 2, None, recipient_ip, temp_sc, None, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, window=window)
+                            code2, user, 2, None, recipient_ip, temp_sc, None, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
                     else:
                         retrievemessage(
-                            code, user, 2, backup_prefix, recipient_ip, temp_sc, timestamp, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, window=window)
+                            code, user, 2, backup_prefix, recipient_ip, temp_sc, timestamp, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
                 else:
                     if sc == None:
                         if type(ip) == list:
@@ -3384,7 +3466,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         animated_print(
                             f"WARNING: Unable to reach the host! Try a different address!", error=True, reset=True)
                         Colors(default_color)
-                        ip, target_mac, target_name, empty_sc = get_recipient_ip(user, display_initiate, print_logs,
+                        ip, target_mac, target_name, empty_sc, agreed_code = get_recipient_ip(user, display_initiate, print_logs,
                                                                                  default_color, private_mode, error_color, None, message=scrambled_output_phrase)
                         if ip == None or ip.strip() == "":
                             menu(user, None, print_logs, default_color,
@@ -3397,7 +3479,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                 temp = ip
                                 contact_search = Contacts(user, get_current_user().lower().strip(
                                 ), print_logs, default_color, error_color, private_mode)
-                                target_name, target_mac, target_ip, details = contact_search.check_for(
+                                target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
                                     temp)
                                 target_name = target_name.replace("\n", "")
                                 if target_ip != None:
@@ -3415,7 +3497,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                 try:
                                     contact_search = Contacts(user, get_current_user().lower().strip(
                                     ), print_logs, default_color, error_color, private_mode)
-                                    target_name, mac, target_ip, details = contact_search.check_for(
+                                    target_name, mac, target_ip, agreed_code, details = contact_search.check_for(
                                         ip)
                                     target_name = target_name.replace("\n", "")
                                     if mac.strip() == "":
@@ -3515,7 +3597,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     except UnboundLocalError:
                         ip = None
                     if ip == None or ip.strip() == "":
-                        ip, target_mac, target_name, empty_sc = get_recipient_ip(user, display_initiate, print_logs,
+                        ip, target_mac, target_name, empty_sc, agreed_code = get_recipient_ip(user, display_initiate, print_logs,
                                                                                  default_color, private_mode, error_color, None, message=scrambled_output_phrase)
                     else:
                         contact_ip = Contacts(user, get_current_user().lower().strip(
@@ -3529,7 +3611,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             temp = ip
                             contact_search = Contacts(user, get_current_user().lower().strip(
                             ), print_logs, default_color, error_color, private_mode)
-                            target_name, target_mac, target_ip, details = contact_search.check_for(
+                            target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
                                 temp)
                             target_name = target_name.replace("\n", "")
                             if target_ip != None:
@@ -3547,7 +3629,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             try:
                                 contact_search = Contacts(user, get_current_user().lower().strip(
                                 ), print_logs, default_color, error_color, private_mode)
-                                target_name, mac, target_ip, details = contact_search.check_for(
+                                target_name, mac, target_ip, agreed_code, details = contact_search.check_for(
                                     ip)
                                 target_name = target_name.replace("\n", "")
                                 if mac.strip() == "":
@@ -3616,7 +3698,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             f"WARNING: Unable to reach the host! Try a different address!", error=True, reset=True)
                     Colors(default_color)
                     if ip == None or ip.strip() == "":
-                        ip, target_mac, target_name, empty_sc = get_recipient_ip(user, display_initiate, print_logs,
+                        ip, target_mac, target_name, empty_sc, agreed_code = get_recipient_ip(user, display_initiate, print_logs,
                                                                                  default_color, private_mode, error_color, None, message=scrambled_output_phrase)
                     else:
                         try:
@@ -3630,7 +3712,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             temp = ip
                             contact_search = Contacts(user, get_current_user().lower().strip(
                             ), print_logs, default_color, error_color, private_mode)
-                            target_name, target_mac, target_ip, details = contact_search.check_for(
+                            target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
                                 temp)
                             target_name = target_name.replace("\n", "")
                             if target_ip != None:
@@ -3648,7 +3730,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             try:
                                 contact_search = Contacts(user, get_current_user().lower().strip(
                                 ), print_logs, default_color, error_color, private_mode)
-                                target_name, mac, target_ip, details = contact_search.check_for(
+                                target_name, mac, target_ip, agreed_code, details = contact_search.check_for(
                                     ip)
                                 target_name = target_name.replace("\n", "")
                                 if mac.strip() == "":
@@ -3699,7 +3781,105 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 except UnboundLocalError:
                     decrypt_code = int(code2)
             message = content.read()
-            packet = f"{message} |||| {str(decrypt_code)} | {encrypted_current_user}"
+            if (agreed_code == None or agreed_code.strip().lower() == "none") and priority_code != None:
+                agreed_code = priority_code
+            if agreed_code != None and agreed_code.strip().lower() != "none":
+                agreed_code = agreed_code.split("|")
+                agreed_code[1] = agreed_code[1].split("_")
+                timestamp, code2, prefix = agreed_code[0][0], agreed_code[1][1], agreed_code[1][2]
+                prefix = prefix.split("fE")
+                filler_length = agreed_code[-1]
+                filler_length = filler_length.replace("#", "")
+                prefix[1] = prefix[1].split("||")
+                prefix[0] = prefix[0].replace("$", "")
+                try:
+                    if len(prefix[0]) == 2:
+                        code_seg1 = code2[int(prefix[0][0]):int(prefix[0][1])]
+                    elif len(prefix[0]) == 3:
+                        code_seg1 = code2[int(prefix[0][0]):int(prefix[0][1:3])]
+                    elif len(prefix[0]) == 4:
+                        code_seg1 = code2[int(prefix[0][0:2]):int(prefix[0][1:3])]
+                    code_seg1 = list(code_seg1)
+                    code_seg1 = sum(map(int, code_seg1))
+                    if len(prefix[1][0]) == 2:
+                        code_seg2 = code2[int(prefix[1][0][0]):int(prefix[1][0][1])]
+                    elif len(prefix[1][0]) == 3:
+                        code_seg2 = code2[int(prefix[1][0][0]):int(prefix[1][0][1:3])]
+                    elif len(prefix[1][0]) == 4:
+                        code_seg2 = code2[int(prefix[1][0][0:2]):int(prefix[1][0][1:3])]
+                    code_seg2 = list(code_seg2)
+                    code_seg2 = sum(map(int, code_seg2))
+                    code3 = code2
+                    Colors(default_color, force=True)
+                except:
+                    code_seg1 = str(code_seg1)[::-1]
+                    temp = code_seg2
+                    code_seg2 = int(code_seg1)
+                    code_seg1 = temp
+                    Colors(default_color)
+                decrypted_message = []
+                decrypted_current_user = []
+                passs2 = 0
+                passs = 0
+                output_phrase = ''
+                if private_mode:
+                    current_user = "Anonymous"
+                else:
+                    current_user = get_current_user()
+                encrypted_current_user = ''
+                for i, k in enumerate(message_text):
+                    if i < len(message_text) / 2 and len(str(code3)) >= 4:
+                        if len(str(code3)) > 4:
+                            code2 = code_seg1
+                        else:
+                            code3 = str(code2)[0:2]
+                            code2 = int(code3)
+                    elif len(str(code3)) >= 4:
+                        if len(str(code3)) > 4:
+                            code2 = code_seg2
+                        else:
+                            code3 = str(code2)[2:4]
+                            code2 = int(code3)
+                    decrypted_message.append(k)
+                    decrypted_message[passs] = ord(k)
+                    decrypted_message[passs] = int(
+                        decrypted_message[passs]) + int(code2)
+                    if decrypted_message[passs] < 32:
+                        decrypted_message[passs] = int(
+                            decrypted_message[passs]) + 95
+                    elif decrypted_message[passs] > 126:
+                        decrypted_message[passs] = int(
+                            decrypted_message[passs]) - 95
+                    passs += 1
+                for i, k in enumerate(current_user):
+                    if i < len(current_user) / 2 and len(str(code3)) >= 4:
+                        if len(str(code3)) > 4:
+                            code2 = code_seg1
+                        else:
+                            code3 = str(code2)[0:2]
+                            code2 = int(code3)
+                    elif len(str(code3)) >= 4:
+                        if len(str(code3)) > 4:
+                            code2 = code_seg2
+                        else:
+                            code3 = str(code2)[2:4]
+                            code2 = int(code3)
+                    decrypted_current_user.append(k)
+                    decrypted_current_user[passs2] = ord(k)
+                    decrypted_current_user[passs2] = int(
+                        decrypted_current_user[passs2]) + int(code2)
+                    passs2 += 1
+                for k in decrypted_message:
+                    output_phrase += chr(k)
+                for l in decrypted_current_user:
+                    encrypted_current_user += chr(l)
+                if len(str(code3)) != 2:
+                    message = random_filler(filler_length, output_phrase)
+                else:
+                    message = output_phrase
+                packet = f"{message} |||| agreed, {hash_current_user(get_mac().strip())} | {encrypted_current_user}"
+            else:
+                packet = f"{message} |||| {str(decrypt_code)} | {encrypted_current_user}"
             content.close()
         elif mailbox:
             if sys.platform.startswith("linux"):
@@ -3721,10 +3901,11 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 except UnboundLocalError:
                     decrypt_code = int(code2)
             message = content.read()
-            packet = f"Request:False | Source_IP:{your_ip} | Name:{encrypted_current_user} |||| {message} |||| {str(decrypt_code)}"
+            if agreed_code != None and agreed_code.strip().lower() != "none":
+                packet = f"Request:False | Source_IP:{your_ip} | Name:{encrypted_current_user} |||| {message} |||| agreed, {hash_current_user(get_mac().strip())}"
+            else:
+                packet = f"Request:False | Source_IP:{your_ip} | Name:{encrypted_current_user} |||| {message} |||| {str(decrypt_code)}"
             content.close()
-        else:
-            packet = message_text
         if sc == None:
             try:
                 if type(ip) == list:
@@ -3845,10 +4026,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
         # ?In conversation mode, an inbound server will automatically be started, so the user can recieve the message promptly
         if graphic_mode:
             server_recieve(user, code, user, sc, recipient_ip, timestamp, backup_prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, temp_user=temp_display_name)
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code)
         else:
             server_recieve(user, code, user, sc, recipient_ip, timestamp, backup_prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, silent=True, prev=prev_messages, window=window, temp_user=temp_display_name)
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, silent=True, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code)
     elif poke and conversation_mode and "y" in host:
         if auto_code:
             randomcode(user, current_user, True, private_mode,
@@ -3858,10 +4039,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
         # ?In conversation mode, an inbound server will automatically be started, so the user can recieve the message promptly
         if graphic_mode:
             server_recieve(user, code, user, sc, recipient_ip, timestamp, backup_prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, temp_user=temp_display_name)
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code)
         else:
             server_recieve(user, code, user, sc, recipient_ip, timestamp, backup_prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, silent=True, prev=prev_messages, window=window, temp_user=temp_display_name)
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, silent=True, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code)
     elif love_sent and conversation_mode and "y" in host:
         if auto_code:
             randomcode(user, current_user, True, private_mode,
@@ -3871,10 +4052,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
         # ?In conversation mode, an inbound server will automatically be started, so the user can recieve the message promptly
         if graphic_mode:
             server_recieve(user, code, user, sc, recipient_ip, timestamp, backup_prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, temp_user=temp_display_name)
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code)
         else:
             server_recieve(user, code, user, sc, recipient_ip, timestamp, backup_prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, silent=True, prev=prev_messages, window=window, temp_user=temp_display_name)
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, silent=True, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code)
     else:
         if auto_code:
             randomcode(user, current_user, True, private_mode,
@@ -4041,6 +4222,14 @@ def get_auto_code():
     """Specifically retrieves the state of the auto_code parameter in the config file"""
     print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation, lang = retrieve_config_settings()
     return auto_code
+
+
+def get_mac():
+    try:
+        import re, uuid
+        return ":".join(re.findall("..", "%012x" % uuid.getnode()))
+    except:
+        return None
 
 
 def private_file_integrity(filename):
@@ -4605,8 +4794,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                         progress.update(len(bytes_read))
                         if graphic_mode:
                             gui_recieve = gui.one_line_progress_meter(title=gui_translate(
-                                f"FiEncrypt - Recieving File (Logged in as: {get_current_user()})"), current_value=os.path.getsize(f"./cache/{filename}"), max_value=int(filesize), orientation="h", auto_close=True, auto_close_duration=5)
-                            gui_recieve.close()
+                                f"FiEncrypt - Recieving File (Logged in as: {get_current_user()})"), current_value=os.path.getsize(f"./cache/{filename}"), max_value=int(filesize), orientation="h")
                 else:
                     if graphic_mode:
                         gui.Popup("File transfer failed", title=gui_translate("Warning"),
@@ -4826,8 +5014,8 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
 
 def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc, timestamp, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, index, display_initiate, **kwargs):
     """Recieves message from other FiEncrypt user, or yourself (loopback), decrypts and displays it"""
-    prev_messages, sender, temp_display_name, window, in_mailbox = kwargs.get(
-        "prev", []), kwargs.get("temp_user", None), get_foreign_user(), kwargs.get("window", None), kwargs.get("in_mailbox", False)
+    prev_messages, sender, temp_display_name, window, in_mailbox, in_contacts, priority_code = kwargs.get(
+        "prev", []), kwargs.get("temp_user", None), get_foreign_user(), kwargs.get("window", None), kwargs.get("in_mailbox", False), kwargs.get("in_contacts", None), kwargs.get("priority_code", None)
     if sender == None:
         sender = "Anonymous"
     if temp_display_name == None and sender != "Anonymous":
@@ -5428,7 +5616,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
             for messages in prev_messages:
                 if len(messages) == 4 or len(messages) == 5:
                     message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
-                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").strip()
+                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").strip()
                     if messages[2].strip().lower() == get_current_user().strip().lower():
                         gap = 30
                     else:
@@ -5616,7 +5804,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
         Colors(default_color)
         get_poked(get_foreign_user(), poke_num=pokes)
         newmessage(old_code, user, recipient_ip, temp_sc, backup_prefix, date, talking_to_self,
-                   error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), poked=True, message=temp_output_phrase, prev=prev_messages, window=window)
+                   error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), poked=True, message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
     elif conversation_mode and recipient_ip.strip() != "" and output_phrase.strip().endswith("\\exit"):
         animated_print(
             f"{get_foreign_user().capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
@@ -5627,7 +5815,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
         Colors(default_color)
         if not talking_to_self:
             newmessage(old_code, user, recipient_ip, temp_sc, backup_prefix, date, talking_to_self,
-                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window)
+                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
         else:
             menu(user, None, print_logs, default_color,
                  private_mode, error_color, print_speed=0)
@@ -5639,10 +5827,10 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
         if poked and talking_to_self:
             get_poked(capitalize_user(get_current_user()), poke_num=pokes)
             newmessage(old_code, user, recipient_ip, temp_sc, backup_prefix, date, talking_to_self,
-                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window)
+                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
         elif talking_to_self:
             newmessage(old_code, user, recipient_ip, temp_sc, backup_prefix, date, talking_to_self,
-                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window)
+                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
         else:
             if graphic_mode:
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Message Decryption (Logged in as: {get_current_user()})"), layout=[[gui.Text(gui_translate("Was the decryption successful?"))], [gui.Button(gui_translate("Yes"), key="Yes", bind_return_key=True), gui.Button(
@@ -5709,16 +5897,16 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
         if poked:
             get_poked(get_foreign_user(), poke_num=pokes)
             newmessage(old_code, user, recipient_ip, temp_sc, backup_prefix, date, talking_to_self,
-                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), poked=True, message=temp_output_phrase, prev=prev_messages, window=window)
+                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), poked=True, message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
         else:
             newmessage(old_code, user, recipient_ip, temp_sc, backup_prefix, date, talking_to_self,
-                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window)
+                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
 
 
 def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, prefix, date, default_color, print_logs, private_mode, error_color, display_initiate, **kwargs):
     """Opens server to recieve and interpret message"""
-    silent, prev_messages, window, temp_display_name, sender = kwargs.get(
-        "silent", False), kwargs.get("prev", []), kwargs.get("window", None), get_foreign_user(), kwargs.get("temp_user", None)
+    silent, prev_messages, window, temp_display_name, sender, in_contacts, priority_code = kwargs.get(
+        "silent", False), kwargs.get("prev", []), kwargs.get("window", None), get_foreign_user(), kwargs.get("temp_user", None), kwargs.get("in_contacts", None), kwargs.get("priority_code", None)
     if not silent and not graphic_mode:
         print("Server warming up... ", end="")
     elif graphic_mode:
@@ -5735,7 +5923,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             for messages in prev_messages:
                 if len(messages) == 4 or len(messages) == 5:
                     message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
-                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").strip()
+                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").strip()
                     if messages[2].strip().lower() == get_current_user().strip().lower():
                         gap = 30
                     else:
@@ -6300,6 +6488,16 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                      default_color, private_mode, error_color, print_speed=0)
     else:
         message = info.split(" |||| ")
+        if len(message) == 1:
+            pass
+        elif "agreed" in message[1]:
+            contact_key_extract = Contacts(user, get_current_user().lower().strip(
+            ), print_logs, default_color, error_color, private_mode)
+            contact_mac = substring(message[1], ",", -1).strip()
+            contact_mac = substring(contact_mac, " | ", 0).strip()
+            in_contacts, contact_details = contact_key_extract.list_all(mac_check=True, target_mac=contact_mac)
+            if in_contacts:
+                priority_code = contact_details[3].strip().replace("\n", "")
         if "\\user_confirm" in message[0]:
             message[0] = message[0].split("=")
             expected_user = message[0][1]
@@ -6322,7 +6520,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 except:
                     pass
                 server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
-                               date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
+                               date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
             else:
                 sc.send(str(False).encode())
                 if graphic_mode:
@@ -6345,14 +6543,14 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 except:
                     pass
                 server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
-                               date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
+                               date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
         else:
             try:
-                if "\\exit" in message or "\\poke" in message:
+                if "\\exit" in message or "\\poke" in message or "\\request_user" in message:
                     pass
                 else:
                     info = message[1]
-                message = message[0]
+                    message = message[0]
             except IndexError:
                 if message[0].strip() == "":
                     if graphic_mode:
@@ -6401,7 +6599,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                     except:
                         pass
                     server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, prefix,
-                                   date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
+                                   date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
             if not silent and not graphic_mode:
                 animated_print("Done!")
         try:
@@ -6414,19 +6612,29 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
         except AttributeError:
             pass
         try:
-            foreign_user = info[1]
+            foreign_user = info[-1]
+            if priority_code != None:
+                info[0] = substring(priority_code, " = ", -1).strip()
             info[0] = info[0].split("|")
             info[0][1] = info[0][1].split("_")
             date = info[0][1][0]
         except IndexError:
-            if "\\exit" in message or "\\poke" in message:
+            if "\\exit" in message or "\\poke" in message or "\\request_user" in message:
                 pass
             else:
-                if print_logs:
-                    animated_print(info)
-                animated_print(
-                    f"WARNING: Error with date formatting! Returning to menu!", error=True, reset=True)
-                Colors(default_color)
+                if "agreed" in info[0][0]:
+                    if graphic_mode:
+                        gui.Popup(gui_translate("No/Invalid agreed code found!"), title=gui_translate("Warning"),
+                                  text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
+                    else:
+                        animated_print(f"WARNING: No/Invalid agreed code found!", error=True, reset=True)
+                        Colors(default_color)
+                else:
+                    if print_logs:
+                        animated_print(info)
+                    animated_print(
+                        f"WARNING: Error with date formatting! Returning to menu!", error=True, reset=True)
+                    Colors(default_color)
                 try:
                     sc.close()
                 except:
@@ -6459,6 +6667,11 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 animated_print(
                     f"{foreign_user.capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
             backup_current_user = user
+        elif "\\request_user" in message:
+            skip = True
+            accepted = request_username(sc, mode="recieve", ip=get_ip_from_socket(sc))
+            server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
         # ?Removes any remnants of the .encode() attribute added to messages before they are sent
         elif message.startswith("b'") or message.startswith("b\""):
             message = message[2: int(len(message))]
@@ -6547,7 +6760,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 except:
                     pass
                 retrievemessage(code, user, 2, prefix, recipient_ip, sc, timestamp, False, False,
-                                default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, temp_user=foreign_user, window=window)
+                                default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, temp_user=foreign_user, window=window, in_contacts=in_contacts, priority_code=priority_code)
             except KeyboardInterrupt:
                 try:
                     sc.close()
@@ -6609,7 +6822,7 @@ def send_conversation_invite(user, current_user, default_color, private_mode, er
     elif sys.platform.startswith("win32"):
         ip = socket.gethostbyname(socket.gethostname())
     try:
-        dest_ip, target_mac, target_name, empty_sc = get_recipient_ip(user, display_initiate, print_logs,
+        dest_ip, target_mac, target_name, empty_sc, agreed_code = get_recipient_ip(user, display_initiate, print_logs,
                                                                       default_color, private_mode, error_color, None, is_invite=True)
         if type(dest_ip) != list:
             dest_ip = dest_ip.strip()
@@ -6835,7 +7048,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_color, de
                 if "y" in reply.lower():
                     code, prefix, timestamp = showcode(capitalize_user(get_current_user()), 1, private_mode,
                                                        print_logs, error_color, default_color)
-                    ip, target_mac, target_name, temp_sc = get_recipient_ip(
+                    ip, target_mac, target_name, temp_sc, agreed_code = get_recipient_ip(
                         user, display_initiate, print_logs, default_color, private_mode, error_color, None, confirm_ip=f"{message[1][1][0]}@{message[1][1][1]}")
                     newmessage(code, user, message[1][1][1], temp_sc, prefix, None,
                                False, error_color, default_color, private_mode, print_logs, False, display_initiate, False)
@@ -8073,6 +8286,8 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                 check_mailbox(user, capitalize_user(get_current_user()), None, mailing, timestamp,
                               error_color, default_color, display_initiate, print_logs, private_mode)
             else:
+                code, prefix, timestamp = showcode(capitalize_user(get_current_user()), 1, private_mode,
+                                                   print_logs, error_color, default_color)
                 contact_func = 0
                 if graphic_mode:
                     layout = [[gui.Text(gui_translate("1. Add Contact"))], [gui.Text(gui_translate("2. Remove Contact"))], [gui.Text(gui_translate("3. Search For Contact"))], [gui.Text(gui_translate("4. List All Contacts"))], [gui.Text(gui_translate("Select a function")), gui.InputText(
@@ -8111,26 +8326,53 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             contact_func = 0
                     contact_manager = Contacts(user, get_current_user().lower(
                     ).strip(), print_logs, default_color, error_color, private_mode)
+                    agreed = None
                     if contact_func == 1:
                         if graphic_mode:
                             layout = [[gui.Text(gui_translate("Enter contact name here")), gui.InputText(key="new_name")], [gui.Text(gui_translate("Enter MAC address here")), gui.InputText(
-                                key="new_ip")], [gui.Text(gui_translate("Enter any additional details here")), gui.InputText(key="new_details")], [gui.Button(gui_translate("Save"), key="Save", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                                key="new_ip")], [gui.Text(gui_translate("Store agreed code?")), gui.Button(gui_translate("Yes"), key="yes"), gui.Button(gui_translate("No"), key="no"), gui.InputText(key="set_code")], [gui.Text(gui_translate("Enter any additional details here")), gui.InputText(key="new_details")], [gui.Button(gui_translate("Save"), key="Save", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate(f"FiEncrypt - New Contact (Logged in as: {get_current_user()})"),
                                                 layout=layout, margins=(100, 50), font="Courier 20")
-                            event, values = window.read()
-                            if event == "Save":
-                                new_name, new_ip, new_details = values.get("new_name", ""), values.get(
-                                    "new_ip", ""), values.get("new_details", "")
+                            while True:
+                                event, values = window.read()
+                                if event == "no":
+                                    agreed = "n"
+                                elif event == "yes":
+                                    agreed = "y"
+                                elif event == "Save":
+                                    new_name, new_ip, new_details, set_code = values.get("new_name", ""), values.get(
+                                        "new_ip", ""), values.get("new_details", ""), values.get("set_code", None)
+                                    if agreed == None:
+                                        agreed = "n"
+                                    break
                             window.close()
                         else:
                             new_name = privacy_input(
                                 f"Enter contact name here", private_mode)
                             new_ip = privacy_input(
                                 f"Enter MAC address here (or leave blank)", private_mode)
+                            agreed = privacy_input(f"Do you want to store current code as agreed code? [Y|N]", private_mode)
+                            if "y" in agreed.lower():
+                                set_code = privacy_input(f"Set the agreed code (or leave blank to apply current code)", private_mode)
+                                if set_code.strip() == "":
+                                    set_code = None
+                            else:
+                                set_code = None
                             new_details = privacy_input(
                                 f"Enter any additional details here", private_mode)
+                        if "y" in agreed.lower() and (set_code != None and set_code.strip() != ""):
+                            agreed_code = set_code.strip()
+                        elif "y" in agreed.lower():
+                            agreed_code = f"{timestamp}_{code}_{prefix}"
+                        else:
+                            agreed_code = None
+                        if agreed_code != None:
+                            if graphic_mode:
+                                gui.Popup(f"The agreed code with {new_name} is {agreed_code}", title=f"FiEncrypt - Agreed Code (Logged in as {get_current_user()})", font="Courier 20")
+                            else:
+                                animated_print(f"The agreed code with {new_name} is {agreed_code}")
                         if new_name.strip() != "":
-                            contact_manager.add(new_name, new_ip, new_details)
+                            contact_manager.add(new_name, new_ip, agreed_code, new_details)
                         else:
                             if graphic_mode:
                                 gui.Popup(gui_translate("Contact name cannot be blank!"), title=gui_translate("Warning"),
@@ -8247,26 +8489,40 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             contact_func = 0
                     contact_manager = Contacts(user, get_current_user().lower(
                     ).strip(), print_logs, default_color, error_color, private_mode)
+                    agreed = None
                     if contact_func == 1:
                         if graphic_mode:
                             layout = [[gui.Text(gui_translate("Enter contact name here")), gui.InputText(key="new_name")], [gui.Text(gui_translate("Enter MAC address here")), gui.InputText(
                                 key="new_ip")], [gui.Text(gui_translate("Enter any additional details here")), gui.InputText(key="new_details")], [gui.Button(gui_translate("Save"), key="Save", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate(f"FiEncrypt - New Contact (Logged in as: {get_current_user()})"),
                                                 layout=layout, margins=(100, 50), font="Courier 20")
-                            event, values = window.read()
-                            if event == "Save":
-                                new_name, new_ip, new_details = values.get("new_name", ""), values.get(
-                                    "new_ip", ""), values.get("new_details", "")
+                            while True:
+                                event, values = window.read()
+                                if event == "no":
+                                    agreed = "n"
+                                elif event == "yes":
+                                    agreed = "y"
+                                elif event == "Save":
+                                    new_name, new_ip, new_details = values.get("new_name", ""), values.get(
+                                        "new_ip", ""), values.get("new_details", "")
+                                    if agreed == None:
+                                        agreed = "n"
+                                    break
                             window.close()
                         else:
                             new_name = privacy_input(
                                 f"Enter contact name here", private_mode)
                             new_ip = privacy_input(
                                 f"Enter MAC address here (or leave blank)", private_mode)
+                            agreed = privacy_input(f"Do you want to store current code as agreed code? [Y|N]", private_mode)
                             new_details = privacy_input(
                                 f"Enter any additional details here", private_mode)
+                        if "y" in agreed.lower():
+                            agreed_code = code
+                        else:
+                            agreed_code = None
                         if new_name.strip() != "":
-                            contact_manager.add(new_name, new_ip, new_details)
+                            contact_manager.add(new_name, new_ip, agreed_code, new_details)
                         else:
                             if graphic_mode:
                                 gui.Popup(gui_translate("Contact name cannot be blank!"), title=gui_translate("Warning"),
