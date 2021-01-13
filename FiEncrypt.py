@@ -126,44 +126,48 @@ class Contacts:
                 else:
                     contact_lines[3] = None
                 try:
-                    contact_lines[4] = contact_lines[4]
+                    contact_lines[4] = substring(contact_lines[4], ": ", -1).strip()
+                    contact_lines[4] = int(contact_lines[4])
+                except:
+                    raise
+                    contact_lines[4] = None
+                try:
+                    contact_lines[5] = contact_lines[5]
                 except IndexError:
                     contact_lines.append("No details provided!")
-                return contact_lines[0], contact_lines[1], contact_lines[2], contact_lines[3], contact_lines[4]
+                return contact_lines[0], contact_lines[1], contact_lines[2], contact_lines[3], contact_lines[5], contact_lines[4]
             elif ":" in contact_name:
                 with open(f"./{contact}.txt", "r+") as contact_file:
                     contact_lines = contact_file.readlines()
                 if contact_name in contact_lines[1]:
                     log(f"Contact Search: {contact_name} - {contact_lines}",
                         "contactManager", self.current_user, self.print_logs)
-                    return contact_lines[0], contact_lines[1], contact_lines[2], contact_lines[3], contact_lines[4]
-        log(f"Contact Search: {contact_name} - {[None, None, None, None, None]}",
+                    return contact_lines[0], contact_lines[1], contact_lines[2], contact_lines[3], contact_lines[5], contact_lines[4]
+        log(f"Contact Search: {contact_name} - {[None, None, None, None, None, None]}",
             "contactManager", self.current_user, self.print_logs)
-        return None, None, None, None, None
+        return None, None, None, None, None, None
 
     def add_ip(self, contact_name, ip):
         """Locates a contact's file and appends the ip parameter into the relevant line of said file"""
         enter_home_directory()
         os.chdir(f"./{hash_current_user(current_user.lower().strip())}/contacts")
         with open(f"./{contact_name}.txt", "r+") as update_contact:
-            contact_lines = update_contact.readlines()
+            contact_lines = update_contact.read().split("\n")
             update_contact.seek(0)
             update_contact.truncate()
             update_contact.write(
-                f"{contact_lines[0]}{contact_lines[1]}{ip}\n{contact_lines[3]}\n")
-            for i, contact_details in enumerate(contact_lines):
-                if i > 3 and contact_details.strip() != "" and contact_details != None:
-                    contact_details = contact_details.replace("\n", "")
-                    update_contact.write(f"{contact_details}")
+                f"{contact_lines[0]}\n{contact_lines[1]}\n{ip}\n")
+            for i in range(3, len(contact_lines)):
+                update_contact.write(f"{contact_lines[i]}\n")
         log(f"Contact Updated: {contact_name}({contact_lines[1]}) New IP: {ip}",
             "contactManager", self.current_user, self.print_logs)
 
-    def add(self, contact_name, mac, agreed_code, details):
+    def add(self, contact_name, mac, agreed_code, details, override_port):
         """Adds a new contact file into the Contacts directory, with all details being written"""
         enter_home_directory()
         os.chdir(f"./{hash_current_user(current_user.lower().strip())}/contacts")
         with open(f"./{contact_name}.txt", "w+") as new_contact:
-            new_contact.write(f"{contact_name}\n{mac}\n-\nAgreed Code = {agreed_code}\n{details}")
+            new_contact.write(f"{contact_name}\n{mac}\n-\nAgreed Code = {agreed_code}\nOverride Port: {override_port}\n{details}")
         log(f"New Contact: {contact_name}({mac})",
             "contactManager", self.current_user, self.print_logs)
 
@@ -171,7 +175,7 @@ class Contacts:
         """Deletes a contact's file, if the search returns a result"""
         enter_home_directory()
         os.chdir(f"./{hash_current_user(current_user.lower().strip())}/contacts")
-        name, mac, ip, agreed_code, details = self.check_for(contact_name)
+        name, mac, ip, agreed_code, details, override_port = self.check_for(contact_name)
         if None in [name, mac, ip, details]:
             if not graphic_mode:
                 animated_print(f"WARNING: Unable to locate contact to delete!",
@@ -198,17 +202,17 @@ class Contacts:
                     if not mac_check and ip_wipe:
                         if not graphic_mode:
                             animated_print(
-                                f"Name: {contact_lines[0]}\nMAC Address: {contact_lines[1]}\nLast IP: {contact_lines[2]}\nAgreed Code: {contact_lines[3]}\nDetails:")
+                                f"Name: {contact_lines[0]}\nMAC Address: {contact_lines[1]}\nLast IP: {contact_lines[2]}\nAgreed Code: {contact_lines[3]}\nOverride Port: {contact_lines[4]}\nDetails:")
                             for i, line in enumerate(contact_lines):
-                                if i > 3 and line != "\n":
+                                if i > 4 and line != "\n":
                                     spec_print = contact_lines[i].replace("\n", "")
                                     animated_print(f"{spec_print}\n")
                         else:
                             temp_details = ""
                             for i, line in enumerate(contact_lines):
-                                if i > 3 and line != "\n":
+                                if i > 4 and line != "\n":
                                     temp_details += f"{line}\n"
-                            layout = [[gui.Text(gui_translate("Name:")), gui.Text(contact_lines[0])], [gui.Text(gui_translate("MAC Address:")), gui.Text(contact_lines[1])], [gui.Text(gui_translate("Last IP:")), gui.Text(contact_lines[2])], [gui.Text(gui_translate("Agreed Code: ")), gui.Text(contact_lines[3])], [gui.Text(gui_translate("Details:")), gui.Text(temp_details)]]
+                            layout = [[gui.Text(gui_translate("Name:")), gui.Text(contact_lines[0])], [gui.Text(gui_translate("MAC Address:")), gui.Text(contact_lines[1])], [gui.Text(gui_translate("Last IP:")), gui.Text(contact_lines[2])], [gui.Text(gui_translate("Agreed Code: ")), gui.Text(contact_lines[3])], [gui.Text(gui_translate("Override Port:")), gui.Text(contact_lines[4])], [gui.Text(gui_translate("Details:")), gui.Text(temp_details)]]
                             gui.Window(title=f"FiEncrypt - Contact Search (Currently logged in as: {get_current_user()}", layout=layout, finalize=True, auto_close=True, auto_close_duration=20)
                             time.sleep(5)
                     elif ip_wipe:
@@ -344,9 +348,16 @@ def apply_theme(theme):
 
 def gui_translate(string):
     """Translates the string passed through in simplified form, for PySimpleGUI Text elements"""
-    if translation:
-        string = TranslationManager.translate(string)
-    return string
+    try:
+        if translation:
+            string = TranslationManager.translate(string)
+        return string
+    except:
+        if TranslationManager == None:
+            clear_cache()
+            initiate()
+        else:
+            return string
 
 
 def apply_color(default, error, reset):
@@ -447,9 +458,9 @@ def maybe_quit():
     """Prompts used with the option to quit FiEncrypt"""
     quit = ""
     if graphic_mode:
-        layout = [[gui.Text("Would you like to quit?")], [gui.Button("Yes", bind_return_key=True)], [gui.Button("No")], [
+        layout = [[gui.Text(gui_translate("Would you like to quit?"))], [gui.Button(gui_translate("Yes"), key="Yes", bind_return_key=True), gui.Button(gui_translate("No"), key="No")], [
             gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-        window = gui.Window(title="FiEncrypt", layout=layout, margins=(100, 50), font="Courier 20")
+        window = gui.Window(title=gui_translate("FiEncrypt"), layout=layout, margins=(100, 50), font="Courier 20")
         while True:
             event, values = window.read()
             if event == "Yes" or gui.WIN_CLOSED:
@@ -601,7 +612,7 @@ def establish_tree():
     display_license()
     with open(f"./config.txt", "w+") as config_file:
         default_config = ["# FiEncrypt", "[config.txt]", "debug_mode = False",
-                          "display_initiate = False", "-", "-", "-", "conversation_mode = True", "graphic_mode = False", "private_mode = False", "auto_code = True", "voice_message = 15s", "gui_theme = default_no_more_nagging", "translation = False", "lang = en"]
+                          "display_initiate = False", "-", "-", "-", "conversation_mode = True", "graphic_mode = False", "private_mode = False", "auto_code = True", "voice_message = 15s", "gui_theme = default_no_more_nagging", "translation = False", "lang = en", "override_port = 15753"]
         for line in default_config:
             config_file.write(f"{line}\n")
     with open(f"./cache_settings.txt", "w+") as cache_settings_file:
@@ -1133,15 +1144,54 @@ def retrieve_config_settings(**kwargs):
         gui_theme = gui_theme[1].strip()
         translation_enabled = config_lines[13].split(" = ")
         translation_enabled = to_boolean(translation_enabled[1].strip())
+        override_port = config_lines[15].split(" = ")
+        override_port = override_port[1].strip()
+        try:
+            override_port = int(str(override_port).strip())
+        except TypeError:
+            override_port = 15753
         if translation_enabled:
-            lang = config_lines[14].split(" = ")
-            lang = lang[1].strip()
-            if len(lang) > 3:
-                parse_region(lang, order=1)
+            if "supress_translate_warning" not in config_lines[-1]:
+                if graphic_mode:
+                    layout = [[gui.Text("*** WARNING ***", text_color="red", font="Courier 30")], [gui.Text("Enabling translate will expose sensitive data, including private messages, \nto data harvesting on the part of the relevant services. Please disable translation if you take issue with this.")], [gui.Button("Accept"), gui.Button("Decline")], [gui.Checkbox("Supress future warnings", key="supress_translate_warning")]]
+                    temp_popup = gui.Window(title=f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})", layout=layout, font="Courier 20")
+                    while True:
+                        event, values = temp_popup.read()
+                        if event == "Accept":
+                            supress_translate_warning = values.get("supress_translate_warning", False)
+                            bypass_warning = True
+                            break
+                        elif event == "Decline":
+                            supress_translate_warning = values.get("supress_translate_warning", False)
+                            bypass_warning = False
+                            break
+                    temp_popup.close()
+                    if to_boolean(supress_translate_warning) and translation_enabled:
+                        if "supress_translate_warning" not in config_lines[-1]:
+                            config_lines.append("supress_translate_warning")
+                        if not bypass_warning:
+                            config_lines[13] = "translation = False"
+                            config_file.seek(0)
+                            config_file.truncate()
+                            for line in config_lines:
+                                line = line.replace("\n", "")
+                                config_file.write(f"{line}\n")
+                else:
+                    animated_print("WARNING: Enabling translate will expose sensitive data, including private messages, to data harvesting on the part of the relevant services. Please disable translation if you take issue with this.", error=True, reset=True)
+                    bypass_warning = True
+            else:
+                bypass_warning = True
+            if bypass_warning:
+                lang = config_lines[14].split(" = ")
+                lang = lang[1].strip()
+                if len(lang) > 3:
+                    parse_region(lang, order=1)
+            else:
+                lang = None
         else:
             lang = None
         if exclusive_mode == None:
-            return print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation_enabled, lang
+            return print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation_enabled, lang, override_port
         elif exclusive_mode == "print_logs":
             return print_logs
         elif exclusive_mode == "display_initiate":
@@ -1160,6 +1210,8 @@ def retrieve_config_settings(**kwargs):
             return voice_record_time
         elif exclusive_mode == "gui_theme":
             return gui_theme
+        elif exclusive_mode == "override_port":
+            return override_port
 
 
 def log(string, log_type, user, display):
@@ -1417,6 +1469,10 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
     """Obtains the desired IP, MAC, or contact name that a message is to be sent to. Calls arp_scan() and mac_resolve() modules as appropiate"""
     target_mac, target_name, is_invite, confirm_ip, message, ip, agreed_code = None, None, kwargs.get(
         "is_invite", False), kwargs.get("confirm_ip", None), kwargs.get("message", None), None, None
+    try:
+        override_port = int(override_port)
+    except:
+        override_port = None
     if confirm_ip == None:
         if graphic_mode:
             layout = [[gui.Text(gui_translate("Enter IP, MAC address or contact name of the recipient")), gui.InputText(
@@ -1446,8 +1502,12 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 if "." not in ip:
                     contact_search = Contacts(user, get_current_user().lower().strip(
                     ), print_logs, default_color, error_color, private_mode)
-                    target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
+                    target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
                         ip)
+                    if "." in ip and ip.count(":") == 1:
+                        ip = ip.split(":")
+                        override_port = int(ip[1].strip())
+                        ip = ip[0].strip()
                     target_name = target_name.replace("\n", "")
                     if target_ip != None:
                         ip = target_ip
@@ -1469,8 +1529,9 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
             if "." not in ip:
                 contact_search = Contacts(user, get_current_user().lower().strip(
                 ), print_logs, default_color, error_color, private_mode)
-                target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
+                target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
                     ip)
+                override_port = int(override_port)
                 target_name = target_name.replace("\n", "")
                 if target_ip != None:
                     ip = target_ip.strip()
@@ -1483,8 +1544,12 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     connected = False
                 else:
                     contact_search.add_ip(target_name, ip)
+            elif "." in ip and ip.count(":") == 1:
+                ip = ip.split(":")
+                override_port = int(ip[1].strip())
+                ip = ip[0].strip()
             validated, temp_sc = validate_foreign_user(
-                ip, expected_user, print_logs, temp_sc, message=message)
+                ip, expected_user, print_logs, temp_sc, message=message, port=override_port)
             if not validated:
                 if graphic_mode:
                     layout = [[gui.Text(gui_translate(f"Unable to verify if recipient is {expected_user}!"), text_color="red")], [
@@ -1506,7 +1571,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 if "y" in proceed.lower():
                     pass
                 else:
-                    ip, target_mac, target_name, temp_sc, agreed_code = get_recipient_ip(user, display_initiate, print_logs,
+                    ip, target_mac, target_name, temp_sc, agreed_code, override_port = get_recipient_ip(user, display_initiate, print_logs,
                                                                             default_color, private_mode, error_color, temp_sc)
             time.sleep(8)
         elif "." not in ip:
@@ -1514,7 +1579,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 temp = ip
                 contact_search = Contacts(user, get_current_user().lower().strip(
                 ), print_logs, default_color, error_color, private_mode)
-                target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
+                target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
                     temp)
                 target_name = target_name.replace("\n", "")
                 if target_ip.strip() != None:
@@ -1532,7 +1597,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 try:
                     contact_search = Contacts(user, get_current_user().lower().strip(
                     ), print_logs, default_color, error_color, private_mode)
-                    target_name, mac, target_ip, agreed_code, details = contact_search.check_for(
+                    target_name, mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
                         ip)
                     target_name = target_name.replace("\n", "")
                     if mac.strip() == "":
@@ -1585,7 +1650,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     if "." not in address:
                         contact_search = Contacts(user, get_current_user().lower().strip(
                         ), print_logs, default_color, error_color, private_mode)
-                        target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
+                        target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
                             address)
                         target_name = target_name.replace("\n", "")
                         if target_ip != None:
@@ -1608,7 +1673,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 if "." not in address:
                     contact_search = Contacts(user, get_current_user().lower().strip(
                     ), print_logs, default_color, error_color, private_mode)
-                    target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
+                    target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
                         address)
                     target_name = target_name.replace("\n", "")
                     if target_ip != None:
@@ -1623,7 +1688,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     else:
                         contact_search.add_ip(target_name, address)
                 validated, validiate_sc = validate_foreign_user(
-                    address, expected_user, print_logs, temp_sc, message=message)
+                    address, expected_user, print_logs, temp_sc, message=message, port=override_port)
                 temp_sc.append(validate_sc)
                 if not validated:
                     if graphic_mode:
@@ -1646,7 +1711,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     if "y" in proceed.lower():
                         pass
                     else:
-                        address, target_mac, target_name, temp_sc, agreed_code = get_recipient_ip(
+                        address, target_mac, target_name, temp_sc, agreed_code, override_port = get_recipient_ip(
                             user, display_initiate, print_logs,                                                                    default_color, private_mode, error_color, temp_sc)
                 time.sleep(8)
             elif "." not in address:
@@ -1654,7 +1719,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     temp = address
                     contact_search = Contacts(user, get_current_user().lower().strip(
                     ), print_logs, default_color, error_color, private_mode)
-                    target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
+                    target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
                         temp)
                     target_name = target_name.replace("\n", "")
                     if target_ip.strip() != None:
@@ -1715,7 +1780,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                         get_recipient_ip(user, display_initiate, print_logs,
                                          default_color, private_mode, error_color, temp_sc)
     valid_vars = check_vars(ip, target_mac, target_name)
-    return valid_vars[0], valid_vars[1], valid_vars[2], temp_sc, agreed_code
+    return valid_vars[0], valid_vars[1], valid_vars[2], temp_sc, agreed_code, override_port
 
 
 def gnu_ip_resolve(print_logs, private_mode):
@@ -1760,8 +1825,9 @@ def gnu_ip_resolve(print_logs, private_mode):
     log(f"IP of GNU/Linux system requested! IP: {ip}", "networkManager", get_current_user(), None)
     return ip
 
+
 def request_username(sc, **kwargs):
-    mode, ip, code_details = kwargs.get("mode", None), kwargs.get("ip", None), kwargs.get("code", None)
+    mode, ip, code_details, accepted = kwargs.get("mode", None), kwargs.get("ip", None), kwargs.get("code", None), False
     if mode == "send":
         sc.send(f"\\request_user".encode())
         info = sc.recv(1024).decode()
@@ -2312,11 +2378,17 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
 
 def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self, error_color, default_color, private_mode, print_logs, mailing, display_initiate, auto_code, **kwargs):
     """Allows user to create and send an encrypted message"""
+    global override_port, contact_override_port
     previous_message, poked, voice_message, outbound_file, manual, faulty_override, stored_message, sc, prev_messages, window, early_file, in_contacts, priority_code = kwargs.get(
         "message", ""), kwargs.get("poked", False), False, False, False, kwargs.get("faulty", False), kwargs.get("stored_message", ""), temp_sc, kwargs.get("prev", []), kwargs.get("window", None), None, kwargs.get("in_contacts", None), kwargs.get("priority_code", None)
     temp_display_name, prev_message_temp, images, agreed_code, get_username = get_foreign_user(), "", [], None, False
     if temp_display_name == None:
         temp_display_name = recipient_ip
+    try:
+        if contact_override_port != None and contact_override_port.strip() != "":
+            override_port = contact_override_port
+    except:
+        pass
     for messages in prev_messages:
         if len(messages) == 4 or len(messages) == 5:
             message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
@@ -3166,6 +3238,9 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
         message_text = message_text.replace("\\request_user", "")
         get_username = True
         sc, username = request_username(sc, code=[code2, prefix], mode="send")
+        if username == None:
+            get_foreign_user(new_user="\\reset")
+            temp_display_name = None
     if "\\v" in message_text.strip().lower():
         enter_home_directory()
         voice_file = f"./cache/voice_message.wav"
@@ -3398,15 +3473,19 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 if conversation_mode and recipient_ip != "":
                     ip = recipient_ip
                 elif recipient_ip == "":
-                    ip, target_mac, target_name, sc, agreed_code = get_recipient_ip(user, display_initiate, print_logs,
+                    ip, target_mac, target_name, sc, agreed_code, contact_override_port = get_recipient_ip(user, display_initiate, print_logs,
                                                                        default_color, private_mode, error_color, sc, message=scrambled_output_phrase)
+                    print(agreed_code)
                     reset_ip = Contacts(user, get_current_user(), print_logs, default_color, error_color, private_mode)
                     try:
                         reset_ip.add_ip(target_name, "-")
                     except:
                         pass
                     if type(ip) != list:
-                        recipient_ip = ip.strip().replace("\n", "")
+                        try:
+                            recipient_ip = ip.strip().replace("\n", "")
+                        except:
+                            recipient_ip = None
                 if ip == None:
                     ip = recipient_ip
                 else:
@@ -3438,10 +3517,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             for connection_num in range(len(ip)):
                                 locals()[f"link{connection_num}"] = socket.socket()
                                 locals()[f"link{connection_num}"].connect(
-                                    (ip[connection_num].strip(), 15753))
+                                    (ip[connection_num].strip(), int(override_port)))
                                 locals()[f"sc{connection_num}"] = locals()[f"link{connection_num}"]
                         else:
-                            link.connect((recipient_ip, 15753))
+                            link.connect((recipient_ip, int(override_port)))
                             sc = link
                     connected = True
                     mailbox = False
@@ -3466,7 +3545,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         animated_print(
                             f"WARNING: Unable to reach the host! Try a different address!", error=True, reset=True)
                         Colors(default_color)
-                        ip, target_mac, target_name, empty_sc, agreed_code = get_recipient_ip(user, display_initiate, print_logs,
+                        ip, target_mac, target_name, empty_sc, agreed_code, override_port = get_recipient_ip(user, display_initiate, print_logs,
                                                                                  default_color, private_mode, error_color, None, message=scrambled_output_phrase)
                         if ip == None or ip.strip() == "":
                             menu(user, None, print_logs, default_color,
@@ -3479,7 +3558,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                 temp = ip
                                 contact_search = Contacts(user, get_current_user().lower().strip(
                                 ), print_logs, default_color, error_color, private_mode)
-                                target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
+                                target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
                                     temp)
                                 target_name = target_name.replace("\n", "")
                                 if target_ip != None:
@@ -3497,7 +3576,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                 try:
                                     contact_search = Contacts(user, get_current_user().lower().strip(
                                     ), print_logs, default_color, error_color, private_mode)
-                                    target_name, mac, target_ip, agreed_code, details = contact_search.check_for(
+                                    target_name, mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
                                         ip)
                                     target_name = target_name.replace("\n", "")
                                     if mac.strip() == "":
@@ -3597,7 +3676,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     except UnboundLocalError:
                         ip = None
                     if ip == None or ip.strip() == "":
-                        ip, target_mac, target_name, empty_sc, agreed_code = get_recipient_ip(user, display_initiate, print_logs,
+                        ip, target_mac, target_name, empty_sc, agreed_code, override_port = get_recipient_ip(user, display_initiate, print_logs,
                                                                                  default_color, private_mode, error_color, None, message=scrambled_output_phrase)
                     else:
                         contact_ip = Contacts(user, get_current_user().lower().strip(
@@ -3611,7 +3690,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             temp = ip
                             contact_search = Contacts(user, get_current_user().lower().strip(
                             ), print_logs, default_color, error_color, private_mode)
-                            target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
+                            target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
                                 temp)
                             target_name = target_name.replace("\n", "")
                             if target_ip != None:
@@ -3629,7 +3708,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             try:
                                 contact_search = Contacts(user, get_current_user().lower().strip(
                                 ), print_logs, default_color, error_color, private_mode)
-                                target_name, mac, target_ip, agreed_code, details = contact_search.check_for(
+                                target_name, mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
                                     ip)
                                 target_name = target_name.replace("\n", "")
                                 if mac.strip() == "":
@@ -3698,7 +3777,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             f"WARNING: Unable to reach the host! Try a different address!", error=True, reset=True)
                     Colors(default_color)
                     if ip == None or ip.strip() == "":
-                        ip, target_mac, target_name, empty_sc, agreed_code = get_recipient_ip(user, display_initiate, print_logs,
+                        ip, target_mac, target_name, empty_sc, agreed_code, override_port = get_recipient_ip(user, display_initiate, print_logs,
                                                                                  default_color, private_mode, error_color, None, message=scrambled_output_phrase)
                     else:
                         try:
@@ -3712,7 +3791,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             temp = ip
                             contact_search = Contacts(user, get_current_user().lower().strip(
                             ), print_logs, default_color, error_color, private_mode)
-                            target_name, target_mac, target_ip, agreed_code, details = contact_search.check_for(
+                            target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
                                 temp)
                             target_name = target_name.replace("\n", "")
                             if target_ip != None:
@@ -3730,7 +3809,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             try:
                                 contact_search = Contacts(user, get_current_user().lower().strip(
                                 ), print_logs, default_color, error_color, private_mode)
-                                target_name, mac, target_ip, agreed_code, details = contact_search.check_for(
+                                target_name, mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
                                     ip)
                                 target_name = target_name.replace("\n", "")
                                 if mac.strip() == "":
@@ -3970,7 +4049,6 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             if not graphic_mode:
                 animated_print(
                     f"Message sent! Exiting conversation with {get_foreign_user().capitalize()}")
-            sc.close()
             menu(user, None, print_logs, default_color,
                  private_mode, error_color, print_speed=0)
         elif not skip:
@@ -4131,11 +4209,11 @@ def decode_foreign_user(code, prefix, user, default_color):
 
 def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
     """When someone declares the name of a desired recipient, that string is compared to the user curretly logged in, returning True/False"""
-    message = kwargs.get("message", None)
+    message, port = kwargs.get("message", None), kwargs.get("port", override_port)
     if temp_sc == None:
         reply_link = socket.socket()
         try:
-            reply_link.connect((ip.strip(), 15753))
+            reply_link.connect((ip.strip(), int(port)))
         except:
             try:
                 reply_link.connect((ip.strip(), 19507))
@@ -4144,6 +4222,13 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
         sc = reply_link
     else:
         sc = temp_sc
+    decrypted_username, encrypted_username, temp_encrypted_username = [], [], ""
+    for i, char in enumerate(expected_user[::-1]):
+        decrypted_username.append(ord(char))
+        encrypted_username.append(chr(int(decrypted_username[i])+31))
+    for char in encrypted_username:
+        temp_encrypted_username += char
+    expected_user = temp_encrypted_username
     if graphic_mode:
         temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - User Validation (Logged in as: {get_current_user()})"), layout=[
                                 [gui.Text(gui_translate("Validating User..."))]], margins=(100, 50), font="Courier 20", finalize=True)
@@ -4220,7 +4305,7 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
 
 def get_auto_code():
     """Specifically retrieves the state of the auto_code parameter in the config file"""
-    print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation, lang = retrieve_config_settings()
+    print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation, lang, override_port = retrieve_config_settings()
     return auto_code
 
 
@@ -5806,8 +5891,12 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
         newmessage(old_code, user, recipient_ip, temp_sc, backup_prefix, date, talking_to_self,
                    error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), poked=True, message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
     elif conversation_mode and recipient_ip.strip() != "" and output_phrase.strip().endswith("\\exit"):
-        animated_print(
-            f"{get_foreign_user().capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
+        if get_foreign_user() != None:
+            animated_print(
+                f"{get_foreign_user().capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
+        else:
+            animated_print(
+                f"Peer has left chat! Goodbye {capitalize_user(get_current_user())}!")
         menu(user, None, print_logs, default_color,
              private_mode, error_color, print_speed=0)
     elif conversation_mode and recipient_ip.strip() != "" and love_sent:
@@ -5905,8 +5994,14 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
 
 def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, prefix, date, default_color, print_logs, private_mode, error_color, display_initiate, **kwargs):
     """Opens server to recieve and interpret message"""
-    silent, prev_messages, window, temp_display_name, sender, in_contacts, priority_code = kwargs.get(
-        "silent", False), kwargs.get("prev", []), kwargs.get("window", None), get_foreign_user(), kwargs.get("temp_user", None), kwargs.get("in_contacts", None), kwargs.get("priority_code", None)
+    global override_port
+    silent, prev_messages, window, temp_display_name, sender, in_contacts, priority_code, display_port = kwargs.get(
+        "silent", False), kwargs.get("prev", []), kwargs.get("window", None), get_foreign_user(), kwargs.get("temp_user", None), kwargs.get("in_contacts", None), kwargs.get("priority_code", None), override_port
+    try:
+        if contact_override_port != None:
+            override_port = contact_override_port
+    except:
+        pass
     if not silent and not graphic_mode:
         print("Server warming up... ", end="")
     elif graphic_mode:
@@ -6010,9 +6105,42 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
     try:
         if temp_sc == None:
             link = socket.socket()
+            if not silent:
+                if graphic_mode:
+                    layout = [[gui.Text(gui_translate("Set port for contact?")), gui.Button(gui_translate("Yes"), key="yes"), gui.Button(gui_translate("No"), key="no")], [gui.Text(gui_translate("If yes, enter contact's name here")), gui.InputText(key="target_contact")], [gui.Button(gui_translate("Submit"), key="submit")], [gui.Button(gui_translate("Cancel"), key="cancel")],[gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(title=f"FiEncrypt - Port Adjustment (Logged in as {get_current_user()})", layout=layout, font="Courier 20")
+                    while True:
+                        event, values = window.read()
+                        if event == "yes":
+                            server_port_override = True
+                        elif event == "no":
+                            server_port_override = False
+                        elif event == "cancel":
+                            menu(user, None, print_logs, default_color,
+                                 private_mode, error_color, print_speed=0)
+                        elif event == "submit":
+                            if not server_port_override:
+                                server_port_override = False
+                            target_contact = values.get("target_contact", None)
+                            break
+                    window.close()
+                else:
+                    contact_socket = privacy_input("Do you wish to set the port according to a contact file? [Y|N]", private_mode)
+                    if "y" in contact_socket.lower():
+                        target_contact = privacy_input("Enter contact name here", private_mode)
+                contact_port_search = Contacts(user, get_current_user(), print_logs, default_color, error_color, private_mode)
+                contact_name, contact_mac, contact_ip, details, agreed_code, temp_override_port = contact_port_search.check_for(target_contact.strip())
+            else:
+                server_port_override = False
             if not silent and not graphic_mode:
                 animated_print("Socket opened... ")
-            link.bind((ip, 15753))
+            if server_port_override:
+                link.bind((ip, int(temp_override_port)))
+                display_port = temp_override_port
+            else:
+                link.bind((ip, int(override_port)))
+                display_port = override_port
+            override_port = display_port
             time.sleep(1)
             if not silent and not graphic_mode:
                 sys.stdout.write("\033[K")
@@ -6023,13 +6151,17 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             if not silent and not graphic_mode:
                 sys.stdout.write("\033[F")
         if not silent and not graphic_mode:
-            animated_print(f"Socket bound... {ip}:15753")
+            animated_print(f"Socket bound... {ip}:{display_port}")
             animated_print("Listening on socket... ")
         elif graphic_mode:
             time.sleep(1)
+            if silent:
+                layout = [[gui.Text(gui_translate("Awaiting Message"))]]
+            else:
+                layout = [[gui.Text(gui_translate("Awaiting Message"))], [gui.Text(gui_translate("Bound to:")), gui.Text(f"{ip}:{display_port}")]]
             temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - Inbound Server (Logged in as: {get_current_user()})"),
-                                    layout=[[gui.Text(gui_translate("Awaiting Message"))]], margins=(100, 50), font="Courier 20", finalize=True)
-        log(f"Server started on {ip}:15753", "networkManager",
+                                    layout=layout, margins=(100, 50), font="Courier 20", finalize=True)
+        log(f"Server started on {ip}:{display_port}", "networkManager",
             current_user, print_logs)
         if temp_sc == None:
             sc, address = link.accept()
@@ -6202,7 +6334,14 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 expected_user = message[0][1]
                 message[0] = message[0][0]
                 reply_ip = message[1]
-                if expected_user.strip().lower() == capitalize_user(get_current_user()).strip().lower():
+                decrypted_target_user, encrypted_target_user = [], []
+                for i, char in enumerate(expected_user[::-1]):
+                    encrypted_target_user.append(ord(char))
+                    decrypted_target_user.append(chr(int(encrypted_target_user[i])-31))
+                expected_user = ""
+                for char in decrypted_target_user:
+                    expected_user += char
+                if expected_user.strip().lower() == get_current_user().strip().lower():
                     sc[info_set].send(str(True).encode())
                     if not graphic_mode and not silent:
                         animated_print(f"Foreign user validated!")
@@ -6503,6 +6642,14 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             expected_user = message[0][1]
             message[0] = message[0][0]
             reply_ip = message[1]
+            decrypted_target_user, encrypted_target_user = [], []
+            for i, char in enumerate(expected_user[::-1]):
+                encrypted_target_user.append(ord(char))
+                decrypted_target_user.append(chr(int(encrypted_target_user[i])-31))
+            expected_user = ""
+            for char in decrypted_target_user:
+                expected_user += char
+            print(expected_user, get_current_user())
             if expected_user.strip().lower() == capitalize_user(get_current_user()).strip().lower():
                 sc.send(str(True).encode())
                 if not graphic_mode and not silent:
@@ -6623,6 +6770,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 pass
             else:
                 if "agreed" in info[0][0]:
+                    print(info)
                     if graphic_mode:
                         gui.Popup(gui_translate("No/Invalid agreed code found!"), title=gui_translate("Warning"),
                                   text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
@@ -6822,7 +6970,7 @@ def send_conversation_invite(user, current_user, default_color, private_mode, er
     elif sys.platform.startswith("win32"):
         ip = socket.gethostbyname(socket.gethostname())
     try:
-        dest_ip, target_mac, target_name, empty_sc, agreed_code = get_recipient_ip(user, display_initiate, print_logs,
+        dest_ip, target_mac, target_name, empty_sc, agreed_code, override_port = get_recipient_ip(user, display_initiate, print_logs,
                                                                       default_color, private_mode, error_color, None, is_invite=True)
         if type(dest_ip) != list:
             dest_ip = dest_ip.strip()
@@ -7048,7 +7196,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_color, de
                 if "y" in reply.lower():
                     code, prefix, timestamp = showcode(capitalize_user(get_current_user()), 1, private_mode,
                                                        print_logs, error_color, default_color)
-                    ip, target_mac, target_name, temp_sc, agreed_code = get_recipient_ip(
+                    ip, target_mac, target_name, temp_sc, agreed_code, override_port = get_recipient_ip(
                         user, display_initiate, print_logs, default_color, private_mode, error_color, None, confirm_ip=f"{message[1][1][0]}@{message[1][1][1]}")
                     newmessage(code, user, message[1][1][1], temp_sc, prefix, None,
                                False, error_color, default_color, private_mode, print_logs, False, display_initiate, False)
@@ -7065,7 +7213,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_color, de
 
 def config_settings(user, current_user, default_color, print_logs, private_mode, error_color):
     """Provides an interface to modify the config file through"""
-    global graphic_mode, gui_theme, translation, TranslationManager
+    global graphic_mode, gui_theme, translation, TranslationManager, override_port
     master_printing_speed = None
     if not graphic_mode:
         animated_print(f"Loading special options...")
@@ -7149,6 +7297,11 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
             translation = to_boolean(translation[1].strip())
         else:
             translation = False
+        if "override_port" in config_lines[15].lower():
+            override_port = config_lines[15].split(" = ")
+            override_port = override_port[1].strip()
+        else:
+            override_port = 15753
         if translation:
             if "lang" in config_lines[14].lower():
                 lang = config_lines[14].split(" = ")
@@ -7160,10 +7313,10 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
         if graphic_mode:
             if custom_scheme:
                 layout = [[gui.Text(f"{gui_translate('1. Debug mode:')} {debug_mode}")], [gui.Text(f"{gui_translate('2. Display initiate:')} {display_initiate}")], [gui.Text(f"{gui_translate('3. Print Speed:')} {printing_speed}")], [gui.Text(f"{gui_translate('4. Enable custom color scheme:')} {custom_scheme}")], [gui.Text(f"{gui_translate('5. Custom color:')} {display_color}")], [gui.Text(f"{gui_translate('6. Conversation mode:')} {conversation_mode}")], [gui.Text(f"{gui_translate('7. Graphic mode:')} {graphic_mode}")], [gui.Text(f"{gui_translate('8. Privacy mode:')} {private_mode}")], [gui.Text(f"{gui_translate('9. Auto code:')} {auto_code}")], [
-                    gui.Text(f"{gui_translate('10. Voice Message Duration:')} {voice_record_time}")], [gui.Text(f"{gui_translate('11. GUI Theme:')} {gui_theme}")], [gui.Text(f"{gui_translate('12. Translation:')} {translation}")], [gui.Text(f"{gui_translate('13. Region:')} {lang}")], [gui.Text(gui_translate("14. Create new user..."))], [gui.Text(gui_translate("Which setting would you like to modify")), gui.InputText(key="choice"), gui.Button(gui_translate("Select"), key="Select", bind_return_key=True)], [gui.Button(gui_translate("Return to Main Menu"), key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    gui.Text(f"{gui_translate('10. Voice Message Duration:')} {voice_record_time}")], [gui.Text(f"{gui_translate('11. GUI Theme:')} {gui_theme}")], [gui.Text(f"{gui_translate('12. Translation:')} {translation}")], [gui.Text(f"{gui_translate('13. Region:')} {lang}")], [gui.Text(f"{gui_translate('14. Override Port:')} {override_port}")], [gui.Text(gui_translate("15. Create new user..."))], [gui.Text(gui_translate("Which setting would you like to modify")), gui.InputText(key="choice"), gui.Button(gui_translate("Select"), key="Select", bind_return_key=True)], [gui.Button(gui_translate("Return to Main Menu"), key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             else:
                 layout = [[gui.Text(f"{gui_translate('1. Debug mode:')} {debug_mode}")], [gui.Text(f"{gui_translate('2. Display initiate:')} {display_initiate}")], [gui.Text(f"{gui_translate('3. Print Speed:')} {printing_speed}")], [gui.Text(f"{gui_translate('4. Enable custom color scheme:')} {custom_scheme}")], [gui.Text(f"{gui_translate('5. Conversation mode:')} {conversation_mode}")], [gui.Text(f"{gui_translate('6. Graphic mode:')} {graphic_mode}")], [
-                    gui.Text(f"{gui_translate('7. Privacy mode:')} {private_mode}")], [gui.Text(f"{gui_translate('8. Auto code:')} {auto_code}")], [gui.Text(f"{gui_translate('9. Voice Message Duration:')} {voice_record_time}")], [gui.Text(f"{gui_translate('10. GUI Theme:')} {gui_theme}")], [gui.Text(f"{gui_translate('11. Translation:')} {translation}")], [gui.Text(f"{gui_translate('12. Region:')} {lang}")], [gui.Text(gui_translate("13. Create new user..."))], [gui.Text(gui_translate("Which setting would you like to modify")), gui.InputText(key="choice"), gui.Button(gui_translate("Select"), key="Select", bind_return_key=True)], [gui.Button(gui_translate("Return to Main Menu"), key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    gui.Text(f"{gui_translate('7. Privacy mode:')} {private_mode}")], [gui.Text(f"{gui_translate('8. Auto code:')} {auto_code}")], [gui.Text(f"{gui_translate('9. Voice Message Duration:')} {voice_record_time}")], [gui.Text(f"{gui_translate('10. GUI Theme:')} {gui_theme}")], [gui.Text(f"{gui_translate('11. Translation:')} {translation}")], [gui.Text(f"{gui_translate('12. Region:')} {lang}")], [gui.Text(f"{gui_translate('13. Override Port:')} {override_port}")], [gui.Text(gui_translate("14. Create new user..."))], [gui.Text(gui_translate("Which setting would you like to modify")), gui.InputText(key="choice"), gui.Button(gui_translate("Select"), key="Select", bind_return_key=True)], [gui.Button(gui_translate("Return to Main Menu"), key="Return")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             window = gui.Window(title=gui_translate(f"FiEncrypt - Config Settings (Logged in as: {get_current_user()})"), layout=layout,
                                 margins=(100, 50), font="Courier 20")
             event, values = window.read()
@@ -7173,9 +7326,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     choice = None
             elif event == "Return":
                 if custom_scheme:
-                    choice = "15"
+                    choice = "16"
                 else:
-                    choice = "14"
+                    choice = "15"
             window.close()
         else:
             animated_print(
@@ -7202,8 +7355,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 animated_print(f"11. GUI Theme: {gui_theme}", speed=master_printing_speed)
                 animated_print(f"12. Translation: {translation}", speed=master_printing_speed)
                 animated_print(f"13. Region: {lang}", speed=master_printing_speed)
-                animated_print(f"14. Create new user...", speed=master_printing_speed)
-                animated_print(f"15. Return to main menu", speed=master_printing_speed)
+                animated_print(f"14. Override Port: {override_port}", speed=master_print_speed)
+                animated_print(f"15. Create new user...", speed=master_printing_speed)
+                animated_print(f"16. Return to main menu", speed=master_printing_speed)
             else:
                 animated_print(
                     f"5. Conversation mode: {conversation_mode}", speed=master_printing_speed)
@@ -7218,8 +7372,9 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 animated_print(f"10. GUI Theme: {gui_theme}", speed=master_printing_speed)
                 animated_print(f"11. Translation: {translation}", speed=master_printing_speed)
                 animated_print(f"12. Region: {lang}", speed=master_print_speed)
-                animated_print(f"13. Create new user...", speed=master_printing_speed)
-                animated_print(f"14. Return to main menu", speed=master_printing_speed)
+                animated_print(f"13. Override Port: {override_port}", speed=master_print_speed)
+                animated_print(f"14. Create new user...", speed=master_printing_speed)
+                animated_print(f"15. Return to main menu", speed=master_printing_speed)
             choice = privacy_input(
                 f"What setting would you like to modify", private_mode)
         if choice == None:
@@ -7516,6 +7671,24 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     window.close()
                 else:
                     translation = to_boolean(privacy_input(f"True/False", private_mode))
+                if translation and "supress_translate_warning" not in config_lines[-1]:
+                        if graphic_mode:
+                            layout = [[gui.Text("*** WARNING ***", text_color="red", font="Courier 30")], [gui.Text("Enabling translate will expose sensitive data, including private messages, \nto data harvesting on the part of the relevant services. Please disable translation if you take issue with this.")], [gui.Button("Accept"), gui.Button("Decline")], [gui.Checkbox("Supress future warnings", key="supress_translate_warning")]]
+                            temp_popup = gui.Window(title=f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})", layout=layout, font="Courier 20")
+                            while True:
+                                event, values = temp_popup.read()
+                                if event == "Accept":
+                                    supress_translate_warning = values.get("supress_translate_warning", False)
+                                    break
+                                elif event == "Decline":
+                                    translation, supress_translate_warning = False, False
+                                    break
+                            temp_popup.close()
+                            if supress_translate_warning and translation:
+                                if "supress_translate_warning" not in config_lines[-1]:
+                                    config_lines.append("supress_translate_warning")
+                        else:
+                            animated_print("WARNING: Enabling translate will expose sensitive data, including private messages, to data harvesting on the part of the relevant services. Please disable translation if you take issue with this.", error=True, reset=True)
                 config_lines[13] = f"translation = {translation}"
         elif choice == "12":
             if custom_scheme:
@@ -7530,6 +7703,24 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     window.close()
                 else:
                     translation = to_boolean(privacy_input(f"True/False", private_mode))
+                if translation and "supress_translate_warning" not in config_lines[-1]:
+                        if graphic_mode:
+                            layout = [[gui.Text("*** WARNING ***", text_color="red", font="Courier 30")], [gui.Text("Enabling translate will expose sensitive data, including private messages, \nto data harvesting on the part of the relevant services. Please disable translation if you take issue with this.")], [gui.Button("Accept"), gui.Button("Decline")], [gui.Checkbox("Supress future warnings", key="supress_translate_warning")]]
+                            temp_popup = gui.Window(title=f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})", layout=layout, font="Courier 20")
+                            while True:
+                                event, values = temp_popup.read()
+                                if event == "Accept":
+                                    supress_translate_warning = values.get("supress_translate_warning", False)
+                                    break
+                                elif event == "Decline":
+                                    translation, supress_translate_warning = False, False
+                                    break
+                            temp_popup.close()
+                            if supress_translate_warning and translation:
+                                if "supress_translate_warning" not in config_lines[-1]:
+                                    config_lines.append("supress_translate_warning")
+                        else:
+                            animated_print("WARNING: Enabling translate will expose sensitive data, including private messages, to data harvesting on the part of the relevant services. Please disable translation if you take issue with this.", error=True, reset=True)
                 config_lines[13] = f"translation = {translation}"
             else:
                 if graphic_mode:
@@ -7567,14 +7758,41 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 TranslationManager = Translate(lang)
                 lang = parse_region(lang, order=0)
             else:
-                add_new_user()
+                if graphic_mode:
+                    layout = [[gui.Text(gui_translate("Enter Override Port")), gui.InputText(key="override_port")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [
+                        gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(
+                        title=gui_translate(f"FiEncrypt - Set Override Port (Logged in as: {get_current_user()})"), layout=layout, margins=(100, 50), font="Courier 20")
+                    event, values = window.read()
+                    if event == "Update":
+                        override_port = values.get("override_port", 15753)
+                    window.close()
+                else:
+                    override_port = privacy_input("Enter Override Port", private_mode)
+                config_lines[15] = f"override_port = {int(str(override_port).strip())}"
         elif choice == "14":
+            if custom_scheme:
+                if graphic_mode:
+                    layout = [[gui.Text(gui_translate("Enter Override Port")), gui.InputText(key="override_port")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [
+                        gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    window = gui.Window(
+                        title=gui_translate(f"FiEncrypt - Set Override Port (Logged in as: {get_current_user()})"), layout=layout, margins=(100, 50), font="Courier 20")
+                    event, values = window.read()
+                    if event == "Update":
+                        override_port = values.get("override_port", 15753)
+                    window.close()
+                else:
+                    override_port = privacy_input("Enter Override Port", private_mode).strip()
+                config_lines[15] = f"override_port = {int(str(override_port).strip())}"
+            else:
+                add_new_user()
+        elif choice == "15":
             if custom_scheme:
                 add_new_user()
             else:
                 menu(user, display_initiate, print_logs, default_color,
                      private_mode, error_color, print_speed=0)
-        elif choice == "15":
+        elif choice == "16":
             if custom_scheme:
                 menu(user, display_initiate, print_logs, default_color,
                      private_mode, error_color, print_speed=0)
@@ -8077,7 +8295,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
 
 def assisted_menu():
     home_directory, operating_system, user = enter_home_directory()
-    print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation, lang = retrieve_config_settings()
+    print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation, lang, override_port = retrieve_config_settings()
     error_color = "\033[91m"
     menu(user, display_initiate, print_logs, default_color, private_mode, error_color)
 
@@ -8326,11 +8544,11 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             contact_func = 0
                     contact_manager = Contacts(user, get_current_user().lower(
                     ).strip(), print_logs, default_color, error_color, private_mode)
-                    agreed = None
+                    agreed, temp_override_port = None, None
                     if contact_func == 1:
                         if graphic_mode:
                             layout = [[gui.Text(gui_translate("Enter contact name here")), gui.InputText(key="new_name")], [gui.Text(gui_translate("Enter MAC address here")), gui.InputText(
-                                key="new_ip")], [gui.Text(gui_translate("Store agreed code?")), gui.Button(gui_translate("Yes"), key="yes"), gui.Button(gui_translate("No"), key="no"), gui.InputText(key="set_code")], [gui.Text(gui_translate("Enter any additional details here")), gui.InputText(key="new_details")], [gui.Button(gui_translate("Save"), key="Save", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                                key="new_ip")], [gui.Text(gui_translate("Set agreed encryption code")), gui.Button(gui_translate("Yes"), key="yes"), gui.Button(gui_translate("No"), key="no"), gui.InputText(key="agreed_code")], [gui.Text(gui_translate("Set port for dedicated communication")), gui.InputText(key="override_port")], [gui.Text(gui_translate("Enter any additional details here")), gui.InputText(key="new_details")], [gui.Button(gui_translate("Save"), key="Save", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate(f"FiEncrypt - New Contact (Logged in as: {get_current_user()})"),
                                                 layout=layout, margins=(100, 50), font="Courier 20")
                             while True:
@@ -8339,9 +8557,14 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                                     agreed = "n"
                                 elif event == "yes":
                                     agreed = "y"
+                                elif event == "Cancel":
+                                    func = 0
+                                    break
+                                    window.close()
+                                    break
                                 elif event == "Save":
-                                    new_name, new_ip, new_details, set_code = values.get("new_name", ""), values.get(
-                                        "new_ip", ""), values.get("new_details", ""), values.get("set_code", None)
+                                    new_name, new_ip, new_details, set_code, temp_override_port = values.get("new_name", ""), values.get(
+                                        "new_ip", ""), values.get("new_details", ""), values.get("agreed_code", None), values.get("override_port", None)
                                     if agreed == None:
                                         agreed = "n"
                                     break
@@ -8358,21 +8581,31 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                                     set_code = None
                             else:
                                 set_code = None
+                            temp_override_port = privacy_input(f"Enter dedicated port for commuication", private_mode)
                             new_details = privacy_input(
                                 f"Enter any additional details here", private_mode)
+                        if temp_override_port != None and temp_override_port.strip() != "":
+                            try:
+                                temp_override_port = int(temp_override_port)
+                            except:
+                                temp_override_port = None
+                        else:
+                            temp_override_port = None
                         if "y" in agreed.lower() and (set_code != None and set_code.strip() != ""):
                             agreed_code = set_code.strip()
                         elif "y" in agreed.lower():
                             agreed_code = f"{timestamp}_{code}_{prefix}"
                         else:
                             agreed_code = None
+                        if new_details.strip() == "" or new_details == None:
+                            new_details = "\n"
                         if agreed_code != None:
                             if graphic_mode:
                                 gui.Popup(f"The agreed code with {new_name} is {agreed_code}", title=f"FiEncrypt - Agreed Code (Logged in as {get_current_user()})", font="Courier 20")
                             else:
                                 animated_print(f"The agreed code with {new_name} is {agreed_code}")
                         if new_name.strip() != "":
-                            contact_manager.add(new_name, new_ip, agreed_code, new_details)
+                            contact_manager.add(new_name, new_ip, agreed_code, new_details, temp_override_port)
                         else:
                             if graphic_mode:
                                 gui.Popup(gui_translate("Contact name cannot be blank!"), title=gui_translate("Warning"),
@@ -8489,11 +8722,11 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             contact_func = 0
                     contact_manager = Contacts(user, get_current_user().lower(
                     ).strip(), print_logs, default_color, error_color, private_mode)
-                    agreed = None
+                    agreed, temp_override_port = None, None
                     if contact_func == 1:
                         if graphic_mode:
                             layout = [[gui.Text(gui_translate("Enter contact name here")), gui.InputText(key="new_name")], [gui.Text(gui_translate("Enter MAC address here")), gui.InputText(
-                                key="new_ip")], [gui.Text(gui_translate("Enter any additional details here")), gui.InputText(key="new_details")], [gui.Button(gui_translate("Save"), key="Save", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                                key="new_ip")], [gui.Text(gui_translate("Set agreed encryption code")), gui.Button(gui_translate("Yes"), key="yes"), gui.Button(gui_translate("No"), key="no"), gui.InputText(key="agreed_code")], [gui.Text(gui_translate("Set port for dedicated communication")), gui.InputText(key="override_port")], [gui.Text(gui_translate("Enter any additional details here")), gui.InputText(key="new_details")], [gui.Button(gui_translate("Save"), key="Save", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                             window = gui.Window(title=gui_translate(f"FiEncrypt - New Contact (Logged in as: {get_current_user()})"),
                                                 layout=layout, margins=(100, 50), font="Courier 20")
                             while True:
@@ -8502,9 +8735,14 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                                     agreed = "n"
                                 elif event == "yes":
                                     agreed = "y"
+                                elif event == "Cancel":
+                                    func = 0
+                                    break
+                                    window.close()
+                                    break
                                 elif event == "Save":
-                                    new_name, new_ip, new_details = values.get("new_name", ""), values.get(
-                                        "new_ip", ""), values.get("new_details", "")
+                                    new_name, new_ip, new_details, set_code, temp_override_port = values.get("new_name", ""), values.get(
+                                        "new_ip", ""), values.get("new_details", ""), values.get("agreed_code", None), values.get("override_port", None)
                                     if agreed == None:
                                         agreed = "n"
                                     break
@@ -8515,14 +8753,35 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                             new_ip = privacy_input(
                                 f"Enter MAC address here (or leave blank)", private_mode)
                             agreed = privacy_input(f"Do you want to store current code as agreed code? [Y|N]", private_mode)
+                            if "y" in agreed.lower():
+                                set_code = privacy_input(f"Set the agreed code (or leave blank to apply current code)", private_mode)
+                                if set_code.strip() == "":
+                                    set_code = None
+                            else:
+                                set_code = None
                             new_details = privacy_input(
                                 f"Enter any additional details here", private_mode)
+                            temp_override_port = privacy_input(f"Enter dedicated port for commuication", private_mode)
+                        if temp_override_port != None and temp_override_port.strip() != "":
+                            try:
+                                temp_override_port = int(temp_override_port)
+                            except:
+                                temp_override_port = None
+                        else:
+                            temp_override_port = None
                         if "y" in agreed.lower():
                             agreed_code = code
                         else:
                             agreed_code = None
+                        if new_details.strip() == "" or new_details == None:
+                            new_details = "\n"
+                        if agreed_code != None:
+                            if graphic_mode:
+                                gui.Popup(f"The agreed code with {new_name} is {agreed_code}", title=f"FiEncrypt - Agreed Code (Logged in as {get_current_user()})", font="Courier 20")
+                            else:
+                                animated_print(f"The agreed code with {new_name} is {agreed_code}")
                         if new_name.strip() != "":
-                            contact_manager.add(new_name, new_ip, agreed_code, new_details)
+                            contact_manager.add(new_name, new_ip, agreed_code, new_details, temp_override_port)
                         else:
                             if graphic_mode:
                                 gui.Popup(gui_translate("Contact name cannot be blank!"), title=gui_translate("Warning"),
@@ -8739,7 +8998,7 @@ def login(display_initiate, user_account_name, error_color, default_color, print
 
 def initiate():
     """Startup script for FiEncrypt"""
-    global graphic_mode, gui_theme, translation, TranslationManager
+    global graphic_mode, gui_theme, translation, TranslationManager, override_port
     ImportStructure("logic")
     ImportStructure("system")
     log("--== FiEncrypt Warming Up! ==--", "", get_current_user(), False)
@@ -8749,8 +9008,10 @@ def initiate():
     log("String modules imported!", "moduleManager", get_current_user(), False)
     ImportStructure("network")
     log("Network modules imported!", "moduleManager", get_current_user(), False)
+    ImportStructure("gui")
+    log("GUI module imported!", "moduleManager", get_current_user(), False)
     home_directory, operating_system, user = enter_home_directory()
-    print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation, lang = retrieve_config_settings()
+    print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation, lang, override_port = retrieve_config_settings()
     if translation:
         TranslationManager = Translate(lang)
     else:
@@ -8760,7 +9021,6 @@ def initiate():
         Colors(default_color)
     else:
         Colors(None)
-    ImportStructure("gui")
     apply_theme(gui_theme)
     graphic_mode = to_boolean(graphic_mode)
     clear_cache()

