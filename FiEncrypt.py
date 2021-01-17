@@ -218,8 +218,9 @@ class Contacts:
                     elif ip_wipe:
                         self.add_ip(contact_lines[0], "-")
                     else:
-                        if hash_current_user(contact_lines[1].strip()) == target_mac.strip():
-                            return True, [contact_line for contact_line in contact_lines]
+                        if target_mac != None:
+                            if hash_current_user(contact_lines[1].strip()) == target_mac.strip():
+                                return True, [contact_line for contact_line in contact_lines]
             if mac_check:
                 return False, None
         log(f"Contact Dump: {self.contact_names}",
@@ -612,7 +613,7 @@ def establish_tree():
     display_license()
     with open(f"./config.txt", "w+") as config_file:
         default_config = ["# FiEncrypt", "[config.txt]", "debug_mode = False",
-                          "display_initiate = False", "-", "-", "-", "conversation_mode = True", "graphic_mode = False", "private_mode = False", "auto_code = True", "voice_message = 15s", "gui_theme = default_no_more_nagging", "translation = False", "lang = en", "override_port = 15753"]
+                          "display_initiate = False", "printing_speed = 0.02", "default_color = None", "custom_scheme = False", "conversation_mode = True", "graphic_mode = False", "private_mode = False", "auto_code = True", "voice_message = 15s", "gui_theme = default", "translation = False", "lang = en", "override_port = 15753"]
         for line in default_config:
             config_file.write(f"{line}\n")
     with open(f"./cache_settings.txt", "w+") as cache_settings_file:
@@ -879,23 +880,37 @@ def mac_resolve(mac, print_logs):
     if "/" in scan_ip:
         IP_str = scan_ip.split(".")
         IP_str[3] = IP_str[3].replace("/16", "")
-        # ?Due to memory restrictions with running arp_scan on /16 or larger network, this loop checks each band and only continues if no results are found
-        for i in range(254):
-            result = arp_scan(
-                f"{IP_str[0]}.{IP_str[1]}.{i}.0/24")
-            if result == None:
-                if graphic_mode:
-                    gui.Popup(
-                        f"ARP Resolution unavailable on {pass_os()}!", title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
-                return None
-            for mapping in result:
-                # ?Strips both results to avoid rampant fucking spaces from affecting the comparison query lol
-                if mac == None:
+        if graphic_mode:
+            temp_popup = gui.Window(title=f"FiEncrypt ARP Scan Protocol (Logged in as: {get_current_user()})", layout=[[gui.Text(gui_translate("Do you wish to only scan a /24 range to save time?")), gui.Button(gui_translate("Yes"), key="yes"), gui.Button(gui_translate("No"), key="no")]], font="Courier 20", margins=(100, 50))
+            event, values = temp_popup.read()
+            if event == "yes":
+                scan_24 = True
+            else:
+                scan_24 = False
+            temp_popup.close()
+        else:
+            scan_24 = to_boolean(privacy_input("Do you wish to only scan a /24 range to save time? (True/False)", 0))
+        if not scan_24:
+            # ?Due to memory restrictions with running arp_scan on /16 or larger network, this loop checks each band and only continues if no results are found
+            for i in range(254):
+                result = arp_scan(
+                    f"{IP_str[0]}.{IP_str[1]}.{i}.0/24")
+                if result == None:
+                    if graphic_mode:
+                        gui.Popup(
+                            f"ARP Resolution unavailable on {pass_os()}!", title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                     return None
-                elif mac.strip() in str(mapping['MAC']).strip():
-                    log(f"ARP Scan run for MAC {mac} on {IP_str[0]}.{IP_str[1]}.{i}.0/24 Result: {str(format(mapping['IP']))}",
-                        "networkManager", get_current_user(), None)
-                    return str(format(mapping['IP']))
+                for mapping in result:
+                    # ?Strips both results to avoid rampant fucking spaces from affecting the comparison query lol
+                    if mac == None:
+                        return None
+                    elif mac.strip() in str(mapping['MAC']).strip():
+                        log(f"ARP Scan run for MAC {mac} on {IP_str[0]}.{IP_str[1]}.{i}.0/24 Result: {str(format(mapping['IP']))}",
+                            "networkManager", get_current_user(), None)
+                        return str(format(mapping['IP']))
+        else:
+            result = arp_scan(
+                f"{IP_str[0]}.{IP_str[1]}.{IP_str[2]}.0/24")
         if result == None:
             return None
     #!Not allowed to trigger, as MAC resolution is only needed when the IP is not known
@@ -6107,7 +6122,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             link = socket.socket()
             if not silent:
                 if graphic_mode:
-                    layout = [[gui.Text(gui_translate("Set port for contact?")), gui.Button(gui_translate("Yes"), key="yes"), gui.Button(gui_translate("No"), key="no")], [gui.Text(gui_translate("If yes, enter contact's name here")), gui.InputText(key="target_contact")], [gui.Button(gui_translate("Submit"), key="submit")], [gui.Button(gui_translate("Cancel"), key="cancel")],[gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                    layout = [[gui.Text(gui_translate("Set port for contact?")), gui.Button(gui_translate("Yes"), key="yes"), gui.Button(gui_translate("No"), key="no")], [gui.Text(gui_translate("If yes, enter contact's name here")), gui.InputText(key="target_contact")], [gui.Button(gui_translate("Submit"), key="submit"), gui.Button(gui_translate("Cancel"), key="cancel")],[gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=f"FiEncrypt - Port Adjustment (Logged in as {get_current_user()})", layout=layout, font="Courier 20")
                     while True:
                         event, values = window.read()
@@ -6116,6 +6131,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                         elif event == "no":
                             server_port_override = False
                         elif event == "cancel":
+                            window.close()
                             menu(user, None, print_logs, default_color,
                                  private_mode, error_color, print_speed=0)
                         elif event == "submit":
@@ -6169,7 +6185,10 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             sc = temp_sc
     except KeyboardInterrupt:
         log("Server channel terminated!", "networkManager", get_current_user(), print_logs)
-        animated_print("\nServer Terminated!")
+        if graphic_mode:
+            temp_popup.close()
+        else:
+            animated_print("\nServer Terminated!")
         try:
             sc.close()
         except:
@@ -6949,6 +6968,10 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 pass
             menu(user, display_initiate, print_logs,
                  default_color, private_mode, error_color, print_speed=0)
+
+
+def helper(issue, user, current_user):
+    print("Helper not currently available! Please check back to https://www.github.com/le-firehawk/FiEncrypt for updates!")
 
 
 def send_conversation_invite(user, current_user, default_color, private_mode, error_color, print_logs, display_initiate):
@@ -8893,7 +8916,7 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
         else:
             if graphic_mode:
                 gui.Popup(gui_translate("Invalid Function!"),
-                          title=gui_translate("Warning"), text_color="red", auto_close=True, auto_close_duration=5)
+                          title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
             else:
                 animated_print(f"Invalid Fuction!")
 

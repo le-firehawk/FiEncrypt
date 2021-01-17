@@ -192,6 +192,19 @@ def get_current_user(**new_user):
     return current_user
 
 
+def check_no_credentials():
+    enter_home_directory()
+    try:
+        with open("CREDENTIALS.txt", "r+") as credentials_file:
+            lines = credential_lines.read().split("\n")
+            if len(lines) <= 1:
+                return False
+            else:
+                return True
+    except:
+        return False
+
+
 def login():
     try:
         valid = False
@@ -215,6 +228,10 @@ def login():
 
 def main():
     home_directory, system, user = enter_home_directory()
+    no_accounts = check_no_credentials()
+    if no_accounts:
+        print("You have not created any FiEncrypt accounts! Return to the main program and create one to proceed!")
+        exit()
     valid, username, password = login()
     if valid:
         get_current_user(new_user=username)
