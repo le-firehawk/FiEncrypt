@@ -1,4 +1,8 @@
 from scapy.all import *
+try:
+    from bluetooth import *
+except:
+    pass
 import contextlib
 # FiEncrypt, property of le_firehawk is pure Python, peer-to-peer communication software intended for personal use only.
 # Copyright (C) 2020 le_firehawk
@@ -880,7 +884,7 @@ def mac_resolve(mac, print_logs):
     if "/" in scan_ip:
         IP_str = scan_ip.split(".")
         IP_str[3] = IP_str[3].replace("/16", "")
-        if graphic_mode:
+        if graphic_mode and print_logs:
             temp_popup = gui.Window(title=f"FiEncrypt ARP Scan Protocol (Logged in as: {get_current_user()})", layout=[[gui.Text(gui_translate("Do you wish to only scan a /24 range to save time?")), gui.Button(gui_translate("Yes"), key="yes"), gui.Button(gui_translate("No"), key="no")]], font="Courier 20", margins=(100, 50))
             event, values = temp_popup.read()
             if event == "yes":
@@ -888,8 +892,10 @@ def mac_resolve(mac, print_logs):
             else:
                 scan_24 = False
             temp_popup.close()
-        else:
+        elif print_logs:
             scan_24 = to_boolean(privacy_input("Do you wish to only scan a /24 range to save time? (True/False)", 0))
+        else:
+            scan_24 = False
         if not scan_24:
             # ?Due to memory restrictions with running arp_scan on /16 or larger network, this loop checks each band and only continues if no results are found
             for i in range(254):
@@ -1482,13 +1488,13 @@ def create_notification(ip, name):
 
 def get_recipient_ip(user, display_initiate, print_logs, default_color, private_mode, error_color, temp_sc, **kwargs):
     """Obtains the desired IP, MAC, or contact name that a message is to be sent to. Calls arp_scan() and mac_resolve() modules as appropiate"""
-    target_mac, target_name, is_invite, confirm_ip, message, ip, agreed_code = None, None, kwargs.get(
-        "is_invite", False), kwargs.get("confirm_ip", None), kwargs.get("message", None), None, None
+    target_mac, target_name, is_invite, confirm_ip, message, ip, agreed_code, use_bluetooth, manual_port = None, None, kwargs.get(
+        "is_invite", False), kwargs.get("confirm_ip", None), kwargs.get("message", None), None, None, kwargs.get("use_bluetooth", False), False
     try:
         override_port = int(override_port)
     except:
         override_port = None
-    if confirm_ip == None:
+    if confirm_ip == None and not use_bluetooth:
         if graphic_mode:
             layout = [[gui.Text(gui_translate("Enter IP, MAC address or contact name of the recipient")), gui.InputText(
                 key="ip_in")], [gui.Button(gui_translate("Send"), key="Send", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
@@ -1501,9 +1507,64 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
         else:
             ip = privacy_input(
                 "Enter the IP, MAC address or contact name of the recipient", private_mode)
+    elif use_bluetooth:
+        nearby_devices = discover_devices()
+        override_port = 23
+        if graphic_mode:
+            while True:
+                layout = [[gui.Text(gui_translate("Select one of these bluetooth addresses"))], [gui.Text(f"{i+1}. {address.strip()}\n") for i, address in enumerate(nearby_devices)], [gui.InputText(key="selected_bt_address")], [gui.Button(gui_translate("Rescan"), key="Rescan"), gui.Button(gui_translate("Submit"), key="Submit", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="Cancel")]]
+                temp_window = gui.Window(title=gui_translate(f"FiEncrypt - Bluetooth Selector (Logged in as: {get_current_user()})"), layout=layout, font="Courier 20", margins=(100, 50))
+                event, values = temp_window.read()
+                if event == "Submit":
+                    try:
+                        if ":" in values.get("selected_bt_address", ""):
+                            ip = values.get("selected_bt_address", None).strip()
+                        else:
+                            ip = nearby_devices[int(values.get("selected_bt_address", "0").strip())-1]
+                            if ip == 0:
+                                ip = None
+                    except:
+                        ip = None
+                    break
+                elif event == "Rescan":
+                    iteration, old_length = 0, len(nearby_devices)
+                    gui.popup_no_wait("Rescanning...", title=gui_translate(f"FiEncrypt - Bluetooth Scan (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
+                    while len(nearby_devices) == old_length:
+                        nearby_devices = discover_devices()
+                        if len(nearby_devices) != old_length or iteration >= 25:
+                            old_length = len(nearby_devices)
+                            temp_window.close()
+                            break
+                        else:
+                            time.sleep(2)
+                            iteration += 1
+                    if len(nearby_devices) == 0:
+                        gui.Popup(gui_translate("No nearby Bluetooth devices found!"), font="Courier 20", text_color="red", title="Warning", auto_close=True, auto_close_duration=5)
+                        temp_window.close()
+                        ip, target_mac, target_name, temp_sc, agreed_code, override_port = get_recipient_ip(user, display_initiate, print_logs,
+                                                                                default_color, private_mode, error_color, temp_sc, confirm_ip=confirm_ip, message=message, is_invite=is_invite, use_bluetooth=False)
+                        break
+                    else:
+                        temp_window.close()
+                elif event == "Cancel":
+                    ip = None
+                    temp_window.close()
+                    break
+                else:
+                    ip = None
+            temp_window.close()
+        else:
+            for i, address in enumerate(nearby_devices):
+                animated_print(f"{i+1}. {address}")
+            try:
+                ip = nearby_devices[int(privacy_input("Select one of these bluetooth addresses", private_mode).strip())-1]
+                if ip == 0:
+                    ip = None
+            except:
+                ip = None
     else:
         ip = confirm_ip
-    if ip == None:
+    if ip == None or ip.strip() == "":
         menu(user, None, print_logs, default_color,
              private_mode, error_color, print_speed=0)
     elif "," in ip:
@@ -1514,55 +1575,77 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 ip = ip.split("@")
                 target_name = ip[0].strip()
                 ip = ip[1].strip()
+                if ip.count(":") == 1:
+                    ip = ip.split(":", 1)
+                    override_port, contact_override_port = ip[1].strip(), ip[1].strip()
+                    ip = ip[0].strip()
+                    manual_port = True
                 if "." not in ip:
-                    contact_search = Contacts(user, get_current_user().lower().strip(
-                    ), print_logs, default_color, error_color, private_mode)
-                    target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
-                        ip)
-                    if "." in ip and ip.count(":") == 1:
-                        ip = ip.split(":")
-                        override_port = int(ip[1].strip())
-                        ip = ip[0].strip()
-                    target_name = target_name.replace("\n", "")
-                    if target_ip != None:
-                        ip = target_ip
+                    if use_bluetooth:
+                        target_mac = None
                     else:
-                        ip = mac_resolve(target_mac, print_logs)
-                    if ip == None:
-                        animated_print(
-                            f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
-                        Colors(default_color)
-                        connected = False
-                    else:
-                        contact_search.add_ip(target_name, ip)
+                        contact_search = Contacts(user, get_current_user().lower().strip(
+                        ), print_logs, default_color, error_color, private_mode)
+                        target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
+                            ip)
+                        if not manual_port:
+                            override_port = int(override_port)
+                        else:
+                            override_port = int(contact_override_port)
+                        target_name = target_name.replace("\n", "")
+                        if "." in ip and ip.count(":") == 1:
+                            ip = ip.split(":")
+                            override_port = int(ip[1].strip())
+                            ip = ip[0].strip()
+                        target_name = target_name.replace("\n", "")
+                        if target_ip != None:
+                            ip = target_ip
+                        else:
+                            ip = mac_resolve(target_mac, print_logs)
+                        if ip == None:
+                            animated_print(
+                                f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
+                            Colors(default_color)
+                            connected = False
+                        else:
+                            contact_override_port = override_port
+                            contact_search.add_ip(target_name, ip)
                 else:
                     target_mac = None
         elif "@" in ip:
             ip = ip.split("@")
             expected_user = ip[0].strip()
             ip = ip[1].strip()
+            if ip.count(":") == 1:
+                ip = ip.split(":", 1)
+                override_port, contact_override_port = ip[1].strip(), ip[1].strip()
+                ip = ip[0].strip()
+                manual_port = True
             if "." not in ip:
-                contact_search = Contacts(user, get_current_user().lower().strip(
-                ), print_logs, default_color, error_color, private_mode)
-                target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
-                    ip)
-                override_port = int(override_port)
-                target_name = target_name.replace("\n", "")
-                if target_ip != None:
-                    ip = target_ip.strip()
+                if use_bluetooth:
+                    pass
                 else:
-                    ip = mac_resolve(target_mac.strip(), print_logs)
+                    contact_search = Contacts(user, get_current_user().lower().strip(
+                    ), print_logs, default_color, error_color, private_mode)
+                    target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
+                        ip)
+                    if not manual_port:
+                        override_port = int(override_port)
+                    else:
+                        override_port = int(contact_override_port)
+                    target_name = target_name.replace("\n", "")
+                    if target_ip != None:
+                        ip = target_ip.strip()
+                    else:
+                        ip = mac_resolve(target_mac.strip(), print_logs)
                 if ip == None:
                     animated_print(
                         f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
                     Colors(default_color)
                     connected = False
                 else:
+                    contact_override_port = override_port
                     contact_search.add_ip(target_name, ip)
-            elif "." in ip and ip.count(":") == 1:
-                ip = ip.split(":")
-                override_port = int(ip[1].strip())
-                ip = ip[0].strip()
             validated, temp_sc = validate_foreign_user(
                 ip, expected_user, print_logs, temp_sc, message=message, port=override_port)
             if not validated:
@@ -1590,30 +1673,44 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                                                                             default_color, private_mode, error_color, temp_sc)
             time.sleep(8)
         elif "." not in ip:
-            if ":" in ip:
-                temp = ip
-                contact_search = Contacts(user, get_current_user().lower().strip(
-                ), print_logs, default_color, error_color, private_mode)
-                target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
-                    temp)
-                target_name = target_name.replace("\n", "")
-                if target_ip.strip() != None:
-                    ip = target_ip.strip()
+            if ip.count(":") == 1:
+                ip = ip.split(":", 1)
+                override_port, contact_override_port = ip[1].strip(), ip[1].strip()
+                ip = ip[0].strip()
+                manual_port = True
+            if ip.count(":") > 1:
+                if use_bluetooth:
+                    passtarget_mac = None
                 else:
-                    ip = mac_resolve(target_mac.strip(), print_logs)
-                if ip == None:
-                    animated_print(
-                        f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
-                    Colors(default_color)
-                    connected = False
-                else:
-                    contact_search.add_ip(target_name, ip)
+                    temp = ip
+                    contact_search = Contacts(user, get_current_user().lower().strip(
+                    ), print_logs, default_color, error_color, private_mode)
+                    target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
+                        ip)
+                    override_port = int(override_port)
+                    target_name = target_name.replace("\n", "")
+                    if target_ip.strip() != None:
+                        ip = target_ip.strip()
+                    else:
+                        ip = mac_resolve(target_mac.strip(), print_logs)
+                    if ip == None:
+                        animated_print(
+                            f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
+                        Colors(default_color)
+                        connected = False
+                    else:
+                        contact_override_port = override_port
+                        contact_search.add_ip(target_name, ip)
             else:
                 try:
                     contact_search = Contacts(user, get_current_user().lower().strip(
                     ), print_logs, default_color, error_color, private_mode)
                     target_name, mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
                         ip)
+                    if not manual_port:
+                        override_port = int(override_port)
+                    else:
+                        override_port = int(contact_override_port)
                     target_name = target_name.replace("\n", "")
                     if mac.strip() == "":
                         animated_print(
@@ -1632,6 +1729,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                             Colors(default_color)
                             connected = False
                         else:
+                            contact_override_port = override_port
                             contact_search.add_ip(target_name, ip)
                 except ValueError:
                     animated_print(
@@ -1666,7 +1764,8 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                         contact_search = Contacts(user, get_current_user().lower().strip(
                         ), print_logs, default_color, error_color, private_mode)
                         target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
-                            address)
+                            ip)
+                        override_port = int(override_port)
                         target_name = target_name.replace("\n", "")
                         if target_ip != None:
                             address = target_ip
@@ -1678,6 +1777,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                             Colors(default_color)
                             connected = False
                         else:
+                            contact_override_port = override_port
                             contact_search.add_ip(target_name, address)
                     else:
                         target_mac = None
@@ -1689,7 +1789,8 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     contact_search = Contacts(user, get_current_user().lower().strip(
                     ), print_logs, default_color, error_color, private_mode)
                     target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
-                        address)
+                        ip)
+                    override_port = int(override_port)
                     target_name = target_name.replace("\n", "")
                     if target_ip != None:
                         address = target_ip.strip()
@@ -1701,6 +1802,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                         Colors(default_color)
                         connected = False
                     else:
+                        contact_override_port = override_port
                         contact_search.add_ip(target_name, address)
                 validated, validiate_sc = validate_foreign_user(
                     address, expected_user, print_logs, temp_sc, message=message, port=override_port)
@@ -1735,7 +1837,8 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     contact_search = Contacts(user, get_current_user().lower().strip(
                     ), print_logs, default_color, error_color, private_mode)
                     target_name, target_mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
-                        temp)
+                        ip)
+                    override_port = int(override_port)
                     target_name = target_name.replace("\n", "")
                     if target_ip.strip() != None:
                         address = target_ip.strip()
@@ -1747,13 +1850,15 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                         Colors(default_color)
                         connected = False
                     else:
+                        contact_override_port = override_port
                         contact_search.add_ip(target_name, address)
                 else:
                     try:
                         contact_search = Contacts(user, get_current_user().lower().strip(
                         ), print_logs, default_color, error_color, private_mode)
-                        target_name, mac, target_ip, agreed_code, details = contact_search.check_for(
-                            address)
+                        target_name, mac, target_ip, agreed_code, details, override_port = contact_search.check_for(
+                            ip)
+                        override_port = int(override_port)
                         target_name = target_name.replace("\n", "")
                         if mac.strip() == "":
                             animated_print(
@@ -1772,6 +1877,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                                 Colors(default_color)
                                 connected = False
                             else:
+                                contact_override_port = override_port
                                 contact_search.add_ip(target_name, address)
                     except ValueError:
                         animated_print(
@@ -1841,30 +1947,60 @@ def gnu_ip_resolve(print_logs, private_mode):
     return ip
 
 
-def request_username(sc, **kwargs):
+def id_packet(sc, **kwargs):
     mode, ip, code_details, accepted = kwargs.get("mode", None), kwargs.get("ip", None), kwargs.get("code", None), False
     if mode == "send":
         sc.send(f"\\request_user".encode())
         info = sc.recv(1024).decode()
         if info == None or "None" in info:
-            return sc, None
+            return sc, None, None, None
         else:
             #info = decode_foreign_user(code_details[0], code_details[1], info.strip(), applied_default_color)
-            info = info[::-1].strip()
-            decrypted_info, encrypted_info = [], []
-            for i, char in enumerate(info):
-                encrypted_info.append(ord(char))
-                decrypted_info.append(chr(int(encrypted_info[i])-22))
-            info = ""
-            for char in decrypted_info:
-                info += char
-            get_foreign_user(new_user=info.strip().capitalize())
-            return sc, info.strip()
+            info = info[::-1].strip().split(" || ")
+            decrypted_username, decrypted_mac, decrypted_override_port, encrypted_username, encrypted_mac, encrypted_override_port, new_user, temp_new_mac, new_mac, override_port = [], [], [], [], [], [], "", "", "", ""
+            for i, char in enumerate(info[1]):
+                encrypted_username.append(ord(char))
+                decrypted_username.append(chr(int(encrypted_username[i])-22))
+            for char in decrypted_username:
+                new_user += char
+            #print(new_user)
+            mac_offset = f"{new_user[0]}{new_user[-1]}"
+            new_user = new_user[1:-1]
+            for i, char in enumerate(info[0]):
+                encrypted_mac.append(ord(char))
+                temp_char = int(encrypted_mac[i])-int(mac_offset)
+                if temp_char < 32:
+                    temp_char = temp_char + 95
+                elif temp_char > 126:
+                    temp_char = temp_char - 95
+                decrypted_mac.append(chr(temp_char))
+            for char in decrypted_mac:
+                temp_new_mac += char
+            override_port_offset = f"{temp_new_mac[2]}{temp_new_mac[-4]}"
+            for i in range(len(temp_new_mac)):
+                if i == 2 or i == len(temp_new_mac) - 4:
+                    pass
+                else:
+                    new_mac += temp_new_mac[i]
+            #print(new_mac)
+            for i, char in enumerate(info[2]):
+                encrypted_override_port.append(ord(char))
+                temp_char = int(encrypted_override_port[i])-int(override_port_offset)
+                if temp_char < 32:
+                    temp_char = temp_char + 95
+                elif temp_char > 126:
+                    temp_char = temp_char - 95
+                decrypted_override_port.append(chr(temp_char))
+            for char in decrypted_override_port:
+                override_port += char
+            get_foreign_user(new_user=new_user.strip().capitalize())
+            #print(new_user, new_mac, override_port)
+            return sc, new_user, new_mac, override_port
     elif mode == "recieve":
         if ip.strip() == "":
             ip = "Unknown"
         if graphic_mode:
-            layout = [[gui.Text(gui_translate(f"Do you wish to reveal your username to {ip}?")), gui.Button(gui_translate("Yes"), key="yes"), gui.Button(gui_translate("No"), key="no")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+            layout = [[gui.Text(gui_translate(f"Do you wish to share your profile to {ip}?")), gui.Button(gui_translate("Yes"), key="yes"), gui.Button(gui_translate("No"), key="no")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
             confirm_window = gui.Window(title=f"FiEncrypt - Username Request (Logged in as: {get_current_user()})", layout=layout, font="Courier 20")
             event, values = confirm_window.read()
             if event == "yes":
@@ -1879,15 +2015,56 @@ def request_username(sc, **kwargs):
             else:
                 accepted = False
         if accepted:
-            decrypted_username, encrypted_username, temp_encrypted_username = [], [], ""
-            for i, char in enumerate(get_current_user().lower()[::-1]):
+            decrypted_username, decrypted_mac, decrypted_override_port, encrypted_username, encrypted_mac, encrypted_override_port, temp_user, temp_mac, temp_override_port, packet = [], [], [], [], [], [], "", "", "", ""
+            offset1, offset2, random_port = [random.randint(1, 5), random.randint(0, 9)], [random.randint(1, 5), random.randint(0, 9)], random.randint(2000,20000)
+            decrypted_username.append(ord(str(offset1[0])))
+            for i, char in enumerate(get_current_user().lower()):
                 decrypted_username.append(ord(char))
+            decrypted_username.append(ord(str(offset1[1])))
+            #print(decrypted_username)
+            for i, char in enumerate(decrypted_username):
                 encrypted_username.append(chr(int(decrypted_username[i])+22))
             for char in encrypted_username:
-                temp_encrypted_username += char
-            sc.send(temp_encrypted_username.encode())
+                temp_user += char
+            for i, char in enumerate(get_mac()):
+                try:
+                    if i == 2:
+                        #print(i, get_mac()[i], offset2)
+                        decrypted_mac.append(ord(str(offset2[0])))
+                    elif i == decrypted_mac.index(decrypted_mac[len(get_mac())-3]):
+                        #print(i, get_mac()[i], offset2, list(get_mac()).index(list(get_mac())[len(get_mac())-3]))
+                        decrypted_mac.append(ord(str(offset2[1])))
+                except IndexError:
+                    pass
+                #print(i, get_mac()[i], offset2)
+                decrypted_mac.append(ord(char))
+                #print(decrypted_mac, int(f"{offset1[0]}{offset1[1]}"))
+            for i, char in enumerate(decrypted_mac):
+                temp_char = int(decrypted_mac[i])+int(f"{offset1[0]}{offset1[1]}")
+                if temp_char < 32:
+                    temp_char = temp_char + 95
+                elif temp_char > 126:
+                    temp_char = temp_char - 95
+                encrypted_mac.append(chr(temp_char))
+            for char in encrypted_mac:
+                temp_mac += char
+            for i, char in enumerate(str(random_port)):
+                decrypted_override_port.append(ord(char))
+                #print(decrypted_override_port, int(f"{offset2[0]}{offset2[1]}"), random_port)
+                temp_char = int(decrypted_override_port[i])+int(f"{offset2[0]}{offset2[1]}")
+                if temp_char < 32:
+                    temp_char = temp_char + 95
+                elif temp_char > 126:
+                    temp_char = temp_char - 95
+                encrypted_override_port.append(chr(temp_char))
+            for char in encrypted_override_port:
+                temp_override_port += char
+            #print(temp_mac, temp_user, temp_override_port)
+            packet = f"{temp_mac} || {temp_user} || {temp_override_port}"[::-1]
+            sc.send(packet.encode())
         else:
             sc.send(str(None).encode())
+        return accepted
 
 
 def secretcode(user, current_user, default_color, print_logs, private_mode, error_color):
@@ -2394,8 +2571,8 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
 def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self, error_color, default_color, private_mode, print_logs, mailing, display_initiate, auto_code, **kwargs):
     """Allows user to create and send an encrypted message"""
     global override_port, contact_override_port
-    previous_message, poked, voice_message, outbound_file, manual, faulty_override, stored_message, sc, prev_messages, window, early_file, in_contacts, priority_code = kwargs.get(
-        "message", ""), kwargs.get("poked", False), False, False, False, kwargs.get("faulty", False), kwargs.get("stored_message", ""), temp_sc, kwargs.get("prev", []), kwargs.get("window", None), None, kwargs.get("in_contacts", None), kwargs.get("priority_code", None)
+    previous_message, poked, voice_message, outbound_file, manual, faulty_override, stored_message, sc, prev_messages, window, early_file, in_contacts, priority_code, use_bluetooth = kwargs.get(
+        "message", ""), kwargs.get("poked", False), False, False, False, kwargs.get("faulty", False), kwargs.get("stored_message", ""), temp_sc, kwargs.get("prev", []), kwargs.get("window", None), None, kwargs.get("in_contacts", None), kwargs.get("priority_code", None), kwargs.get("use_bluetooth", False)
     temp_display_name, prev_message_temp, images, agreed_code, get_username = get_foreign_user(), "", [], None, False
     if temp_display_name == None:
         temp_display_name = recipient_ip
@@ -2404,10 +2581,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             override_port = contact_override_port
     except:
         pass
-    for messages in prev_messages:
+    for i, messages in enumerate(prev_messages):
         if len(messages) == 4 or len(messages) == 5:
             message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
-                "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").strip()
+                "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").replace("\\request_username", "").strip()
             if messages[2].strip().lower() == get_current_user().strip().lower():
                 gap = 30
             else:
@@ -2778,79 +2955,83 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 sc.close()
                 log("Server channel shutting down!", "networkManager", get_current_user(), print_logs)
                 newmessage(code, user, "", temp_sc, prefix, date, talking_to_self,
-                           error_color, default_color, private_mode, print_logs, mailing, display_initiate, message=previous_message, prev=prev_messages, in_contacts=in_contacts, priority_code=priority_code)
+                           error_color, default_color, private_mode, print_logs, mailing, display_initiate, message=previous_message, prev=prev_messages, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
             elif graphic_mode:
                 prev_message_temp, images = "", []
                 try:
                     window.close()
                 except:
                     pass
-                for messages in prev_messages:
+                for i, messages in enumerate(prev_messages):
                     if len(messages) == 4 or len(messages) == 5:
-                        message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
-                            "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").strip()
-                        if messages[2].strip().lower() == get_current_user().strip().lower():
-                            gap = 30
-                        else:
-                            gap = 40
-                        if len(message_to_show) > gap:
-                            temp_list = list(message_to_show)
-                            for i in range(gap, len(temp_list), gap):
-                                j = i
-                                try:
-                                    while temp_list[j] != " ":
-                                        j += 1
-                                    if messages[2].strip().lower() == get_current_user().strip().lower():
-                                        temp_list.insert(j, "\n\t\t\t\t")
-                                    else:
-                                        temp_list.insert(j, "\n")
-                                except IndexError:
-                                    if messages[2].strip().lower() == get_current_user().strip().lower():
-                                        temp_list.insert(j-i, "\n\t\t\t\t")
-                                    else:
-                                        temp_list.insert(j-i, "\n")
-                            message_to_show = ""
-                            for char in temp_list:
-                                message_to_show += char
-                            message_to_show += "\n"
-                        if messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
-                            prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
-                        elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]):
-                            prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
-                        elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_file(messages[0]):
-                            prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
-                        elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "":
-                            prev_message_temp += f"\t\t\t\t{message_to_show} - {messages[1]}\n"
-                        elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]) and has_file(messages[0]):
-                            prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
-                        elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]):
-                            prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
-                        elif messages[2].strip().lower() == get_current_user().strip().lower() and has_file(messages[0]):
-                            prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
-                        elif message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
-                            prev_message_temp += f"{message_to_show} (file, emoji) - {messages[1]}\n"
-                        elif message_to_show.strip() != "" and has_emoji(messages[0]):
-                            prev_message_temp += f"{message_to_show} (emoji) - {messages[1]}\n"
-                        elif message_to_show.strip() != "" and has_file(messages[0]):
-                            prev_message_temp += f"{message_to_show} (file) - {messages[1]}\n"
-                        elif message_to_show.strip() != "":
-                            prev_message_temp += f"{message_to_show} - {messages[1]}\n"
-                        elif has_emoji(messages[0]):
-                            prev_message_temp += f"(emoji) - {messages[1]}\n"
-                        elif has_file(messages[0]):
-                            prev_message_temp += f"(file) - {messages[1]}\n"
-                        temp_day = str(datetime.datetime.now()).split("-", 2)
-                        temp_day = temp_day[2].split()
-                        if temp_day[0].strip().startswith("0"):
-                            temp_day[0] = temp_day[0].replace("0", "").strip()
-                        # if temp_day[0].strip() not in messages[3][0:2]:
-                        #     prev_message_temp += f"{messages[3]}\n"
-                        try:
-                            if messages[4] != None:
-                                temp_name = messages[4].split(".")[0]
-                                images.append(f"{temp_name}.png")
-                        except:
+                        if messages[0] == prev_messages[i-1][0] and messages[1] == prev_messages[i-1][1] and messages[2] == prev_messages[i-1][2]:
                             pass
+                        else:
+                            message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
+                                "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").replace("\\request_username", "").strip()
+                            if messages[2].strip().lower() == get_current_user().strip().lower():
+                                gap = 30
+                            else:
+                                gap = 40
+                            if len(message_to_show) > gap:
+                                temp_list = list(message_to_show)
+                                for i in range(gap, len(temp_list), gap):
+                                    j = i
+                                    try:
+                                        while temp_list[j] != " ":
+                                            j += 1
+                                            if j >= i + 5:
+                                                break
+                                        if messages[2].strip().lower() == get_current_user().strip().lower():
+                                            temp_list.insert(j, "\n\t\t\t\t")
+                                        else:
+                                            temp_list.insert(j, "\n")
+                                    except IndexError:
+                                        if messages[2].strip().lower() == get_current_user().strip().lower():
+                                            temp_list.insert(j-i, "\n\t\t\t\t")
+                                        else:
+                                            temp_list.insert(j-i, "\n")
+                                message_to_show = ""
+                                for char in temp_list:
+                                    message_to_show += char
+                            if messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
+                                prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
+                            elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]):
+                                prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
+                            elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_file(messages[0]):
+                                prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
+                            elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "":
+                                prev_message_temp += f"\t\t\t\t{message_to_show} - {messages[1]}\n"
+                            elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]) and has_file(messages[0]):
+                                prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
+                            elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]):
+                                prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
+                            elif messages[2].strip().lower() == get_current_user().strip().lower() and has_file(messages[0]):
+                                prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
+                            elif message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
+                                prev_message_temp += f"{message_to_show} (file, emoji) - {messages[1]}\n"
+                            elif message_to_show.strip() != "" and has_emoji(messages[0]):
+                                prev_message_temp += f"{message_to_show} (emoji) - {messages[1]}\n"
+                            elif message_to_show.strip() != "" and has_file(messages[0]):
+                                prev_message_temp += f"{message_to_show} (file) - {messages[1]}\n"
+                            elif message_to_show.strip() != "":
+                                prev_message_temp += f"{message_to_show} - {messages[1]}\n"
+                            elif has_emoji(messages[0]):
+                                prev_message_temp += f"(emoji) - {messages[1]}\n"
+                            elif has_file(messages[0]):
+                                prev_message_temp += f"(file) - {messages[1]}\n"
+                            temp_day = str(datetime.datetime.now()).split("-", 2)
+                            temp_day = temp_day[2].split()
+                            if temp_day[0].strip().startswith("0"):
+                                temp_day[0] = temp_day[0].replace("0", "").strip()
+                            # if temp_day[0].strip() not in messages[3][0:2]:
+                            #     prev_message_temp += f"{messages[3]}\n"
+                            try:
+                                if messages[4] != None:
+                                    temp_name = messages[4].split(".")[0]
+                                    images.append(f"{temp_name}.png")
+                            except:
+                                pass
                     else:
                         pass
                 enter_home_directory()
@@ -2965,7 +3146,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 sc.close()
                 log("Server channel shutting down!", "networkManager", get_current_user(), print_logs)
                 newmessage(code, user, "", temp_sc, prefix, date, talking_to_self,
-                           error_color, default_color, private_mode, print_logs, mailing, display_initiate, message=previous_message, prev=prev_messages, in_contacts=in_contacts, priority_code=priority_code)
+                           error_color, default_color, private_mode, print_logs, mailing, display_initiate, message=previous_message, prev=prev_messages, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
         # *When the exit exits, the other client they have a TCP connection to automatically recieves the exit code, triggering their connection to close as well
         except KeyboardInterrupt:
             animated_print(f"\nKilling server channel!")
@@ -3073,72 +3254,76 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
         elif graphic_mode and recipient_ip != "":
             prev_messages.append([message_text, temp_timestamp,
                                   get_current_user().strip().lower(), temp_date])
-            for messages in prev_messages:
+            for i, messages in enumerate(prev_messages):
                 if len(messages) == 4 or len(messages) == 5:
-                    message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
-                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").strip()
-                    if messages[2].strip().lower() == get_current_user().strip().lower():
-                        gap = 30
-                    else:
-                        gap = 40
-                    if len(message_to_show) > gap:
-                        temp_list = list(message_to_show)
-                        for i in range(gap, len(temp_list), gap):
-                            j = i
-                            try:
-                                while temp_list[j] != " ":
-                                    j += 1
-                                if messages[2].strip().lower() == get_current_user().strip().lower():
-                                    temp_list.insert(j, "\n\t\t\t\t")
-                                else:
-                                    temp_list.insert(j, "\n")
-                            except IndexError:
-                                if messages[2].strip().lower() == get_current_user().strip().lower():
-                                    temp_list.insert(j-i, "\n\t\t\t\t")
-                                else:
-                                    temp_list.insert(j-i, "\n")
-                        message_to_show = ""
-                        for char in temp_list:
-                            message_to_show += char
-                        message_to_show += "\n"
-                    if messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
-                        prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
-                    elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]):
-                        prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
-                    elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_file(messages[0]):
-                        prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
-                    elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "":
-                        prev_message_temp += f"\t\t\t\t{message_to_show} - {messages[1]}\n"
-                    elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]) and has_file(messages[0]):
-                        prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
-                    elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]):
-                        prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
-                    elif messages[2].strip().lower() == get_current_user().strip().lower() and has_file(messages[0]):
-                        prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
-                    elif message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
-                        prev_message_temp += f"{message_to_show} (file, emoji) - {messages[1]}\n"
-                    elif message_to_show.strip() != "" and has_emoji(messages[0]):
-                        prev_message_temp += f"{message_to_show} (emoji) - {messages[1]}\n"
-                    elif message_to_show.strip() != "" and has_file(messages[0]):
-                        prev_message_temp += f"{message_to_show} (file) - {messages[1]}\n"
-                    elif message_to_show.strip() != "":
-                        prev_message_temp += f"{message_to_show} - {messages[1]}\n"
-                    elif has_emoji(messages[0]):
-                        prev_message_temp += f"(emoji) - {messages[1]}\n"
-                    elif has_file(messages[0]):
-                        prev_message_temp += f"(file) - {messages[1]}\n"
-                    temp_day = str(datetime.datetime.now()).split("-", 2)
-                    temp_day = temp_day[2].split()
-                    if temp_day[0].strip().startswith("0"):
-                        temp_day[0] = temp_day[0].replace("0", "").strip()
-                    # if temp_day[0].strip() not in messages[3][0:2]:
-                    #     prev_message_temp += f"{messages[3]}\n"
-                    try:
-                        if messages[4] != None:
-                            temp_name = messages[4].split(".")[0]
-                            images.append(f"{temp_name}.png")
-                    except:
+                    if messages[0] == prev_messages[i-1][0] and messages[1] == prev_messages[i-1][1] and messages[2] == prev_messages[i-1][2]:
                         pass
+                    else:
+                        message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
+                            "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").replace("\\request_username", "").strip()
+                        if messages[2].strip().lower() == get_current_user().strip().lower():
+                            gap = 30
+                        else:
+                            gap = 40
+                        if len(message_to_show) > gap:
+                            temp_list = list(message_to_show)
+                            for i in range(gap, len(temp_list), gap):
+                                j = i
+                                try:
+                                    while temp_list[j] != " ":
+                                        j += 1
+                                        if j >= i + 5:
+                                            break
+                                    if messages[2].strip().lower() == get_current_user().strip().lower():
+                                        temp_list.insert(j, "\n\t\t\t\t")
+                                    else:
+                                        temp_list.insert(j, "\n")
+                                except IndexError:
+                                    if messages[2].strip().lower() == get_current_user().strip().lower():
+                                        temp_list.insert(j-i, "\n\t\t\t\t")
+                                    else:
+                                        temp_list.insert(j-i, "\n")
+                            message_to_show = ""
+                            for char in temp_list:
+                                message_to_show += char
+                        if messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
+                            prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
+                        elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]):
+                            prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
+                        elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_file(messages[0]):
+                            prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
+                        elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "":
+                            prev_message_temp += f"\t\t\t\t{message_to_show} - {messages[1]}\n"
+                        elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]) and has_file(messages[0]):
+                            prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
+                        elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]):
+                            prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
+                        elif messages[2].strip().lower() == get_current_user().strip().lower() and has_file(messages[0]):
+                            prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
+                        elif message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
+                            prev_message_temp += f"{message_to_show} (file, emoji) - {messages[1]}\n"
+                        elif message_to_show.strip() != "" and has_emoji(messages[0]):
+                            prev_message_temp += f"{message_to_show} (emoji) - {messages[1]}\n"
+                        elif message_to_show.strip() != "" and has_file(messages[0]):
+                            prev_message_temp += f"{message_to_show} (file) - {messages[1]}\n"
+                        elif message_to_show.strip() != "":
+                            prev_message_temp += f"{message_to_show} - {messages[1]}\n"
+                        elif has_emoji(messages[0]):
+                            prev_message_temp += f"(emoji) - {messages[1]}\n"
+                        elif has_file(messages[0]):
+                            prev_message_temp += f"(file) - {messages[1]}\n"
+                        temp_day = str(datetime.datetime.now()).split("-", 2)
+                        temp_day = temp_day[2].split()
+                        if temp_day[0].strip().startswith("0"):
+                            temp_day[0] = temp_day[0].replace("0", "").strip()
+                        # if temp_day[0].strip() not in messages[3][0:2]:
+                        #     prev_message_temp += f"{messages[3]}\n"
+                        try:
+                            if messages[4] != None:
+                                temp_name = messages[4].split(".")[0]
+                                images.append(f"{temp_name}.png")
+                        except:
+                            pass
                 else:
                     pass
             enter_home_directory()
@@ -3153,10 +3338,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                       get_current_user().strip().lower(), temp_date])
             except:
                 pass
-            for messages in prev_messages:
+            for i, messages in enumerate(prev_messages):
                 if len(messages) == 4 or len(messages) == 5:
                     message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
-                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").strip()
+                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").replace("\\request_username", "").strip()
                     if messages[2].strip().lower() == get_current_user().strip().lower():
                         gap = 30
                     else:
@@ -3168,6 +3353,8 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             try:
                                 while temp_list[j] != " ":
                                     j += 1
+                                    if j >= i + 5:
+                                        break
                                 if messages[2].strip().lower() == get_current_user().strip().lower():
                                     temp_list.insert(j, "\n\t\t\t\t")
                                 else:
@@ -3180,7 +3367,6 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         message_to_show = ""
                         for char in temp_list:
                             message_to_show += char
-                        message_to_show += "\n"
                     if messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
                         prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
                     elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]):
@@ -3250,12 +3436,16 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
         else:
             animated_print(f"Peer's IP address is {recipient_ip}")
     if "\\request_user" in message_text.strip().lower() and recipient_ip != "" and (get_foreign_user() == None or get_foreign_user().strip() == ""):
-        message_text = message_text.replace("\\request_user", "")
+        message_text = message_text.replace("\\request_user", "").replace("\\request_username", "")
         get_username = True
-        sc, username = request_username(sc, code=[code2, prefix], mode="send")
+        sc, username, temp_mac, temp_save_override_port = id_packet(sc, code=[code2, prefix], mode="send")
+        auto_generate_contact = Contacts(user, get_current_user(), print_logs, default_color, error_color, private_mode)
+        auto_generate_contact.add(username, temp_mac, None, "Auto-generated contact on username request", temp_save_override_port)
         if username == None:
             get_foreign_user(new_user="\\reset")
             temp_display_name = None
+        else:
+            pass
     if "\\v" in message_text.strip().lower():
         enter_home_directory()
         voice_file = f"./cache/voice_message.wav"
@@ -3439,7 +3629,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     code, prefix, timestamp = showcode(
                         user, 1, private_mode, print_logs, error_color, default_color)
                     newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self, error_color,
-                               default_color, private_mode, print_logs, mailing, display_initiate, True, faulty=True, stored_message=message_text, prev=prev_messages, in_contacts=in_contacts, priority_code=priority_code)
+                               default_color, private_mode, print_logs, mailing, display_initiate, True, faulty=True, stored_message=message_text, prev=prev_messages, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
             else:
                 pass
         else:
@@ -3481,16 +3671,34 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
              private_mode, error_color, print_speed=0)
     elif "y" in host:
         if sc == None:
-            link = socket.socket()
+            try:
+                temp = RFCOMM
+                bluetooth_available = True
+                if graphic_mode:
+                    use_bluetooth = gui.popup_yes_no(gui_translate("Use Bluetooth for communication?"), title=gui_translate(f"FiEncrypt - Activate Bluetooth (Logged in as {get_current_user()}"), font="Courier 20")
+                    if use_bluetooth == "Yes":
+                        use_bluetooth = True
+                    else:
+                        use_bluetooth = False
+                else:
+                    use_bluetooth = to_boolean(privacy_input("Use Bluetooth for communication? [True|False]", private_mode))
+                if use_bluetooth:
+                    link = BluetoothSocket(RFCOMM)
+                    ip = ""
+                    override_port = 23
+                else:
+                    raise TypeError
+            except:
+                bluetooth_available, use_bluetooth = False, False
+                link = socket.socket()
         connected, talking_to_self, ip = False, False, None
         while not connected:
             try:
                 if conversation_mode and recipient_ip != "":
                     ip = recipient_ip
                 elif recipient_ip == "":
-                    ip, target_mac, target_name, sc, agreed_code, contact_override_port = get_recipient_ip(user, display_initiate, print_logs,
-                                                                       default_color, private_mode, error_color, sc, message=scrambled_output_phrase)
-                    print(agreed_code)
+                    ip, target_mac, target_name, sc, agreed_code, override_port = get_recipient_ip(user, display_initiate, print_logs,
+                                                                       default_color, private_mode, error_color, sc, message=scrambled_output_phrase, use_bluetooth=use_bluetooth)
                     reset_ip = Contacts(user, get_current_user(), print_logs, default_color, error_color, private_mode)
                     try:
                         reset_ip.add_ip(target_name, "-")
@@ -3519,13 +3727,13 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         "networkManager", current_user, print_logs)
                     if len(str(code2)) != 2 and not manual:
                         retrievemessage(
-                            code, user, 2, backup_prefix, recipient_ip, temp_sc, timestamp, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
+                            code, user, 2, backup_prefix, recipient_ip, temp_sc, timestamp, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
                     elif manual != None and manual:
                         retrievemessage(
-                            code2, user, 2, None, recipient_ip, temp_sc, None, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
+                            code2, user, 2, None, recipient_ip, temp_sc, None, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
                     else:
                         retrievemessage(
-                            code, user, 2, backup_prefix, recipient_ip, temp_sc, timestamp, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
+                            code, user, 2, backup_prefix, recipient_ip, temp_sc, timestamp, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
                 else:
                     if sc == None:
                         if type(ip) == list:
@@ -4015,8 +4223,12 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     for connection_num in range(len(sc)):
                         locals()[f"sc{connection_num}"].send(packet.encode())
                 else:
-                    sc.send(packet.encode())
+                    try:
+                        sc.send(packet.encode())
+                    except UnboundLocalError:
+                        sc.send("\\exit".encode())
             except:
+                raise
                 if graphic_mode:
                     gui.Popup(gui_translate("Connection lost! Returning to menu..."),
                               title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
@@ -4034,7 +4246,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             pass
         if early_file != None:
             attach_image, filename = sftp_send(
-                ip, default_color, error_color, voice_message, code, prefix, sc, file_path=early_file)
+                ip, default_color, error_color, voice_message, code, prefix, sc, file_path=early_file, use_bluetooth=use_bluetooth)
             try:
                 if attach_image:
                     prev_messages[-1].append(filename)
@@ -4044,7 +4256,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 pass
         elif outbound_file:
             attach_image, filename = sftp_send(
-                ip, default_color, error_color, voice_message, code, prefix, sc)
+                ip, default_color, error_color, voice_message, code, prefix, sc, use_bluetooth=use_bluetooth)
             try:
                 if attach_image:
                     prev_messages[-1].append(filename)
@@ -4119,10 +4331,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
         # ?In conversation mode, an inbound server will automatically be started, so the user can recieve the message promptly
         if graphic_mode:
             server_recieve(user, code, user, sc, recipient_ip, timestamp, backup_prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code)
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
         else:
             server_recieve(user, code, user, sc, recipient_ip, timestamp, backup_prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, silent=True, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code)
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, silent=True, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
     elif poke and conversation_mode and "y" in host:
         if auto_code:
             randomcode(user, current_user, True, private_mode,
@@ -4132,10 +4344,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
         # ?In conversation mode, an inbound server will automatically be started, so the user can recieve the message promptly
         if graphic_mode:
             server_recieve(user, code, user, sc, recipient_ip, timestamp, backup_prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code)
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
         else:
             server_recieve(user, code, user, sc, recipient_ip, timestamp, backup_prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, silent=True, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code)
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, silent=True, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
     elif love_sent and conversation_mode and "y" in host:
         if auto_code:
             randomcode(user, current_user, True, private_mode,
@@ -4145,10 +4357,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
         # ?In conversation mode, an inbound server will automatically be started, so the user can recieve the message promptly
         if graphic_mode:
             server_recieve(user, code, user, sc, recipient_ip, timestamp, backup_prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code)
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
         else:
             server_recieve(user, code, user, sc, recipient_ip, timestamp, backup_prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, silent=True, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code)
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, silent=True, prev=prev_messages, window=window, temp_user=temp_display_name, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
     else:
         if auto_code:
             randomcode(user, current_user, True, private_mode,
@@ -4397,11 +4609,22 @@ def get_ip_from_socket(sc):
 
 def sftp_send(recipient_ip, default_color, error_color, voice_message, code, prefix, temp_sc, **kwargs):
     """Sends file using unique socket"""
+    use_bluetooth = kwargs.get("use_bluetooth", False)
     try:
-        file_link = socket.socket()
-        file_link.bind((get_own_ip(False, False).strip(), 41731))
+        if use_bluetooth:
+            file_link = BluetoothSocket(RFCOMM)
+            file_link.bind(("", 24))
+        else:
+            file_link = socket.socket()
+            file_link.bind((get_own_ip(False, False).strip(), 41731))
+        file_link.settimeout(10)
         file_link.listen(10)
         sc, address = file_link.accept()
+        sc.settimeout(10)
+    except TimeoutError:
+        ready = False
+    except BluetoothError:
+        ready = False
     except:
         if graphic_mode:
             gui.popup_no_wait(gui_translate("Connection failed! Aborting file transfer"),
@@ -4415,8 +4638,15 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
         assisted_menu()
     alphabet, valid_file, old_file_path, is_directory, attach_image = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
                                                                        'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'], False, kwargs.get("file_path", None), False, False
-    ready = to_boolean(sc.recv(1024).decode())
+    try:
+        ready = to_boolean(sc.recv(1024).decode())
+    except TimeoutError:
+        ready = False
+    except BluetoothError:
+        ready = False
     if ready:
+        sc.settimeout(1000)
+        file_link.settimeout(1000)
         try:
             if len(prefix[0]) == 2:
                 code_seg1 = code[int(prefix[0][0]):int(prefix[0][1])]
@@ -4596,15 +4826,20 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                 enter_home_directory()
                                 cached_image.save(f"./cache/{os.path.basename(temp_name)}.png")
                                 filename = f"{os.getcwd()}/cache/{os.path.basename(temp_name)}.png"
-                    except:
-                        pass
-                    filesize = os.path.getsize(filename)
-                    try:
-                        with open(filename, "rb") as test_file:
-                            valid_file = True
-                    except IsADirectoryError:
-                        is_directory = True
-                        raise FileNotFoundError
+                    except IndexError:
+                        if graphic_mode:
+                            gui.Popup(gui_translate("Sending of typeless files is not supported"), font="Courier 20", text_color="red", title="Warning", auto_close=True, auto_close_duration=5)
+                        else:
+                            animated_print("WARNING: Sending of typeless files is not supported", error=True, reset=True)
+                        valid_file, old_file_path = False, None
+                    else:
+                        filesize = os.path.getsize(filename)
+                        try:
+                            with open(filename, "rb") as test_file:
+                                valid_file = True
+                        except IsADirectoryError:
+                            is_directory = True
+                            raise FileNotFoundError
                 except FileNotFoundError:
                     try:
                         if filename.strip().endswith("/"):
@@ -4785,12 +5020,14 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                     file_link.close()
                     sc.close()
                     return attach_image, os.path.basename(filename)
+    else:
+        return None, None
 
 
 def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, temp_sc, **kwargs):
     """Recieves file over socket"""
-    autosync, max_size, voice_message, encrypted_header, decrypted_header, passs, attach_image = kwargs.get(
-        "autosync", False), kwargs.get("max_size", "2GB"), kwargs.get("voice", False), [], "", 0, False
+    autosync, max_size, voice_message, encrypted_header, decrypted_header, passs, attach_image, use_bluetooth = kwargs.get(
+        "autosync", False), kwargs.get("max_size", "2GB"), kwargs.get("voice", False), [], "", 0, False, kwargs.get("use_bluetooth", False)
     try:
         if len(prefix[0]) == 2:
             code_seg1 = code[int(prefix[0][0]): int(prefix[0][1])]
@@ -4816,8 +5053,12 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
         code_seg1 = temp
         code3 = code
         Colors(default_color)
-    file_recipient = socket.socket()
-    file_recipient.connect((recipient_ip, 41731))
+    if use_bluetooth:
+        file_recipient = BluetoothSocket(RFCOMM)
+        file_recipient.connect((recipient_ip, 24))
+    else:
+        file_recipient = socket.socket()
+        file_recipient.connect((recipient_ip, 41731))
     file_recipient.send(str(True).encode())
     Colors(default_color)
     if voice_message:
@@ -5079,7 +5320,9 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                     animated_print(
                         f"WARNING: File corrupt or incomplete! Check {os.getcwd()}/cache/{filename}", error=True, reset=True)
                     Colors(default_color)
-
+    except TimeoutError:
+        file_recipient.close()
+        filename = None
     except OverflowError:
         log(f"File transfer overflow! File too large!", "networkManager", get_current_user(
         ), None)
@@ -5114,8 +5357,8 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
 
 def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc, timestamp, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, index, display_initiate, **kwargs):
     """Recieves message from other FiEncrypt user, or yourself (loopback), decrypts and displays it"""
-    prev_messages, sender, temp_display_name, window, in_mailbox, in_contacts, priority_code = kwargs.get(
-        "prev", []), kwargs.get("temp_user", None), get_foreign_user(), kwargs.get("window", None), kwargs.get("in_mailbox", False), kwargs.get("in_contacts", None), kwargs.get("priority_code", None)
+    prev_messages, sender, temp_display_name, window, in_mailbox, in_contacts, priority_code, just_recieved, use_bluetooth = kwargs.get(
+        "prev", []), kwargs.get("temp_user", None), get_foreign_user(), kwargs.get("window", None), kwargs.get("in_mailbox", False), kwargs.get("in_contacts", None), kwargs.get("priority_code", None), kwargs.get("just_recieved", False), kwargs.get("use_bluetooth", False)
     if sender == None:
         sender = "Anonymous"
     if temp_display_name == None and sender != "Anonymous":
@@ -5712,11 +5955,11 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
             animated_print(f"\033[41m{temp_output_phrase}\033[0m")
     if graphic_mode:
         prev_messages.append([temp_output_phrase, temp_timestamp, temp_display_name, temp_date])
-        if (current_user != 2 or not in_mailbox) and recipient_ip.strip() != "":
-            for messages in prev_messages:
+        if just_recieved:
+            for i, messages in enumerate(prev_messages):
                 if len(messages) == 4 or len(messages) == 5:
                     message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
-                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").strip()
+                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_username", "").strip()
                     if messages[2].strip().lower() == get_current_user().strip().lower():
                         gap = 30
                     else:
@@ -5728,6 +5971,8 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
                             try:
                                 while temp_list[j] != " ":
                                     j += 1
+                                    if j >= i + 5:
+                                        break
                                 if messages[2].strip().lower() == get_current_user().strip().lower():
                                     temp_list.insert(j, "\n\t\t\t\t")
                                 else:
@@ -5740,7 +5985,140 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
                         message_to_show = ""
                         for char in temp_list:
                             message_to_show += char
-                        message_to_show += "\n"
+                    if messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
+                        prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
+                    elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]):
+                        prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
+                    elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_file(messages[0]):
+                        prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
+                    elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "":
+                        prev_message_temp += f"\t\t\t\t{message_to_show} - {messages[1]}\n"
+                    elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]) and has_file(messages[0]):
+                        prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
+                    elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]):
+                        prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
+                    elif messages[2].strip().lower() == get_current_user().strip().lower() and has_file(messages[0]):
+                        prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
+                    elif message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
+                        prev_message_temp += f"{message_to_show} (file, emoji) - {messages[1]}\n"
+                    elif message_to_show.strip() != "" and has_emoji(messages[0]):
+                        prev_message_temp += f"{message_to_show} (emoji) - {messages[1]}\n"
+                    elif message_to_show.strip() != "" and has_file(messages[0]):
+                        prev_message_temp += f"{message_to_show} (file) - {messages[1]}\n"
+                    elif message_to_show.strip() != "":
+                        prev_message_temp += f"{message_to_show} - {messages[1]}\n"
+                    elif has_emoji(messages[0]):
+                        prev_message_temp += f"(emoji) - {messages[1]}\n"
+                    elif has_file(messages[0]):
+                        prev_message_temp += f"(file) - {messages[1]}\n"
+                    temp_day = str(datetime.datetime.now()).split("-", 2)
+                    temp_day = temp_day[2].split()
+                    if temp_day[0].strip().startswith("0"):
+                        temp_day[0] = temp_day[0].replace("0", "").strip()
+                    # if temp_day[0].strip() not in messages[3][0:2]:
+                    #     prev_message_temp += f"{messages[3]}\n"
+                    try:
+                        if messages[4] != None:
+                            temp_name = messages[4].split(".")[0]
+                            images.append(f"{temp_name}.png")
+                    except:
+                        pass
+                else:
+                    pass
+        if (current_user != 2 or not in_mailbox) and recipient_ip.strip() != "":
+            for i, messages in enumerate(prev_messages):
+                if len(messages) == 4 or len(messages) == 5:
+                    message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
+                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_username", "").strip()
+                    if messages[2].strip().lower() == get_current_user().strip().lower():
+                        gap = 30
+                    else:
+                        gap = 40
+                    if len(message_to_show) > gap:
+                        temp_list = list(message_to_show)
+                        for i in range(gap, len(temp_list), gap):
+                            j = i
+                            try:
+                                while temp_list[j] != " ":
+                                    j += 1
+                                    if j >= i + 5:
+                                        break
+                                if messages[2].strip().lower() == get_current_user().strip().lower():
+                                    temp_list.insert(j, "\n\t\t\t\t")
+                                else:
+                                    temp_list.insert(j, "\n")
+                            except IndexError:
+                                if messages[2].strip().lower() == get_current_user().strip().lower():
+                                    temp_list.insert(j-i, "\n\t\t\t\t")
+                                else:
+                                    temp_list.insert(j-i, "\n")
+                        message_to_show = ""
+                        for char in temp_list:
+                            message_to_showmessage_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
+                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_username", "").strip()
+                    if messages[2].strip().lower() == get_current_user().strip().lower():
+                        gap = 30
+                    else:
+                        gap = 40
+                    if len(message_to_show) > gap:
+                        temp_list = list(message_to_show)
+                        for i in range(gap, len(temp_list), gap):
+                            j = i
+                            try:
+                                while temp_list[j] != " ":
+                                    j += 1
+                                    if j >= i + 5:
+                                        break
+                                if messages[2].strip().lower() == get_current_user().strip().lower():
+                                    temp_list.insert(j, "\n\t\t\t\t")
+                                else:
+                                    temp_list.insert(j, "\n")
+                            except IndexError:
+                                if messages[2].strip().lower() == get_current_user().strip().lower():
+                                    temp_list.insert(j-i, "\n\t\t\t\t")
+                                else:
+                                    temp_list.insert(j-i, "\n")
+                        message_to_show = ""
+                        for char in temp_list:
+                            message_to_show += char
+                    if messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
+                        prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
+                    elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]):
+                        prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
+                    elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_file(messages[0]):
+                        prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
+                    elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "":
+                        prev_message_temp += f"\t\t\t\t{message_to_show} - {messages[1]}\n"
+                    elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]) and has_file(messages[0]):
+                        prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
+                    elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]):
+                        prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
+                    elif messages[2].strip().lower() == get_current_user().strip().lower() and has_file(messages[0]):
+                        prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
+                    elif message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
+                        prev_message_temp += f"{message_to_show} (file, emoji) - {messages[1]}\n"
+                    elif message_to_show.strip() != "" and has_emoji(messages[0]):
+                        prev_message_temp += f"{message_to_show} (emoji) - {messages[1]}\n"
+                    elif message_to_show.strip() != "" and has_file(messages[0]):
+                        prev_message_temp += f"{message_to_show} (file) - {messages[1]}\n"
+                    elif message_to_show.strip() != "":
+                        prev_message_temp += f"{message_to_show} - {messages[1]}\n"
+                    elif has_emoji(messages[0]):
+                        prev_message_temp += f"(emoji) - {messages[1]}\n"
+                    elif has_file(messages[0]):
+                        prev_message_temp += f"(file) - {messages[1]}\n"
+                    temp_day = str(datetime.datetime.now()).split("-", 2)
+                    temp_day = temp_day[2].split()
+                    if temp_day[0].strip().startswith("0"):
+                        temp_day[0] = temp_day[0].replace("0", "").strip()
+                    # if temp_day[0].strip() not in messages[3][0:2]:
+                    #     prev_message_temp += f"{messages[3]}\n"
+                    try:
+                        if messages[4] != None:
+                            temp_name = messages[4].split(".")[0]
+                            images.append(f"{temp_name}.png")
+                    except:
+                        pass
                     if messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
                         prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
                     elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]):
@@ -5825,7 +6203,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
         autosync, max_size = cache_settings(
             user, current_user, default_color, print_logs, private_mode, error_color, mode="read")
         temp_sc, attach_image, filename = sftp_recieve(recipient_ip, user, default_color, error_color, old_code, prefix, temp_sc, autosync=autosync,
-                                                       max_size=max_size, voice=voice_message)
+                                                       max_size=max_size, voice=voice_message, use_bluetooth=use_bluetooth)
         try:
             if attach_image:
                 prev_messages[-1].append(filename)
@@ -5904,7 +6282,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
         Colors(default_color)
         get_poked(get_foreign_user(), poke_num=pokes)
         newmessage(old_code, user, recipient_ip, temp_sc, backup_prefix, date, talking_to_self,
-                   error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), poked=True, message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
+                   error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), poked=True, message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
     elif conversation_mode and recipient_ip.strip() != "" and output_phrase.strip().endswith("\\exit"):
         if get_foreign_user() != None:
             animated_print(
@@ -5919,7 +6297,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
         Colors(default_color)
         if not talking_to_self:
             newmessage(old_code, user, recipient_ip, temp_sc, backup_prefix, date, talking_to_self,
-                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
+                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
         else:
             menu(user, None, print_logs, default_color,
                  private_mode, error_color, print_speed=0)
@@ -5931,10 +6309,10 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
         if poked and talking_to_self:
             get_poked(capitalize_user(get_current_user()), poke_num=pokes)
             newmessage(old_code, user, recipient_ip, temp_sc, backup_prefix, date, talking_to_self,
-                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
+                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
         elif talking_to_self:
             newmessage(old_code, user, recipient_ip, temp_sc, backup_prefix, date, talking_to_self,
-                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
+                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
         else:
             if graphic_mode:
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Message Decryption (Logged in as: {get_current_user()})"), layout=[[gui.Text(gui_translate("Was the decryption successful?"))], [gui.Button(gui_translate("Yes"), key="Yes", bind_return_key=True), gui.Button(
@@ -6001,17 +6379,17 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
         if poked:
             get_poked(get_foreign_user(), poke_num=pokes)
             newmessage(old_code, user, recipient_ip, temp_sc, backup_prefix, date, talking_to_self,
-                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), poked=True, message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
+                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), poked=True, message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
         else:
             newmessage(old_code, user, recipient_ip, temp_sc, backup_prefix, date, talking_to_self,
-                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
+                       error_color, default_color, private_mode, print_logs, mailing, display_initiate, get_auto_code(), message=temp_output_phrase, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
 
 
 def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, prefix, date, default_color, print_logs, private_mode, error_color, display_initiate, **kwargs):
     """Opens server to recieve and interpret message"""
     global override_port
-    silent, prev_messages, window, temp_display_name, sender, in_contacts, priority_code, display_port = kwargs.get(
-        "silent", False), kwargs.get("prev", []), kwargs.get("window", None), get_foreign_user(), kwargs.get("temp_user", None), kwargs.get("in_contacts", None), kwargs.get("priority_code", None), override_port
+    silent, prev_messages, window, temp_display_name, sender, in_contacts, priority_code, display_port, use_bluetooth = kwargs.get(
+        "silent", False), kwargs.get("prev", []), kwargs.get("window", None), get_foreign_user(), kwargs.get("temp_user", None), kwargs.get("in_contacts", None), kwargs.get("priority_code", None), override_port, kwargs.get("use_bluetooth", False)
     try:
         if contact_override_port != None:
             override_port = contact_override_port
@@ -6030,72 +6408,76 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
         except:
             pass
         if len(prev_messages) > 1:
-            for messages in prev_messages:
+            for i, messages in enumerate(prev_messages):
                 if len(messages) == 4 or len(messages) == 5:
-                    message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
-                        "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_user", "").strip()
-                    if messages[2].strip().lower() == get_current_user().strip().lower():
-                        gap = 30
-                    else:
-                        gap = 40
-                    if len(message_to_show) > gap:
-                        temp_list = list(message_to_show)
-                        for i in range(gap, len(temp_list), gap):
-                            j = i
-                            try:
-                                while temp_list[j] != " ":
-                                    j += 1
-                                if messages[2].strip().lower() == get_current_user().strip().lower():
-                                    temp_list.insert(j, "\n\t\t\t\t")
-                                else:
-                                    temp_list.insert(j, "\n")
-                            except IndexError:
-                                if messages[2].strip().lower() == get_current_user().strip().lower():
-                                    temp_list.insert(j-i, "\n\t\t\t\t")
-                                else:
-                                    temp_list.insert(j-i, "\n")
-                        message_to_show = ""
-                        for char in temp_list:
-                            message_to_show += char
-                        message_to_show += "\n"
-                    if messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
-                        prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
-                    elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]):
-                        prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
-                    elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_file(messages[0]):
-                        prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
-                    elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "":
-                        prev_message_temp += f"\t\t\t\t{message_to_show} - {messages[1]}\n"
-                    elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]) and has_file(messages[0]):
-                        prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
-                    elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]):
-                        prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
-                    elif messages[2].strip().lower() == get_current_user().strip().lower() and has_file(messages[0]):
-                        prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
-                    elif message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
-                        prev_message_temp += f"{message_to_show} (file, emoji) - {messages[1]}\n"
-                    elif message_to_show.strip() != "" and has_emoji(messages[0]):
-                        prev_message_temp += f"{message_to_show} (emoji) - {messages[1]}\n"
-                    elif message_to_show.strip() != "" and has_file(messages[0]):
-                        prev_message_temp += f"{message_to_show} (file) - {messages[1]}\n"
-                    elif message_to_show.strip() != "":
-                        prev_message_temp += f"{message_to_show} - {messages[1]}\n"
-                    elif has_emoji(messages[0]):
-                        prev_message_temp += f"(emoji) - {messages[1]}\n"
-                    elif has_file(messages[0]):
-                        prev_message_temp += f"(file) - {messages[1]}\n"
-                    temp_day = str(datetime.datetime.now()).split("-", 2)
-                    temp_day = temp_day[2].split()
-                    if temp_day[0].strip().startswith("0"):
-                        temp_day[0] = temp_day[0].replace("0", "").strip()
-                    # if temp_day[0].strip() not in messages[3][0:2]:
-                    #     prev_message_temp += f"{messages[3]}\n"
-                    try:
-                        if messages[4] != None:
-                            temp_name = messages[4].split(".")[0]
-                            images.append(f"{temp_name}.png")
-                    except:
+                    if messages[0] == prev_messages[i-1][0] and messages[1] == prev_messages[i-1][1] and messages[2] == prev_messages[i-1][2]:
                         pass
+                    else:
+                        message_to_show = messages[0].replace("\\ip", "").replace("\\v", "").replace("\\heart", "").replace("\\poke", "").replace(
+                            "\\exit", "").replace("\\thumbs_up", "").replace("\\thumbs_down", "").replace("\\file", "").replace("\\request_username", "").strip()
+                        if messages[2].strip().lower() == get_current_user().strip().lower():
+                            gap = 30
+                        else:
+                            gap = 40
+                        if len(message_to_show) > gap:
+                            temp_list = list(message_to_show)
+                            for i in range(gap, len(temp_list), gap):
+                                j = i
+                                try:
+                                    while temp_list[j] != " ":
+                                        j += 1
+                                        if j >= i + 5:
+                                            break
+                                    if messages[2].strip().lower() == get_current_user().strip().lower():
+                                        temp_list.insert(j, "\n\t\t\t\t")
+                                    else:
+                                        temp_list.insert(j, "\n")
+                                except IndexError:
+                                    if messages[2].strip().lower() == get_current_user().strip().lower():
+                                        temp_list.insert(j-i, "\n\t\t\t\t")
+                                    else:
+                                        temp_list.insert(j-i, "\n")
+                            message_to_show = ""
+                            for char in temp_list:
+                                message_to_show += char
+                        if messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
+                            prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
+                        elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_emoji(messages[0]):
+                            prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
+                        elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "" and has_file(messages[0]):
+                            prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
+                        elif messages[2].strip().lower() == get_current_user().strip().lower() and message_to_show.strip() != "":
+                            prev_message_temp += f"\t\t\t\t{message_to_show} - {messages[1]}\n"
+                        elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]) and has_file(messages[0]):
+                            prev_message_temp += f"\t\t\t\t{message_to_show} (file, emoji) - {messages[1]}\n"
+                        elif messages[2].strip().lower() == get_current_user().strip().lower() and has_emoji(messages[0]):
+                            prev_message_temp += f"\t\t\t\t{message_to_show} (emoji) - {messages[1]}\n"
+                        elif messages[2].strip().lower() == get_current_user().strip().lower() and has_file(messages[0]):
+                            prev_message_temp += f"\t\t\t\t{message_to_show} (file) - {messages[1]}\n"
+                        elif message_to_show.strip() != "" and has_emoji(messages[0]) and has_file(messages[0]):
+                            prev_message_temp += f"{message_to_show} (file, emoji) - {messages[1]}\n"
+                        elif message_to_show.strip() != "" and has_emoji(messages[0]):
+                            prev_message_temp += f"{message_to_show} (emoji) - {messages[1]}\n"
+                        elif message_to_show.strip() != "" and has_file(messages[0]):
+                            prev_message_temp += f"{message_to_show} (file) - {messages[1]}\n"
+                        elif message_to_show.strip() != "":
+                            prev_message_temp += f"{message_to_show} - {messages[1]}\n"
+                        elif has_emoji(messages[0]):
+                            prev_message_temp += f"(emoji) - {messages[1]}\n"
+                        elif has_file(messages[0]):
+                            prev_message_temp += f"(file) - {messages[1]}\n"
+                        temp_day = str(datetime.datetime.now()).split("-", 2)
+                        temp_day = temp_day[2].split()
+                        if temp_day[0].strip().startswith("0"):
+                            temp_day[0] = temp_day[0].replace("0", "").strip()
+                        # if temp_day[0].strip() not in messages[3][0:2]:
+                        #     prev_message_temp += f"{messages[3]}\n"
+                        try:
+                            if messages[4] != None:
+                                temp_name = messages[4].split(".")[0]
+                                images.append(f"{temp_name}.png")
+                        except:
+                            pass
                 else:
                     pass
             enter_home_directory()
@@ -6118,44 +6500,82 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
     if not silent and not graphic_mode:
         print("Done!")
     try:
+        if "bluetooth" in str(temp_sc).lower():
+            ip = "<Bluetooth>"
         if temp_sc == None:
-            link = socket.socket()
-            if not silent:
-                if graphic_mode:
-                    layout = [[gui.Text(gui_translate("Set port for contact?")), gui.Button(gui_translate("Yes"), key="yes"), gui.Button(gui_translate("No"), key="no")], [gui.Text(gui_translate("If yes, enter contact's name here")), gui.InputText(key="target_contact")], [gui.Button(gui_translate("Submit"), key="submit"), gui.Button(gui_translate("Cancel"), key="cancel")],[gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title=f"FiEncrypt - Port Adjustment (Logged in as {get_current_user()})", layout=layout, font="Courier 20")
-                    while True:
-                        event, values = window.read()
-                        if event == "yes":
-                            server_port_override = True
-                        elif event == "no":
-                            server_port_override = False
-                        elif event == "cancel":
-                            window.close()
-                            menu(user, None, print_logs, default_color,
-                                 private_mode, error_color, print_speed=0)
-                        elif event == "submit":
-                            if not server_port_override:
-                                server_port_override = False
-                            target_contact = values.get("target_contact", None)
-                            break
-                    window.close()
+            try:
+                temp = RFCOMM
+                bluetooth_available = True
+                if graphic_mode and not use_bluetooth:
+                    use_bluetooth = gui.popup_yes_no(gui_translate("Use Bluetooth for communication?"), title=gui_translate(f"FiEncrypt - Activate Bluetooth (Logged in as {get_current_user()})"), font="Courier 20")
+                    if use_bluetooth == "Yes":
+                        use_bluetooth = True
+                    else:
+                        use_bluetooth = False
+                elif not use_bluetooth:
+                    use_bluetooth = to_boolean(privacy_input("Use Bluetooth for communication? [True|False]", private_mode))
+                if use_bluetooth:
+                    server_port_override = False
+                    link = BluetoothSocket(RFCOMM)
+                    ip = ""
+                    override_port = 23
                 else:
-                    contact_socket = privacy_input("Do you wish to set the port according to a contact file? [Y|N]", private_mode)
-                    if "y" in contact_socket.lower():
-                        target_contact = privacy_input("Enter contact name here", private_mode)
-                contact_port_search = Contacts(user, get_current_user(), print_logs, default_color, error_color, private_mode)
-                contact_name, contact_mac, contact_ip, details, agreed_code, temp_override_port = contact_port_search.check_for(target_contact.strip())
-            else:
-                server_port_override = False
+                    raise TypeError
+            except:
+                bluetooth_available = False
+                link = socket.socket()
+                if not silent:
+                    if graphic_mode:
+                        layout = [[gui.Text(gui_translate("Set port for contact?")), gui.Button(gui_translate("Yes"), key="yes"), gui.Button(gui_translate("No"), key="no")], [gui.Text(gui_translate("If yes, enter contact's name here")), gui.InputText(key="target_contact")], [gui.Button(gui_translate("Submit"), key="submit", bind_return_key=True), gui.Button(gui_translate("Cancel"), key="cancel")],[gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
+                        window = gui.Window(title=f"FiEncrypt - Port Adjustment (Logged in as {get_current_user()})", layout=layout, font="Courier 20")
+                        while True:
+                            event, values = window.read()
+                            if event == "yes":
+                                server_port_override = True
+                            elif event == "no":
+                                server_port_override = False
+                            elif event == "cancel":
+                                window.close()
+                                menu(user, None, print_logs, default_color,
+                                     private_mode, error_color, print_speed=0)
+                            elif event == "submit":
+                                try:
+                                    if not server_port_override:
+                                        server_port_override = False
+                                except UnboundLocalError:
+                                    server_port_override = False
+                                target_contact = values.get("target_contact", None)
+                                break
+                        window.close()
+                    else:
+                        contact_socket = privacy_input("Do you wish to set the port according to a contact file? [Y|N]", private_mode)
+                        if "y" in contact_socket.lower():
+                            target_contact = privacy_input("Enter contact name here", private_mode)
+                    contact_port_search = Contacts(user, get_current_user(), print_logs, default_color, error_color, private_mode)
+                    contact_name, contact_mac, contact_ip, details, agreed_code, temp_override_port = contact_port_search.check_for(target_contact.strip())
+                else:
+                    server_port_override = False
             if not silent and not graphic_mode:
                 animated_print("Socket opened... ")
-            if server_port_override:
-                link.bind((ip, int(temp_override_port)))
-                display_port = temp_override_port
-            else:
-                link.bind((ip, int(override_port)))
-                display_port = override_port
+            if use_bluetooth or "bluetooth" in str(temp_sc).lower():
+                ip = "<Bluetooth>"
+            try:
+                if server_port_override:
+                    link.bind((ip, int(temp_override_port)))
+                    display_port = temp_override_port
+                else:
+                    link.bind((ip, int(override_port)))
+                    display_port = override_port
+            except:
+                if pass_os() == "linux":
+                    try:
+                        temp_sc.close()
+                        link.close()
+                        os.system("sudo systemctl restart bluetooth")
+                    except:
+                        pass
+                server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, prefix,
+                               date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, use_bluetooth=use_bluetooth)
             override_port = display_port
             time.sleep(1)
             if not silent and not graphic_mode:
@@ -6292,6 +6712,33 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             pass
         menu(user, display_initiate, print_logs,
              default_color, private_mode, error_color, print_speed=0)
+    except:
+        raise
+        log("Server channel terminated!", "networkManager", get_current_user(), print_logs)
+        try:
+            sc.close()
+        except:
+            pass
+        try:
+            link.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+        try:
+            link.close()
+        except:
+            pass
+        if graphic_mode:
+            gui.Popup(gui_translate("Unhandled error occured! Shutting down server"), title=gui_translate("Warning"),
+                      font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+            try:
+                window.close()
+                connection_window.close()
+            except:
+                pass
+        else:
+            animated_print("Unknown error! Server shutting down")
+        menu(user, None, print_logs, default_color,
+             private_mode, error_color, print_speed=0)
     if not silent and not graphic_mode:
         print("Recieving information... ", end="\n\n")
     elif graphic_mode:
@@ -6377,7 +6824,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                     except:
                         pass
                     server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
-                                   date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
+                                   date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, use_bluetooth=use_bluetooth)
                 else:
                     sc[info_set].send(str(False).encode())
                     if graphic_mode:
@@ -6400,7 +6847,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                     except:
                         pass
                     server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
-                                   date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
+                                   date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, use_bluetooth=use_bluetooth)
             else:
                 try:
                     if "\\exit" in message or "\\poke" in message:
@@ -6456,7 +6903,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                         except:
                             pass
                         server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, prefix,
-                                       date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window)
+                                       date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, use_bluetooth=use_bluetooth)
                 if not silent and not graphic_mode:
                     animated_print("Done!")
             try:
@@ -6603,7 +7050,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                     except:
                         pass
                     retrievemessage(code, user, 2, prefix, recipient_ip, sc, timestamp, False, False,
-                                    default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, temp_user=foreign_user, window=window)
+                                    default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, temp_user=foreign_user, window=window, just_recieved=True, use_bluetooth=use_bluetooth)
                 except KeyboardInterrupt:
                     try:
                         sc[info_set].close()
@@ -6668,7 +7115,6 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             expected_user = ""
             for char in decrypted_target_user:
                 expected_user += char
-            print(expected_user, get_current_user())
             if expected_user.strip().lower() == capitalize_user(get_current_user()).strip().lower():
                 sc.send(str(True).encode())
                 if not graphic_mode and not silent:
@@ -6686,7 +7132,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 except:
                     pass
                 server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
-                               date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
+                               date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
             else:
                 sc.send(str(False).encode())
                 if graphic_mode:
@@ -6709,7 +7155,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 except:
                     pass
                 server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
-                               date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
+                               date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
         else:
             try:
                 if "\\exit" in message or "\\poke" in message or "\\request_user" in message:
@@ -6765,7 +7211,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                     except:
                         pass
                     server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, prefix,
-                                   date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
+                                   date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
             if not silent and not graphic_mode:
                 animated_print("Done!")
         try:
@@ -6789,7 +7235,6 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 pass
             else:
                 if "agreed" in info[0][0]:
-                    print(info)
                     if graphic_mode:
                         gui.Popup(gui_translate("No/Invalid agreed code found!"), title=gui_translate("Warning"),
                                   text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
@@ -6836,9 +7281,9 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             backup_current_user = user
         elif "\\request_user" in message:
             skip = True
-            accepted = request_username(sc, mode="recieve", ip=get_ip_from_socket(sc))
+            accepted = id_packet(sc, mode="recieve", ip=get_ip_from_socket(sc))
             server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
-                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code)
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
         # ?Removes any remnants of the .encode() attribute added to messages before they are sent
         elif message.startswith("b'") or message.startswith("b\""):
             message = message[2: int(len(message))]
@@ -6927,7 +7372,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 except:
                     pass
                 retrievemessage(code, user, 2, prefix, recipient_ip, sc, timestamp, False, False,
-                                default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, temp_user=foreign_user, window=window, in_contacts=in_contacts, priority_code=priority_code)
+                                default_color, print_logs, private_mode, error_color, None, display_initiate, prev=prev_messages, temp_user=foreign_user, window=window, in_contacts=in_contacts, priority_code=priority_code, just_recieved=True, use_bluetooth=use_bluetooth)
             except KeyboardInterrupt:
                 try:
                     sc.close()

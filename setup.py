@@ -24,4 +24,6 @@ except exception as e:
 
 finally:
     if sys.platform == "win32":
-        print("If issues related to the import of modules arise, please screen shot")
+        print("You may recieve an error regarding the installation of pyaudio. It is safe to ignore this, although functionality related to voice messages will be unavailable")
+    elif sys.platform == "linux":
+        print("PyAudio and Bluetooth (Bluez) will need to be installed from the relevant repository manager. For example, you will need to run sudo apt-get install python3-pyaudio python3-bluetooth")
