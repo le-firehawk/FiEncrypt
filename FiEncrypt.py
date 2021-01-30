@@ -346,7 +346,7 @@ def apply_theme(theme):
     except:
         gui.theme("default")
         if graphic_mode:
-            gui.Popup("Invalid Theme! Launching Theme Previewer!",
+            gui.Popup(gui_translate("Invalid Theme! Launching Theme Previewer!"),
                       title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
             gui.theme_previewer()
 
@@ -1167,6 +1167,10 @@ def retrieve_config_settings(**kwargs):
         translation_enabled = to_boolean(translation_enabled[1].strip())
         override_port = config_lines[15].split(" = ")
         override_port = override_port[1].strip()
+        if "troll_with_filler" in config_lines[-2] or "troll_with_filler" in config_lines[-1]:
+            troll_with_filler = True
+        else:
+            troll_with_filler = False
         try:
             override_port = int(str(override_port).strip())
         except TypeError:
@@ -1233,6 +1237,8 @@ def retrieve_config_settings(**kwargs):
             return gui_theme
         elif exclusive_mode == "override_port":
             return override_port
+        elif exclusive_mode == "filler_troll":
+            return troll_with_filler
 
 
 def log(string, log_type, user, display):
@@ -1269,9 +1275,9 @@ def log(string, log_type, user, display):
         establish_tree()
 
 
-def get_poked(foreign_user, **poke_num):
+def get_poked(foreign_user, **kwargs):
     """Pokes the user with majestic ASCII art"""
-    pokes = poke_num.get('poke_num', 1)
+    pokes = kwargs.get('poke_num', 1)
     line1, line2, line3, line4, line5, line6, line7, line8, line9, line10, line11, line12, line13, line14, line15, line16 = "                                     _______________________", "                                    /                       \\", "                                    \__________              \\", " ______________________________________________|              \\", "/                                                              \\", "\________________________                                       \\", "           ______________/                                       \\", "          /                                                      |", "          \______________                                        |", "           ______________/                                       |", "          /                                                      |", "          \______________                                        |", "           _____________/                             ___________|", "          /                                         /", "          \_____________                           /", "                        \_________________________/"
     if pokes > 10:
         pokes = 10
@@ -1352,9 +1358,9 @@ def get_poked(foreign_user, **poke_num):
                 animated_print(f"{foreign_user.capitalize()} has poked you!")
 
 
-def you_are_loved(foreign_user, **hearts):
+def you_are_loved(foreign_user, **kwargs):
     """Prints out hearts for the user, when someone is willing to share them around..."""
-    hearts = hearts.get("hearts", 1)
+    hearts = kwargs.get("hearts", 1)
     if foreign_user == None:
         foreign_user = "Anonymous"
     line1, line2, line3, line4, line5, line6, line7, line8 = "  ____      ____       ", " /    \____/    \\      ", "|                |     ", "|                |     ", " \              /      ", "   \          /        ", "     \      /          ", "       \__/            "
@@ -1440,9 +1446,33 @@ def capitalize_user(user):
         return "Anonymous"
 
 
+def handle_bluetooth_error(error, **kwargs):
+    """Takes a variety of errors handed down by btcommon.BluetoothError and gives a more specific output"""
+    resolution = kwargs.get("resolution", "exit")
+    if resolution == "revert":
+        resolution = "Returning to previous function"
+    elif resolution == "exit":
+        resolution = "Aborting communications"
+    if "connection refused" in str(error).lower():
+        if graphic_mode:
+            gui.Popup(gui_translate(f"Bluetooth: Connection refused by peer! {resolution}"), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+        else:
+            animated_print(f"WARNING: Bluetooth - Connection refused by peer! {resolution}", error=True, reset=True)
+    elif "connection reset" in str(error).lower():
+        if graphic_mode:
+            gui.Popup(gui_translate(f"Bluetooth: Connection reset by peer! {resolution}"), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+        else:
+            animated_print(f"WARNING: Bluetooth - Connection reset by peer! {resolution}", error=True, reset=True)
+    elif "connection aborted" in str(error).lower():
+        if graphic_mode:
+            gui.Popup(gui_translate(f"Bluetooth: Connection aborted! {resolution}"), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+        else:
+            animated_print(f"WARNING: Bluetooth - Connection aborted! {resolution}", error=True, reset=True)
+
+
 def check_secret_code(code):
     """Checks secret code entered by the user against a number of preset codes, dictating which secret function should be executed"""
-    accepted_codes = [["c", "E"], ['J', '\x1d', '?', '2', 'G'], ['H', '%']]
+    accepted_codes = ["6663bf546c17ad9e331a98e07921762af2fd74b72d8dd00667f69df52bc315d5", "49312f6e7d6661b89d2dbc4956d5995158b5a5078615c598b25195f3ff4f62b0", "de00c642838326eb5eacfdf308258a4f70f17008e449197d4dd411dbffa43374", "d7c2cc41c984c6bdd7e4eddfa5d335e71472661eae72080aa12df15329264657"]
     for length, accepted_code in enumerate(accepted_codes):
         if code == accepted_code:
             if length == 0:
@@ -1451,6 +1481,8 @@ def check_secret_code(code):
                 code_func = 2
             elif length == 2:
                 code_func = 3
+            elif length == 3:
+                code_func = 4
             return True, code_func
         else:
             pass
@@ -1554,14 +1586,23 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     ip = None
             temp_window.close()
         else:
-            for i, address in enumerate(nearby_devices):
-                animated_print(f"{i+1}. {address}")
-            try:
-                ip = nearby_devices[int(privacy_input("Select one of these bluetooth addresses", private_mode).strip())-1]
-                if ip == 0:
+            if len(nearby_devices) == 0:
+                animated_print("WARNING: Scan did not return any nearby devices!", error=True, reset=True)
+                ip = privacy_input("Enter known Bluetooth address", private_mode).strip()
+            else:
+                for i, address in enumerate(nearby_devices):
+                    animated_print(f"{i+1}. {address}")
+                try:
+                    chosen_address = privacy_input("Select one of these bluetooth addresses", private_mode).strip()
+                    try:
+                        chosen_address = int(chosen_address)
+                        ip = nearby_devices[chosen_address-1]
+                        if ip == 0:
+                            ip = None
+                    except:
+                        ip = chosen_address.strip()
+                except:
                     ip = None
-            except:
-                ip = None
     else:
         ip = confirm_ip
     if ip == None or ip.strip() == "":
@@ -1752,6 +1793,13 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     connected = False
                     get_recipient_ip(user, display_initiate, print_logs,
                                      default_color, private_mode, error_color, temp_sc)
+        else:
+            if ip.count(":") == 1:
+                ip = ip.split(":", 1)
+                override_port, contact_override_port = ip[1].strip(), ip[1].strip()
+                ip = ip[0].strip()
+                manual_port = True
+            target_mac, target_name, agreed_code = None, None, None
     elif type(ip) == list:
         temp_sc = []
         for address in ip:
@@ -1948,53 +1996,84 @@ def gnu_ip_resolve(print_logs, private_mode):
 
 
 def id_packet(sc, **kwargs):
+    """Provides, or requests the peer with relevant information about your profile (upon your approval), allowing contacts to be automatically generated, assisting the process of locating individuals to talk with"""
     mode, ip, code_details, accepted = kwargs.get("mode", None), kwargs.get("ip", None), kwargs.get("code", None), False
     if mode == "send":
-        sc.send(f"\\request_user".encode())
-        info = sc.recv(1024).decode()
+        try:
+            sc.send(f"\\request_user".encode())
+            info = sc.recv(1024).decode()
+        except:
+            info = None
         if info == None or "None" in info:
             return sc, None, None, None
         else:
             #info = decode_foreign_user(code_details[0], code_details[1], info.strip(), applied_default_color)
             info = info[::-1].strip().split(" || ")
             decrypted_username, decrypted_mac, decrypted_override_port, encrypted_username, encrypted_mac, encrypted_override_port, new_user, temp_new_mac, new_mac, override_port = [], [], [], [], [], [], "", "", "", ""
+            if len(info) < 3:
+                return sc, None, None, None
             for i, char in enumerate(info[1]):
                 encrypted_username.append(ord(char))
                 decrypted_username.append(chr(int(encrypted_username[i])-22))
             for char in decrypted_username:
                 new_user += char
-            #print(new_user)
             mac_offset = f"{new_user[0]}{new_user[-1]}"
             new_user = new_user[1:-1]
             for i, char in enumerate(info[0]):
                 encrypted_mac.append(ord(char))
-                temp_char = int(encrypted_mac[i])-int(mac_offset)
-                if temp_char < 32:
-                    temp_char = temp_char + 95
-                elif temp_char > 126:
-                    temp_char = temp_char - 95
-                decrypted_mac.append(chr(temp_char))
+                try:
+                    temp_char = int(encrypted_mac[i])-int(mac_offset)
+                    if temp_char < 32:
+                        temp_char = temp_char + 95
+                    elif temp_char > 126:
+                        temp_char = temp_char - 95
+                    decrypted_mac.append(chr(temp_char))
+                except:
+                    pass
             for char in decrypted_mac:
                 temp_new_mac += char
-            override_port_offset = f"{temp_new_mac[2]}{temp_new_mac[-4]}"
+            verify_mac = temp_new_mac.split("=", 1)
+            try:
+                if verify_mac[1].count(":") == 5:
+                    temp_new_mac = verify_mac[1].strip()
+            except:
+                pass
+            if len(temp_new_mac.split(":")[0]) == 4:
+                override_port_offset = f"{temp_new_mac[3]}{temp_new_mac[2]}"
+                ununual_mac, compounded_mac = True, True
+            elif len(temp_new_mac) != 19:
+                override_port_offset = f"{temp_new_mac[2]}{temp_new_mac[-4]}"
+                ununual_mac, compounded_mac = True, False
+            else:
+                override_port_offset = f"{temp_new_mac[2]}{temp_new_mac[-5]}"
+                ununual_mac, compounded_mac = False, False
             for i in range(len(temp_new_mac)):
-                if i == 2 or i == len(temp_new_mac) - 4:
+                if i == 2 or (i == len(temp_new_mac) - 5 and not ununual_mac):
+                    pass
+                elif i == 3 and compounded_mac:
                     pass
                 else:
                     new_mac += temp_new_mac[i]
-            #print(new_mac)
+            verify_mac = new_mac.split("=", 1)
+            try:
+                if verify_mac[1].count(":") == 5:
+                    new_mac = verify_mac[1].strip()
+            except:
+                pass
             for i, char in enumerate(info[2]):
                 encrypted_override_port.append(ord(char))
-                temp_char = int(encrypted_override_port[i])-int(override_port_offset)
-                if temp_char < 32:
-                    temp_char = temp_char + 95
-                elif temp_char > 126:
-                    temp_char = temp_char - 95
-                decrypted_override_port.append(chr(temp_char))
+                try:
+                    temp_char = int(encrypted_override_port[i])-int(override_port_offset)
+                    if temp_char < 32:
+                        temp_char = temp_char + 95
+                    elif temp_char > 126:
+                        temp_char = temp_char - 95
+                    decrypted_override_port.append(chr(temp_char))
+                except:
+                    pass
             for char in decrypted_override_port:
                 override_port += char
             get_foreign_user(new_user=new_user.strip().capitalize())
-            #print(new_user, new_mac, override_port)
             return sc, new_user, new_mac, override_port
     elif mode == "recieve":
         if ip.strip() == "":
@@ -2021,7 +2100,6 @@ def id_packet(sc, **kwargs):
             for i, char in enumerate(get_current_user().lower()):
                 decrypted_username.append(ord(char))
             decrypted_username.append(ord(str(offset1[1])))
-            #print(decrypted_username)
             for i, char in enumerate(decrypted_username):
                 encrypted_username.append(chr(int(decrypted_username[i])+22))
             for char in encrypted_username:
@@ -2029,16 +2107,11 @@ def id_packet(sc, **kwargs):
             for i, char in enumerate(get_mac()):
                 try:
                     if i == 2:
-                        #print(i, get_mac()[i], offset2)
                         decrypted_mac.append(ord(str(offset2[0])))
-                    elif i == decrypted_mac.index(decrypted_mac[len(get_mac())-3]):
-                        #print(i, get_mac()[i], offset2, list(get_mac()).index(list(get_mac())[len(get_mac())-3]))
-                        decrypted_mac.append(ord(str(offset2[1])))
                 except IndexError:
                     pass
-                #print(i, get_mac()[i], offset2)
                 decrypted_mac.append(ord(char))
-                #print(decrypted_mac, int(f"{offset1[0]}{offset1[1]}"))
+            decrypted_mac.insert(int(decrypted_mac.index(decrypted_mac[len(get_mac())-3])), ord(str(offset2[1])))
             for i, char in enumerate(decrypted_mac):
                 temp_char = int(decrypted_mac[i])+int(f"{offset1[0]}{offset1[1]}")
                 if temp_char < 32:
@@ -2050,7 +2123,6 @@ def id_packet(sc, **kwargs):
                 temp_mac += char
             for i, char in enumerate(str(random_port)):
                 decrypted_override_port.append(ord(char))
-                #print(decrypted_override_port, int(f"{offset2[0]}{offset2[1]}"), random_port)
                 temp_char = int(decrypted_override_port[i])+int(f"{offset2[0]}{offset2[1]}")
                 if temp_char < 32:
                     temp_char = temp_char + 95
@@ -2059,7 +2131,6 @@ def id_packet(sc, **kwargs):
                 encrypted_override_port.append(chr(temp_char))
             for char in encrypted_override_port:
                 temp_override_port += char
-            #print(temp_mac, temp_user, temp_override_port)
             packet = f"{temp_mac} || {temp_user} || {temp_override_port}"[::-1]
             sc.send(packet.encode())
         else:
@@ -2087,9 +2158,8 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
     if secret_code == None:
         menu(user, None, print_logs, default_color,
              private_mode, error_color, print_speed=0)
-    completed_code = []
     try:
-        if ((int(len(secret_code)) % 2) / 2) != 0:
+        if secret_code.strip() == "":
             if graphic_mode:
                 gui.Popup(gui_translate("Code format not valid!"),
                           title=gui_translate("Warning"), font="Courier 20", auto_close=True, auto_close_duration=5)
@@ -2102,8 +2172,8 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
             secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_color,
                        print_logs, private_mode, error_color)
         else:
-            pass
-    except ValueError:
+            secret_code = int(secret_code)
+    except:
         if graphic_mode:
             gui.Popup(gui_translate("Code format not valid!"),
                       title=gui_translate("Warning"), font="Courier 20", auto_close=True, auto_close_duration=5)
@@ -2115,10 +2185,7 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
             "encryptionManager", current_user, print_logs)
         secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_color,
                    print_logs, private_mode, error_color)
-    temp = 0
-    for i in range(0, len(secret_code), 2):
-        temp = secret_code[i:i+2]
-        completed_code.append(chr(int(temp)))
+    completed_code = hash_current_user(str(secret_code))
     valid, func = check_secret_code(completed_code)
     if not valid:
         if graphic_mode:
@@ -2126,7 +2193,7 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
                       title=gui_translate("Warning"), font="Courier 20", auto_close=True, auto_close_duration=5)
         else:
             animated_print(
-                f"WARNING: Code format not valid!", error=True, reset=True)
+                f"WARNING: Code not valid!", error=True, reset=True)
             Colors(default_color)
         log("Secret Code Entered! Valid? False",
             "encryptionManager", current_user, print_logs)
@@ -2305,26 +2372,34 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
         os.system(f'cmd /c "cd c:/SetVol & start ./SetVol & SetVol 100 unmute & start "" "C:\Program Files\Windows Media Player\wmplayer.exe" "c:/RamRanch/ramranch.mp3"')
         ctypes.windll.user32.LockWorkStation()
     elif func == 4:
-        animated_print(f"Enabling graphic mode...")
-        if(sys.platform.startswith("win32")):
-            os.chdir(f"c:/Users/{user}/FiEncrypt")
-        elif(sys.platform.startswith("linux")):
-            os.chdir(f"/home/{user}/FiEncrypt")
-        config_file = open(f"./config.txt", "r+")
-        config_data = config_file.read()
-        config_lines = config_data.split("\n")
-        config_lines[8] = f"graphic_mode = True"
-        for line in config_lines:
-            if line != "" or " " or "-":
-                line = f"{line}\n"
-            config_file.write(line)
-        config_file.close()
-        animated_print("Done!")
+        enter_home_directory()
+        with open(f"./config.txt", "r+") as config_file:
+            config_lines, refresh_config = config_file.read().split("\n"), False
+            for i, line in enumerate(config_lines):
+                if "troll_with_filler" in line:
+                    refresh_config = True
+                    config_file.seek(0)
+                    config_file.truncate()
+                    del(config_lines[i])
+            if not refresh_config:
+                config_file.write("troll_with_filler")
+                status = "enabled... ;) Enjoy"
+            else:
+                config_file.seek(0)
+                for line in config_lines:
+                    config_file.write(f"{line}\n")
+                status = "disabled"
+        if graphic_mode:
+            gui.Popup(gui_translate(f"Word filler troll {status}"), title=gui_translate("Alert"), font="Courier 20", auto_close=True, auto_close_duration=5)
+        else:
+            animated_print(f"Word filler troll {status}")
+        menu(user, None, print_logs, default_color,
+             private_mode, error_color, print_speed=0)
 
 
 def showcode(user, current_user, private_mode, print_logs, error_color, default_color):
     """Outputs the current encryption code in various forms, based on input parameters"""
-    enter_home_directory()
+    #enter_home_directory()
     with open(f"./code.txt", "r+") as temp_file:
         code = temp_file.read()
     if current_user != 1 and current_user != 2:
@@ -2377,6 +2452,7 @@ def even_num():
 
 
 def parse_size(size, filename):
+    """Transforms the raw byte-size of a file into human readable format"""
     try:
         size = int(size)
     except:
@@ -2393,31 +2469,63 @@ def parse_size(size, filename):
 
 
 def stringify_filepath(filepath):
+    """Adds/replaces the characters of a string to make it compatible for reference in bash/related terminal interfaces that do not take kindly to spaces"""
     return filepath.strip().replace(" ", "\ ").replace(
         "'", "\\'").replace("(", "\\(").replace(")", "\\)")
 
 
 def random_filler(length, string):
     """Produces filler to accompany a message before it is send over the network"""
-    output, alphabet, number, symbols, new_string = "", ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l",
+    output, alphabet, number, symbols, new_string, troll_with_filler = "", ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l",
                                                          "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"], [1, 2, 3, 4, 5, 6, 7, 8, 9], ["!", "@", "#", "$", "%", "^", "&", "*",
-                                                                                                                                                              "(", ")", "-", "=", "+", "{", "}", "[", "]", ";", ":", "'", "\"", ",", ".", "<", ">", "/", "?"], ""
-    for i in range(int(length)):
-        type_select = random.choice(["alphabet", "number", "symbols"])
-        if type_select == "alphabet":
-            output += random.choice(alphabet)
-        elif type_select == "number":
-            output += random.choice(str(number))
-        else:
-            output += random.choice(symbols)
+                                                                                                                                                              "(", ")", "-", "=", "+", "{", "}", "[", "]", ";", ":", "'", "\"", ",", ".", "<", ">", "/", "?"], "", retrieve_config_settings(exclusive="filler_troll")
+    if troll_with_filler:
+        words, output = ["a", "the", "johnny"], ["", ""]
+        chosen_word, length_left = None, int(length)
+        while chosen_word == None or len(chosen_word) > length_left or length_left > 0:
+            chosen_word = random.choice(words)
+            if len(chosen_word) <= length_left / 2:
+                if len(output[0]) <= length_left / 2:
+                    output[0] += chosen_word
+                else:
+                    output[1] += chosen_word
+                length_left -= len(chosen_word)
+            elif len(chosen_word) <= length_left:
+                output[1] += chosen_word
+                length_left -= len(chosen_word)
+            print(length_left, chosen_word)
+            if length_left <= 0:
+                break
+    else:
+        for i in range(int(length)):
+            type_select = random.choice(["alphabet", "number", "symbols"])
+            if type_select == "alphabet":
+                output += random.choice(alphabet)
+            elif type_select == "number":
+                output += random.choice(str(number))
+            else:
+                output += random.choice(symbols)
     if "fE" in output or "||" in output:
         random_filler(length, string)
-    else:
+    elif not troll_with_filler:
         for i in range(0, int(len(output)/2)):
             new_string += output[i]
         new_string += string
         for j in range(int(len(output)/2), int(len(output))):
             new_string += output[j]
+        return new_string
+    else:
+        for word in output[0]:
+            new_string += word
+        new_string += string
+        if len(output[1]) > len(output[0]):
+            output[1] = output[1][:len(output[0])]
+        elif len(output[1]) < len(output[0]):
+            output[1] = f"{output[1]}{output[0][:len(output[0])-len(output[1])]}"
+        for word in output[1]:
+            new_string += word
+        print(output[0], output[1], string)
+        print(new_string)
         return new_string
 
 
@@ -2879,8 +2987,8 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     os.chdir("./cache")
                     layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
                         gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
-                    window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
-                                        layout=layout, margins=(100, 50), font="Courier 20")
+                    window, overwrite_file = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
+                                        layout=layout, margins=(100, 50), font="Courier 20"), False
                     while True:
                         event, values = window.read()
                         if event == ">>":
@@ -2894,8 +3002,12 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                                 if len(early_file) == 0:
                                     early_file = None
                             else:
-                                gui.Popup(gui_translate("Only one file can be sent at a time"),
-                                          title="Warning", font="Courier 20", text_color="red", grab_anywhere=True, auto_close=True, auto_close_duration=5)
+                                if not overwrite_file:
+                                    gui.Popup(gui_translate("Only one file can be sent at a time"),
+                                              title="Warning", font="Courier 20", text_color="red", grab_anywhere=True, auto_close=True, auto_close_duration=5)
+                                    overwrite_file = True
+                                else:
+                                    early_file = None
                         elif event == "exit":
                             message_text = values.get("message_input", "")
                             message_text += "\\exit"
@@ -3441,6 +3553,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
         sc, username, temp_mac, temp_save_override_port = id_packet(sc, code=[code2, prefix], mode="send")
         auto_generate_contact = Contacts(user, get_current_user(), print_logs, default_color, error_color, private_mode)
         auto_generate_contact.add(username, temp_mac, None, "Auto-generated contact on username request", temp_save_override_port)
+        accepted = id_packet(sc, mode="recieve", ip=get_ip_from_socket(sc))
         if username == None:
             get_foreign_user(new_user="\\reset")
             temp_display_name = None
@@ -3617,7 +3730,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             sys.stdout.write("\033[K")
         output_file = open("./messageout.txt", "r+")
         for i in range(len(message_text)):
-            if message_text[i] == output_phrase[i]:
+            if message_text[i].lower() == output_phrase[i].lower():
                 if message_text[i].strip() != "" and output_phrase[i].strip() != "":
                     # ?It is really difficult to nail down what causes either @code_seg1 or 2 to equal zero, so I added this catcher instead
                     for _ in range(2):
@@ -4226,7 +4339,10 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     try:
                         sc.send(packet.encode())
                     except UnboundLocalError:
-                        sc.send("\\exit".encode())
+                        try:
+                            sc.send("\\exit".encode())
+                        except:
+                            pass
             except:
                 raise
                 if graphic_mode:
@@ -4244,19 +4360,9 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             error_link.close()
         except:
             pass
-        if early_file != None:
+        if outbound_file:
             attach_image, filename = sftp_send(
                 ip, default_color, error_color, voice_message, code, prefix, sc, file_path=early_file, use_bluetooth=use_bluetooth)
-            try:
-                if attach_image:
-                    prev_messages[-1].append(filename)
-                else:
-                    prev_messages[-1].append(None)
-            except:
-                pass
-        elif outbound_file:
-            attach_image, filename = sftp_send(
-                ip, default_color, error_color, voice_message, code, prefix, sc, use_bluetooth=use_bluetooth)
             try:
                 if attach_image:
                     prev_messages[-1].append(filename)
@@ -4449,30 +4555,33 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
         sc = reply_link
     else:
         sc = temp_sc
-    decrypted_username, encrypted_username, temp_encrypted_username = [], [], ""
-    for i, char in enumerate(expected_user[::-1]):
-        decrypted_username.append(ord(char))
-        encrypted_username.append(chr(int(decrypted_username[i])+31))
-    for char in encrypted_username:
-        temp_encrypted_username += char
-    expected_user = temp_encrypted_username
+    # decrypted_username, encrypted_username, temp_encrypted_username = [], [], ""
+    # for i, char in enumerate(expected_user[::-1]):
+    #     decrypted_username.append(ord(char))
+    #     encrypted_username.append(chr(int(decrypted_username[i])+31))
+    # for char in encrypted_username:
+    #     temp_encrypted_username += char
+    # expected_user = temp_encrypted_username
+    encrypted_expected_user = hash_current_user(expected_user)[::-1]
     if graphic_mode:
         temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - User Validation (Logged in as: {get_current_user()})"), layout=[
                                 [gui.Text(gui_translate("Validating User..."))]], margins=(100, 50), font="Courier 20", finalize=True)
+    else:
+        animated_print("Validating User...")
     try:
         sc.send(
-            f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
+            f"\\user_confirm={encrypted_expected_user} |||| {get_own_ip(False, False)}".encode())
     except:
         try:
             if temp_sc == None:
                 reply_link.connect((ip.strip(), 19507))
                 reply_link.send(
-                    f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
+                    f"\\user_confirm={encrypted_expected_user} |||| {get_own_ip(False, False)}".encode())
             else:
                 reply_link = socket.socket()
                 reply_link.connect((ip.strip(), 19507))
                 reply_link.send(
-                    f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
+                    f"\\user_confirm={encrypted_expected_user} |||| {get_own_ip(False, False)}".encode())
         except ConnectionRefusedError:
             return False, sc
         sc = reply_link
@@ -4486,6 +4595,11 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
                                     [gui.Text(gui_translate("Validating User... Success!"))]], margins=(100, 50), font="Courier 20", finalize=True)
             time.sleep(2)
             temp_popup.close()
+        else:
+            for _ in range(2):
+                sys.stdout.write("\033[F")
+                #sys.stdout.write("\033[K")
+            animated_print("Validating User... Success!")
         return True, sc
     else:
         reply_link = socket.socket()
@@ -4498,11 +4612,67 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
                                         [gui.Text(gui_translate("Validating User... Failed!"))]], margins=(100, 50), font="Courier 20", finalize=True)
                 time.sleep(2)
                 temp_popup.close()
+            else:
+                for _ in range(2):
+                    sys.stdout.write("\033[F")
+                    #sys.stdout.write("\033[K")
+                animated_print("Validating User... Failed!")
             return None, sc
-        reply_link.send(
-            f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
-        info = reply_link.recv(1024)
-        info = info.decode()
+        try:
+            reply_link.send(
+                f"\\user_confirm={expected_user} |||| {get_own_ip(False, False)}".encode())
+            info = reply_link.recv(1024)
+            info = info.decode()
+        except ConnectionResetError:
+            if graphic_mode:
+                if foreign_user != None:
+                    gui.Popup(gui_translate(f"{foreign_user.capitalize()} has reset the conenction!"),
+                              title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                else:
+                    gui.Popup(gui_translate("Peer has reset the connection!"),
+                              title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+            else:
+                if foreign_user != None:
+                    animated_print(
+                        f"WARNING: {foreign_user.capitalize()} has reset the conenction!", error=True, reset=True)
+                else:
+                    animated_print(
+                        f"WARNING: Peer has reset the conenction!", error=True, reset=True)
+                Colors(default_color)
+        except ConnectionRefusedError:
+            if graphic_mode:
+                if foreign_user != None:
+                    gui.Popup(gui_translate(f"{foreign_user.capitalize()} has refused the conenction!"),
+                              title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                else:
+                    gui.Popup(gui_translate("Peer has refused the connection!"),
+                              title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+            else:
+                if foreign_user != None:
+                    animated_print(
+                        f"WARNING: {foreign_user.capitalize()} has refused the conenction!", error=True, reset=True)
+                else:
+                    animated_print(
+                        f"WARNING: Peer has refused the conenction!", error=True, reset=True)
+                Colors(default_color)
+        except ConnectionAbortedError:
+            if graphic_mode:
+                if foreign_user != None:
+                    gui.Popup(gui_translate(f"{foreign_user.capitalize()} has aborted the conenction!"),
+                              title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                else:
+                    gui.Popup(gui_translate("Peer has aborted the connection!"),
+                              title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+            else:
+                if foreign_user != None:
+                    animated_print(
+                        f"WARNING: {foreign_user.capitalize()} has aborted the conenction!", error=True, reset=True)
+                else:
+                    animated_print(
+                        f"WARNING: Peer has aborted the conenction!", error=True, reset=True)
+                Colors(default_color)
+        except exception as e:
+            handle_bluetooth_error(e, resolution="revert")
         if "true" in info.lower():
             log("Foreign user succesfully validated!", "networkManager", get_current_user(), None)
             if message != None:
@@ -4537,6 +4707,7 @@ def get_auto_code():
 
 
 def get_mac():
+    """Returns your MAC address"""
     try:
         import re, uuid
         return ":".join(re.findall("..", "%012x" % uuid.getnode()))
@@ -4577,6 +4748,7 @@ def private_file_integrity(filename):
 
 
 def to_boolean(state):
+    """Transforms passed string into the appropiate boolean"""
     if "true" in str(state).lower().strip():
         return True
     else:
@@ -4584,6 +4756,7 @@ def to_boolean(state):
 
 
 def has_emoji(message):
+    """Returns True if a message contains an emoji"""
     emojis = ["\\heart", "\\<3", "\\poke", "\\thumbs_up", "\\thumbs_down"]
     for emoji in emojis:
         if emoji in message.lower().strip():
@@ -4592,6 +4765,7 @@ def has_emoji(message):
 
 
 def has_file(message):
+    """Returns True if message has file attached"""
     if "\\file" in message.strip().lower():
         return True
     else:
@@ -4599,6 +4773,7 @@ def has_file(message):
 
 
 def get_ip_from_socket(sc):
+    """Takes the socket object and extracts peer's IP address from it"""
     try:
         temp = str(sc).split("raddr=('")
         target_ip = substring(temp[1], "'", 0)
@@ -4609,7 +4784,7 @@ def get_ip_from_socket(sc):
 
 def sftp_send(recipient_ip, default_color, error_color, voice_message, code, prefix, temp_sc, **kwargs):
     """Sends file using unique socket"""
-    use_bluetooth = kwargs.get("use_bluetooth", False)
+    use_bluetooth, file_path = kwargs.get("use_bluetooth", False), kwargs.get("file_path", None)
     try:
         if use_bluetooth:
             file_link = BluetoothSocket(RFCOMM)
@@ -4617,10 +4792,10 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
         else:
             file_link = socket.socket()
             file_link.bind((get_own_ip(False, False).strip(), 41731))
-        file_link.settimeout(10)
+        #file_link.settimeout(20)
         file_link.listen(10)
         sc, address = file_link.accept()
-        sc.settimeout(10)
+        #sc.settimeout(20)
     except TimeoutError:
         ready = False
     except BluetoothError:
@@ -4636,17 +4811,19 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
         temp_sc.send("\\exit".encode())
         temp_sc.close()
         assisted_menu()
-    alphabet, valid_file, old_file_path, is_directory, attach_image = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
-                                                                       'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'], False, kwargs.get("file_path", None), False, False
+    alphabet, valid_file, is_directory, attach_image = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
+                                                                       'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'], False, False, False
     try:
-        ready = to_boolean(sc.recv(1024).decode())
+        ready = to_boolean(sc.recv(1024).decode().strip())
     except TimeoutError:
         ready = False
-    except BluetoothError:
+    except btcommon.BluetoothError:
+        ready = False
+    except UnboundLocalError:
         ready = False
     if ready:
-        sc.settimeout(1000)
-        file_link.settimeout(1000)
+        #sc.settimeout(1000)
+        #file_link.settimeout(1000)
         try:
             if len(prefix[0]) == 2:
                 code_seg1 = code[int(prefix[0][0]):int(prefix[0][1])]
@@ -4681,7 +4858,8 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                 filename = "cache/voice_message.wav"
             else:
                 try:
-                    if old_file_path == None:
+                    print(file_path)
+                    if file_path == None:
                         if graphic_mode:
                             layout = [[gui.Text(gui_translate(f"Select file to send to {temp_foreign_user}"))], [
                                 gui.Text("FiEncrypt (C) le_firehawk 2020", font="Courier 10", text_color="grey")]]
@@ -4694,7 +4872,8 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                             filename = privacy_input(
                                 f"Enter path of file to send to {temp_foreign_user}", 0)
                     else:
-                        filename = old_file_path
+                        filename = file_path.strip()
+                    print(filename, old_file_path)
                     if pass_os() == "win32":
                         filename = filename.replace("\\", "/")
                 except KeyboardInterrupt:
@@ -4906,6 +5085,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                             os.system(f"{copy} {filename} ./cache/{os.path.basename(filename)}")
                     decrypted_header, passs, encrypted_header, header = [
                     ], 0, '', f"{filename}<SEPERATOR>{filesize}"
+                    print(header)
                     for i, k in enumerate(header):
                         if i < len(header) / 2 and len(str(code)) >= 4:
                             if len(str(code)) > 4:
@@ -4971,7 +5151,8 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                             log(f"File of size {filesize}B sent successfully!",
                                 "networkManager", get_current_user(), None)
                         else:
-                            print("not accepted!")
+                            filename = None
+                            file_link.close()
                     except KeyboardInterrupt:
                         if graphic_mode:
                             gui.Popup(gui_translate("File transfer interrrupted"), title=gui_translate("Warning"),
@@ -5053,13 +5234,37 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
         code_seg1 = temp
         code3 = code
         Colors(default_color)
-    if use_bluetooth:
-        file_recipient = BluetoothSocket(RFCOMM)
-        file_recipient.connect((recipient_ip, 24))
-    else:
-        file_recipient = socket.socket()
-        file_recipient.connect((recipient_ip, 41731))
-    file_recipient.send(str(True).encode())
+    try:
+        if use_bluetooth:
+            file_recipient = BluetoothSocket(RFCOMM)
+            time.sleep(1)
+            file_recipient.connect((recipient_ip, 24))
+        else:
+            file_recipient = socket.socket()
+            time.sleep(1)
+            file_recipient.connect((recipient_ip, 41731))
+        file_recipient.send(str(True).encode())
+    except ConnectionResetError:
+        if graphic_mode:
+            gui.Popup(gui_translate("Connection reset by peer!"), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+        else:
+            animated_print("WARNING: Connection reset by peer!", error=True, reset=True)
+    except ConnectionRefusedError:
+        if graphic_mode:
+            gui.Popup(gui_translate("Connection refused by peer!"), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+        else:
+            animated_print("WARNING: Connection refused by peer!", error=True, reset=True)
+    except ConnectionAbortedError:
+        if graphic_mode:
+            gui.Popup(gui_translate("Connection aborted!"), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+        else:
+            animated_print("WARNING: Connection aborted!", error=True, reset=True)
+    except btcommon.BluetoothError as e:
+        handle_bluetooth_error(e, resolution="revert")
+        try:
+            return temp_sc, attach_image, None
+        except UnboundLocalError:
+            return temp_sc, None, None
     Colors(default_color)
     if voice_message:
         if graphic_mode:
@@ -5127,15 +5332,22 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                 filename = "foreign_voice_message.wav"
             with open(f"./cache/{filename}", "wb") as inbound_file:
                 if not fallback:
+                    exception_counter = 0
                     for _ in progress:
-                        bytes_read = file_recipient.recv(4096)
+                        try:
+                            bytes_read = file_recipient.recv(8192)
+                            inbound_file.write(bytes_read)
+                        except:
+                            if exception_counter <= 5:
+                                exception_counter += 1
+                            else:
+                                break
                         if not bytes_read:
                             break
-                        inbound_file.write(bytes_read)
                         progress.update(len(bytes_read))
                         if graphic_mode:
                             gui_recieve = gui.one_line_progress_meter(title=gui_translate(
-                                f"FiEncrypt - Recieving File (Logged in as: {get_current_user()})"), current_value=os.path.getsize(f"./cache/{filename}"), max_value=int(filesize), orientation="h")
+                                f"FiEncrypt - Recieving File (Logged in as: {get_current_user()})"), current_value=len(bytes_read), max_value=int(filesize), orientation="h")
                 else:
                     if graphic_mode:
                         gui.Popup("File transfer failed", title=gui_translate("Warning"),
@@ -5323,6 +5535,13 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
     except TimeoutError:
         file_recipient.close()
         filename = None
+    except OSError:
+        if graphic_mode:
+            gui.Popup(gui_translate("Connection error! Aborting file transfer..."), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+        else:
+            animated_print("WARNING: Connection error! Aborting file transfer...", error=True, reset=True)
+        file_recipient.close()
+        filename = None
     except OverflowError:
         log(f"File transfer overflow! File too large!", "networkManager", get_current_user(
         ), None)
@@ -5338,6 +5557,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
         ), None)
         animated_print(f"\nWARNING: Aborting file transfer...", error=True, reset=True)
         Colors(default_color)
+        filename = None
         file_recipient.close()
     try:
         file_recipient.close()
@@ -5352,7 +5572,10 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
     elif not autosync:
         enter_home_directory()
         os.chdir("./cache")
-    return temp_sc, attach_image, filename
+    try:
+        return temp_sc, attach_image, filename
+    except UnboundLocalError:
+        return temp_sc, attach_image, None
 
 
 def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc, timestamp, mailing, talking_to_self, default_color, print_logs, private_mode, error_color, index, display_initiate, **kwargs):
@@ -6551,8 +6774,12 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                         contact_socket = privacy_input("Do you wish to set the port according to a contact file? [Y|N]", private_mode)
                         if "y" in contact_socket.lower():
                             target_contact = privacy_input("Enter contact name here", private_mode)
-                    contact_port_search = Contacts(user, get_current_user(), print_logs, default_color, error_color, private_mode)
-                    contact_name, contact_mac, contact_ip, details, agreed_code, temp_override_port = contact_port_search.check_for(target_contact.strip())
+                            contact_port_search = Contacts(user, get_current_user(), print_logs, default_color, error_color, private_mode)
+                            contact_name, contact_mac, contact_ip, details, agreed_code, temp_override_port = contact_port_search.check_for(target_contact.strip())
+                            server_port_override = True
+                        else:
+                            temp_override_port = override_port
+                            server_port_override = False
                 else:
                     server_port_override = False
             if not silent and not graphic_mode:
@@ -6640,6 +6867,27 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
             info = sc.recv(1024)
         if graphic_mode:
             temp_popup.close()
+    except btcommon.BluetoothError as e:
+        handle_bluetooth_error(e)
+        try:
+            sc.close()
+        except:
+            pass
+        try:
+            link.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+        try:
+            link.close()
+        except:
+            pass
+        try:
+            window.close()
+            connection_window.close()
+        except:
+            pass
+        menu(user, display_initiate, print_logs,
+             default_color, private_mode, error_color, print_speed=0)
     except KeyboardInterrupt:
         log("Server channel terminated!", "networkManager", get_current_user(), print_logs)
         animated_print("\nServer Terminated!")
@@ -6811,7 +7059,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                     sc[info_set].send(str(True).encode())
                     if not graphic_mode and not silent:
                         animated_print(f"Foreign user validated!")
-                        for _ in range(7):
+                        for _ in range(9):
                             sys.stdout.write("\033[F")
                             sys.stdout.write("\033[K")
                     try:
@@ -6890,8 +7138,33 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                             gui.Popup(gui_translate("Invalid message recieved!"), title=gui_translate("Warning"),
                                       font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
                         else:
-                            animated_print(
-                                f"WARNING: {message} recieved but not valid! Restarting Server!", error=True, reset=True)
+                            if message == "None\\request_user":
+                                try:
+                                    newmessage(code, user, recipient_ip, temp_sc, prefix, date, False, error_color, default_color, private_mode, mailing, display_initiate, auto_code)
+                                except:
+                                    if graphic_mode:
+                                        gui.Popup(f"Pipe out of sync! Try to message {recipient_ip} again", title="Warning", font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                                    else:
+                                        animated_print(f"WARNING: Pipe out of sync! Try to message {recipient_ip} again", error=True, reset=True)
+                                    try:
+                                        temp_sc.send("\\exit".encode())
+                                    except:
+                                        pass
+                                    finally:
+                                        temp_sc.close()
+                                    try:
+                                        link.close()
+                                    except:
+                                        pass
+                                    menu(user, None, print_logs, default_color,
+                                         private_mode, error_color, print_speed=0)
+                            else:
+                                if graphic_mode:
+                                    gui.Popup(gui_translate("Invalid message recieved!"), title=gui_translate("Warning"),
+                                              font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                                else:
+                                    animated_print(
+                                        f"WARNING: {message} recieved but not valid! Restarting Server!", error=True, reset=True)
                         Colors(default_color)
                         try:
                             link.close()
@@ -7194,12 +7467,33 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 else:
                     log("Invalid message recieved! Server channel restarting",
                         "networkManager", get_current_user(), print_logs)
-                    if graphic_mode:
-                        gui.Popup(gui_translate("Invalid message recieved!"), title=gui_translate("Warning"),
-                                  font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                    if message == "None\\request_user":
+                        try:
+                            newmessage(code, user, recipient_ip, temp_sc, prefix, date, False, error_color, default_color, private_mode, mailing, display_initiate, auto_code)
+                        except:
+                            if graphic_mode:
+                                gui.Popup(f"Pipe out of sync! Try to message {recipient_ip} again", title="Warning", font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                            else:
+                                animated_print(f"WARNING: Pipe out of sync! Try to message {recipient_ip} again", error=True, reset=True)
+                            try:
+                                temp_sc.send("\\exit".encode())
+                            except:
+                                pass
+                            finally:
+                                temp_sc.close()
+                            try:
+                                link.close()
+                            except:
+                                pass
+                            menu(user, None, print_logs, default_color,
+                                 private_mode, error_color, print_speed=0)
                     else:
-                        animated_print(
-                            f"WARNING: {message} recieved but not valid! Restarting Server!", error=True, reset=True)
+                        if graphic_mode:
+                            gui.Popup(gui_translate("Invalid message recieved!"), title=gui_translate("Warning"),
+                                      font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                        else:
+                            animated_print(
+                                f"WARNING: {message} recieved but not valid! Restarting Server!", error=True, reset=True)
                     Colors(default_color)
                     try:
                         link.close()
@@ -7282,6 +7576,15 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
         elif "\\request_user" in message:
             skip = True
             accepted = id_packet(sc, mode="recieve", ip=get_ip_from_socket(sc))
+            sc, username, temp_mac, temp_save_override_port = id_packet(sc, code=[code, prefix], mode="send")
+            auto_generate_contact = Contacts(user, get_current_user(), print_logs, default_color, error_color, private_mode)
+            try:
+                if temp_save_override_port.strip() == "":
+                    temp_save_override_port = None
+            except:
+                pass
+            if username != None and username != "None" and len(temp_mac) == 19:
+                auto_generate_contact.add(username, temp_mac, None, "Auto-generated contact on username request", temp_save_override_port)
             server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
                            date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
         # ?Removes any remnants of the .encode() attribute added to messages before they are sent
@@ -7416,6 +7719,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
 
 
 def helper(issue, user, current_user):
+    """Module meant to automatically address known persistent issues in FiEncrypt"""
     print("Helper not currently available! Please check back to https://www.github.com/le-firehawk/FiEncrypt for updates!")
 
 
@@ -8275,6 +8579,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
 
 
 def cache_settings(user, current_user, default_color, print_logs, private_mode, error_color, **kwargs):
+    """Allows user to modify cache_settings.txt in a similar fashion to @config_settings"""
     mode = kwargs.get("mode", "read")
     escape = False
     if mode.lower() == "read":
@@ -8431,6 +8736,7 @@ def cache_settings(user, current_user, default_color, print_logs, private_mode, 
 
 
 def manage_cache(user, current_user, default_color, print_logs, private_mode, error_color, **kwargs):
+    """Allows user to directly interface with the cache directory and the data within"""
     enter_home_directory()
     straight_to_menu, old_files = kwargs.get("menu", False), kwargs.get("files", None)
     os.chdir(f"./cache")
@@ -8762,6 +9068,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
 
 
 def assisted_menu():
+    """Attains all necessary variables to execute @menu indepent of @initiate and what not"""
     home_directory, operating_system, user = enter_home_directory()
     print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation, lang, override_port = retrieve_config_settings()
     error_color = "\033[91m"
@@ -9364,6 +9671,9 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
                           title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
             else:
                 animated_print(f"Invalid Fuction!")
+                for _ in range(2):
+                    sys.stdout.write("\033[F")
+                    sys.stdout.write("\033[K")
 
 
 def login(display_initiate, user_account_name, error_color, default_color, print_logs, private_mode, auto_code, **kwargs):
@@ -9403,7 +9713,11 @@ def login(display_initiate, user_account_name, error_color, default_color, print
                     animated_print(
                         f"WARNING: Username cannot be blank!", error=True, reset=True)
                     Colors(default_color)
+                    for _ in range(2):
+                        sys.stdout.write("\033[F")
                 else:
+                    sys.stdout.write("\033[K")
+                    sys.stdout.flush()
                     break
             while password_input == None or password_input.strip() == "":
                 password_input = privacy_input(f"Password", 1)
@@ -9411,7 +9725,12 @@ def login(display_initiate, user_account_name, error_color, default_color, print
                     animated_print(
                         f"WARNING: Password cannot be blank!", error=True, reset=True)
                     Colors(default_color)
+                    for _ in range(2):
+                        sys.stdout.write("\033[F")
+                    sys.stdout.flush()
                 else:
+                    sys.stdout.write("\033[K")
+                    sys.stdout.flush()
                     break
         access = validate_login(username_input, password_input)
         if attempts == 0:

@@ -353,14 +353,14 @@ def main():
                     target_ip = message[1].strip()
                     target_user = message[0].split("=")
                     target_user = target_user[1].strip()[::-1]
-                    decrypted_target_user, encrypted_target_user = [], []
-                    for i, char in enumerate(target_user):
-                        encrypted_target_user.append(ord(char))
-                        decrypted_target_user.append(chr(int(encrypted_target_user[i])-31))
-                    target_user = ""
-                    for char in decrypted_target_user:
-                        target_user += char
-                    if target_user.strip().lower() == get_current_user().strip().lower():
+                    # decrypted_target_user, encrypted_target_user = [], []
+                    # for i, char in enumerate(target_user):
+                    #     encrypted_target_user.append(ord(char))
+                    #     decrypted_target_user.append(chr(int(encrypted_target_user[i])-31))
+                    # target_user = ""
+                    # for char in decrypted_target_user:
+                    #     target_user += char
+                    if target_user.strip() == hash_current_user(get_current_user().strip().lower()):
                         sc.send(str(True).encode())
                         info = sc.recv(1024)
                         message = info.decode()
@@ -373,6 +373,18 @@ def main():
                             name = message[1].strip()
                             if name == "":
                                 name = "Anonymous"
+                            else:
+                                contact_names = []
+                                enter_home_directory()
+                                os.chdir(f"./{hash_current_user(get_current_user().lower().strip())}/contacts")
+                                for root, dirs, files in os.walk(f"."):
+                                    for temp_name in files:
+                                        contact_names.append(temp_name.replace(".txt", ""))
+                                for contact_name in contact_names:
+                                    if name.lower().strip() == contact_name.lower().strip():
+                                        with open(f"./contact_name", "r+") as contact_file:
+                                            contact_lines = contact_file.read().split("\n")
+                                        code = contact_lines[3].split(" = ")[1].strip()
                             message = message[0][0].strip()
                             try:
                                 notification.notify(
@@ -393,6 +405,7 @@ def main():
                 else:
                     print(message)
                 if not request:
+                    os.chdir(f"../inbox")
                     with open(f"./messages.txt", "r+") as mailbox:
                         letters = mailbox.readlines()
                         private_mode = get_privacy_mode()
