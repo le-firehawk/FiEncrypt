@@ -1,5 +1,5 @@
 FiEncrypt, property of le_firehawk is pure Python, peer-to-peer communication software intended for personal use only.
-Copyright (C) 2020 le_firehawk
+Copyright (C) 2021 le_firehawk
 
 FiEncrypt is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
