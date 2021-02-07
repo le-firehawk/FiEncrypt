@@ -287,6 +287,7 @@ def main():
                 main()
             try:
                 message = info.decode()
+                print(message)
                 message = message.split(" | ")
                 if len(message) == 3:
                     if "request" in message[0].lower():
@@ -369,8 +370,12 @@ def main():
                             message = message.split(" | ")
                             ip = target_ip
                             message[0] = message[0].split(" |||| ")
-                            code = message[0][1].strip()
-                            name = message[1].strip()
+                            if len(message[0]) == 1:
+                                code = None
+                                print(message)
+                            else:
+                                code = message[0][1].strip()
+                                name = message[1].strip()
                             if name == "":
                                 name = "Anonymous"
                             else:

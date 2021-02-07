@@ -106,7 +106,7 @@ class Contacts:
         """Gathers a list of all names of contacts present in the Contacts directory"""
         self.user, self.current_user, self.print_logs, self.default_color, self.error_color, self.private_mode, self.contact_names = user, current_user, print_logs, default_color, error_color, private_mode, []
         enter_home_directory()
-        os.chdir(f"./{hash_current_user(current_user.lower().strip())}/contacts")
+        os.chdir(f"./{hash_value(current_user.lower().strip())}/contacts")
         for root, dirs, files in os.walk(f"."):
             for name in files:
                 self.contact_names.append(name.replace(".txt", ""))
@@ -115,10 +115,10 @@ class Contacts:
         """Checks for the name passed as a parameter against all identified names in Contacts directory"""
         for contact in self.contact_names:
             enter_home_directory()
-            os.chdir(f"./{hash_current_user(current_user.lower().strip())}/contacts")
+            os.chdir(f"./{hash_value(current_user.lower().strip())}/contacts")
             if contact_name.lower() in contact.lower():
                 enter_home_directory()
-                os.chdir(f"./{hash_current_user(current_user.lower().strip())}/contacts")
+                os.chdir(f"./{hash_value(current_user.lower().strip())}/contacts")
                 with open(f"./{contact}.txt", "r+") as contact_file:
                     contact_lines = contact_file.readlines()
                 if "-" in contact_lines[2]:
@@ -154,7 +154,7 @@ class Contacts:
     def add_ip(self, contact_name, ip):
         """Locates a contact's file and appends the ip parameter into the relevant line of said file"""
         enter_home_directory()
-        os.chdir(f"./{hash_current_user(current_user.lower().strip())}/contacts")
+        os.chdir(f"./{hash_value(current_user.lower().strip())}/contacts")
         with open(f"./{contact_name}.txt", "r+") as update_contact:
             contact_lines = update_contact.read().split("\n")
             update_contact.seek(0)
@@ -169,7 +169,7 @@ class Contacts:
     def add(self, contact_name, mac, agreed_code, details, override_port):
         """Adds a new contact file into the Contacts directory, with all details being written"""
         enter_home_directory()
-        os.chdir(f"./{hash_current_user(current_user.lower().strip())}/contacts")
+        os.chdir(f"./{hash_value(current_user.lower().strip())}/contacts")
         with open(f"./{contact_name}.txt", "w+") as new_contact:
             new_contact.write(f"{contact_name}\n{mac}\n-\nAgreed Code = {agreed_code}\nOverride Port: {override_port}\n{details}")
         log(f"New Contact: {contact_name}({mac})",
@@ -178,7 +178,7 @@ class Contacts:
     def remove(self, contact_name):
         """Deletes a contact's file, if the search returns a result"""
         enter_home_directory()
-        os.chdir(f"./{hash_current_user(current_user.lower().strip())}/contacts")
+        os.chdir(f"./{hash_value(current_user.lower().strip())}/contacts")
         name, mac, ip, agreed_code, details, override_port = self.check_for(contact_name)
         if None in [name, mac, ip, details]:
             if not graphic_mode:
@@ -192,15 +192,18 @@ class Contacts:
     def list_all(self, **kwargs):
         """Lists every contact name found within the Contacts directory"""
         mac_check, target_mac, ip_wipe = kwargs.get("mac_check", False), kwargs.get("target_mac", None), kwargs.get("ip_wipe", False)
-        if self.contact_names == []:
-            animated_print(f"WARNING: No contacts found in FiEncrypt directory!",
-                           error=True, reset=True)
+        if len(self.contact_names) == 0:
+            if graphic_mode:
+                gui.Popup(gui_translate("No contacts found in your address book!"), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+            else:
+                animated_print(f"WARNING: No contacts found in your address book!",
+                               error=True, reset=True)
         else:
             for i, name in enumerate(self.contact_names):
-                if not mac_check and ip_wipe:
+                if not mac_check and ip_wipe and not graphic_mode:
                     animated_print(f"Contact {i+1}: ")
                 enter_home_directory()
-                os.chdir(f"./{hash_current_user(current_user.lower().strip())}/contacts")
+                os.chdir(f"./{hash_value(current_user.lower().strip())}/contacts")
                 with open(f"./{name}.txt", "r+") as contact:
                     contact_lines = contact.readlines()
                     if not mac_check and ip_wipe:
@@ -223,7 +226,7 @@ class Contacts:
                         self.add_ip(contact_lines[0], "-")
                     else:
                         if target_mac != None:
-                            if hash_current_user(contact_lines[1].strip()) == target_mac.strip():
+                            if hash_value(contact_lines[1].strip()) == target_mac.strip():
                                 return True, [contact_line for contact_line in contact_lines]
             if mac_check:
                 return False, None
@@ -351,17 +354,30 @@ def apply_theme(theme):
             gui.theme_previewer()
 
 
-def gui_translate(string):
+def gui_translate(string, **kwargs):
     """Translates the string passed through in simplified form, for PySimpleGUI Text elements"""
+    enable, private_message = kwargs.get("status", True), kwargs.get("pm", False)
     try:
-        if translation:
+        if not retrieve_config_settings(exclusive="pm_translate") and string.count(" - ") == string.count("\n") and translation and not enable:
+            pass
+        elif not enable and translation:
+            pass
+        elif private_message:
+            pass
+        elif translation:
             string = TranslationManager.translate(string)
         return string
     except:
-        if TranslationManager == None:
-            clear_cache()
-            initiate()
-        else:
+        try:
+            if TranslationManager == None:
+                gui.Popup("Translation manager not initiated, restarting FiEncrypt to resolve", title="Warning", font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                clear_cache()
+                initiate()
+            else:
+                return string
+        except NameError:
+            return string
+        except UnboundLocalError:
             return string
 
 
@@ -381,9 +397,10 @@ def apply_color(default, error, reset):
 def animated_print(string, **kwargs):
     """Accepts a string to be printed, along with the optional parameter for how long Python should wait before printing the next character"""
     try:
-        speed, newline, error, reset_at_end = kwargs.get("speed", None), kwargs.get(
-            "newline", False), kwargs.get("error", False), kwargs.get("reset", False)
-        if translation:
+        speed, newline, error, reset_at_end, private_message = kwargs.get("speed", None), kwargs.get(
+            "newline", False), kwargs.get("error", False), kwargs.get("reset", False), kwargs.get("pm", False)
+        if translation and not private_message:
+            temp_string = string
             try:
                 format_count, target_list = string.count("\033["), []
                 for _ in range(format_count):
@@ -407,7 +424,7 @@ def animated_print(string, **kwargs):
             except:
                 log("Connection error with translation server!",
                     "languageManager", get_current_user(), None)
-                exit()
+                string = temp_string
         if error and reset_at_end:
             string = f"\033[91m{string}\033[0m{applied_default_color}"
         elif error:
@@ -415,17 +432,21 @@ def animated_print(string, **kwargs):
         elif reset_at_end:
             string = f"{string}\033[0m{applied_default_color}"
         enter_home_directory()
-        with open(f"./config.txt", "r+") as config_file:
-            config_lines = config_file.readlines()
-            if "print" in config_lines[4] and speed == None and not check_debug_mode():
-                printing_speed = config_lines[4].split(" = ")
-                printing_speed = printing_speed[1]
-            elif check_debug_mode():
-                printing_speed = 0
-            elif speed == None:
-                printing_speed = 0.05
-            else:
-                printing_speed = speed
+        if speed == None:
+            try:
+                with open(f"./config.txt", "r+") as config_file:
+                    config_lines = config_file.readlines()
+                    if "print" in config_lines[4] and speed == None and not check_debug_mode():
+                        printing_speed = config_lines[4].split(" = ")
+                        printing_speed = printing_speed[1]
+                    elif check_debug_mode():
+                        printing_speed = 0
+                    else:
+                        printing_speed = 0.05
+            except:
+                    printing_speed = 0.05
+        else:
+            printing_speed = speed
         for character in string:
             sys.stdout.write(character)
             sys.stdout.flush()
@@ -504,45 +525,27 @@ def pass_user():
         return None
 
 
-def hide_tree():
-    """Applies hidden attribute to all files within the FiEncrypt directory (Windows only)"""
+def protect_tree():
+    """Applies hidden attribute or permission protection to FiEncrypt directory"""
     enter_home_directory()
     succes_count = 0
     if sys.platform == "win32":
-        subprocess.check_call(
-            ["attrib", "+H", f"../FiEncrypt"])
-        succes_count += 1
-        subprocess.check_call(
-            ["attrib", "+H", f"./config.txt"])
-        succes_count += 1
-        subprocess.check_call(
-            ["attrib", "+H", f"./logs.txt"])
-        succes_count += 1
-        subprocess.check_call(
-            ["attrib", "+H", f"./code.txt"])
-        succes_count += 1
-        subprocess.check_call(
-            ["attrib", "+H", f"./messagein.txt"])
-        succes_count += 1
-        subprocess.check_call(
-            ["attrib", "+H", f"./messageout.txt"])
-        succes_count += 1
-        try:
-            subprocess.check_call(
-                ["atrib", "+H", f"./anarchy2.ico"])
-            succes_count += 1
-        except:
-            pass
-        subprocess.check_call(
-            ["attrib", "+H", f"./{hash_current_user(get_current_user().lower().strip())}"])
-        succes_count += 1
-        try:
-            subprocess.check_call(
-                ["attrib", "+H", f"./anarchy.png"])
-            succes_count += 1
-        except:
-            pass
-        log(f"Files hidden ({succes_count}/9)", "fileManager", get_current_user(), None)
+        for path, dirs, files in os.walk("."):
+            for dir in dirs:
+                subprocess.check_call(["attrib", "+H", dir])
+            for file in files:
+                subprocess.check_call(["attrib", "+H", file])
+        subprocess.check_call(["attrib", "+H", f"../FiEncrypt"])
+        log("FiEncrypt files hidden!", "fileManager", get_current_user(), None)
+    elif sys.platform == "linux":
+        with ignore_stderr():
+            for path, dirs, files in os.walk("."):
+                for dir in dirs:
+                    os.system(f"chmod 000 {dir}")
+                for file in files:
+                    if ".py" not in file and ".md" not in file and "LICENSE" not in file and "git" not in file and "cache" not in file:
+                        os.system(f"chmod 000 {file}")
+        log("FiEncrypt files permission protected", "fileManager", get_current_user(), None)
 
 
 def set_home_directory(operating_system):
@@ -642,7 +645,7 @@ def establish_tree():
     os.mkdir(f"./cache")
     log("FiEncrypt directory structure established! ['./config.txt', './cache_settings.txt', './code.txt', './logs.txt', './messagein.txt', './messageout.txt', './CREDENTIALS.txt', './LICENSE', './cache']", "fileManager", get_current_user(), None)
     if sys.platform == "win32":
-        hide_tree()
+        protect_tree()
 
 
 def disable_translation():
@@ -716,16 +719,25 @@ def add_new_user():
                                 break
                             else:
                                 valid_username = True
+                    credentials.seek(0)
+                    credentials.truncate()
                 if valid_username:
                     password = values.get("password", "")
                     hash_pass = password.encode("utf-8")
                     hash_pass = hashlib.sha256(hash_pass).hexdigest()
                     confirm_password = values.get("confirm_password", "").encode("utf-8")
+                    if password.strip().startswith("\\unlim_"):
+                        unlimited_password = True
+                        password = password.replace("\\unlim_", "").strip()
+                        hash_pass = password.encode("utf-8")
+                        hash_pass = hashlib.sha256(hash_pass).hexdigest()
+                    else:
+                        unlimited_password = False
                     if hash_pass != hashlib.sha256(confirm_password).hexdigest():
                         valid_password = False
                         gui.Popup("Passwords do not match!", title=gui_translate("Warning"),
                                   font="Courier 15", text_color="red", auto_close=True, auto_close_duration=5)
-                    elif len(password) <= 8:
+                    elif len(password) <= 8 and not unlimited_password:
                         valid_password = False
                         gui.Popup("Password is too short!", title=gui_translate("Warning"),
                                   font="Courier 15", text_color="red", auto_close=True, auto_close_duration=5)
@@ -751,10 +763,17 @@ def add_new_user():
                             break
                         else:
                             valid_username = True
-        password = ""
-        while len(password) <= 8:
+        password, unlimited_password = "", False
+        while (len(password) <= 8 and not unlimited_password) or password == None:
             password = privacy_input("Enter a password here", 1)
-            if len(password) <= 8:
+            if password.strip().startswith("\\unlim_") or password.strip().startswith("\\\\unlim_"):
+                unlimited_password = True
+                password = password.replace("\\\\unlim_", "").replace("\\unlim_", "").strip()
+            else:
+                unlimited_password = False
+            if password == None:
+                pass
+            elif len(password) <= 8 and not unlimited_password:
                 animated_print("WARNING: Password is too short!", error=True, reset=True)
         hash_pass = password.encode("utf-8")
         hash_pass = hashlib.sha256(hash_pass).hexdigest()
@@ -769,19 +788,26 @@ def add_new_user():
         hash = hashlib.sha256(hash).hexdigest()
         with open(f"./CREDENTIALS.txt", "r+") as credentials:
             existing_credentials = credentials.readlines()
+            credentials.seek(0)
+            credentials.truncate()
             existing_credentials.append(hash_user)
             existing_credentials.append(hash)
             for credential in existing_credentials:
                 credential = credential.replace("\n", "")
                 credentials.write(f"{credential}\n")
         try:
-            os.mkdir(f"./{hash_current_user(username.lower())}")
+            os.mkdir(f"./{hash_value(username.lower())}")
+            if pass_os() == "linux":
+                os.system(f"chmod 000 ./{hash_value(username.lower())}")
         except FileExistsError:
             pass
-        os.chdir(f"./{hash_current_user(username.lower())}")
-        os.mkdir(f"./inbox")
-        os.mkdir(f"./files")
-        os.mkdir(f"./contacts")
+        os.chdir(f"./{hash_value(username.lower())}")
+        try:
+            os.mkdir(f"./inbox")
+            os.mkdir(f"./files")
+            os.mkdir(f"./contacts")
+        except FileExistsError:
+            pass
         with open(f"./inbox/messages.txt", "w+") as indox_file:
             pass
         if graphic_mode:
@@ -1171,39 +1197,47 @@ def retrieve_config_settings(**kwargs):
             troll_with_filler = True
         else:
             troll_with_filler = False
+        if "no_translate_pm" in config_lines:
+            translate_private_messages = False
+        else:
+            translate_private_messages = True
         try:
             override_port = int(str(override_port).strip())
         except TypeError:
             override_port = 15753
         if translation_enabled:
-            if "supress_translate_warning" not in config_lines[-1]:
+            if "supress_translate_warning" not in config_lines[-1] and "supress_translate_warning" not in config_lines[-2]:
                 if graphic_mode:
-                    layout = [[gui.Text("*** WARNING ***", text_color="red", font="Courier 30")], [gui.Text("Enabling translate will expose sensitive data, including private messages, \nto data harvesting on the part of the relevant services. Please disable translation if you take issue with this.")], [gui.Button("Accept"), gui.Button("Decline")], [gui.Checkbox("Supress future warnings", key="supress_translate_warning")]]
+                    layout = [[gui.Text("*** WARNING ***", text_color="red", font="Courier 30")], [gui.Text(gui_translate("Enabling translate will expose sensitive data, including private messages,\nto data harvesting on the part of the relevant services. Please disable translation if you take issue with this."))], [gui.Button(gui_translate("Accept")), gui.Button(gui_translate("Decline"))], [gui.Checkbox(gui_translate("Supress future warnings (Ignored if declined)"), key="supress_translate_warning")], [gui.Checkbox(gui_translate("Do not translate private messages"), key="no_translate_pm")]]
                     temp_popup = gui.Window(title=f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})", layout=layout, font="Courier 20")
                     while True:
                         event, values = temp_popup.read()
                         if event == "Accept":
-                            supress_translate_warning = values.get("supress_translate_warning", False)
+                            supress_translate_warning, no_translate_pm = values.get("supress_translate_warning", False), values.get("no_translate_pm", False)
                             bypass_warning = True
                             break
                         elif event == "Decline":
-                            supress_translate_warning = values.get("supress_translate_warning", False)
-                            bypass_warning = False
+                            bypass_warning, supress_translate_warning, no_translate_pm = False, False, False
                             break
                     temp_popup.close()
                     if to_boolean(supress_translate_warning) and translation_enabled:
-                        if "supress_translate_warning" not in config_lines[-1]:
+                        if "supress_translate_warning" not in config_lines:
                             config_lines.append("supress_translate_warning")
                         if not bypass_warning:
                             config_lines[13] = "translation = False"
-                            config_file.seek(0)
-                            config_file.truncate()
-                            for line in config_lines:
-                                line = line.replace("\n", "")
-                                config_file.write(f"{line}\n")
+                    if to_boolean(no_translate_pm) and translation_enabled:
+                        if "no_translate_pm" not in config_lines:
+                            config_lines.append("no_translate_pm")
+                        if not bypass_warning:
+                            config_lines[13] = "translation = False"
+                    config_file.seek(0)
+                    config_file.truncate()
+                    for line in config_lines:
+                        line = line.replace("\n", "")
+                        config_file.write(f"{line}\n")
                 else:
                     animated_print("WARNING: Enabling translate will expose sensitive data, including private messages, to data harvesting on the part of the relevant services. Please disable translation if you take issue with this.", error=True, reset=True)
-                    bypass_warning = True
+                    bypass_warning, supress_translate_warning, no_translate_pm = True, True, False
             else:
                 bypass_warning = True
             if bypass_warning:
@@ -1239,6 +1273,8 @@ def retrieve_config_settings(**kwargs):
             return override_port
         elif exclusive_mode == "filler_troll":
             return troll_with_filler
+        elif exclusive_mode == "pm_translate":
+            return translate_private_messages
 
 
 def log(string, log_type, user, display):
@@ -1472,7 +1508,7 @@ def handle_bluetooth_error(error, **kwargs):
 
 def check_secret_code(code):
     """Checks secret code entered by the user against a number of preset codes, dictating which secret function should be executed"""
-    accepted_codes = ["6663bf546c17ad9e331a98e07921762af2fd74b72d8dd00667f69df52bc315d5", "49312f6e7d6661b89d2dbc4956d5995158b5a5078615c598b25195f3ff4f62b0", "de00c642838326eb5eacfdf308258a4f70f17008e449197d4dd411dbffa43374", "d7c2cc41c984c6bdd7e4eddfa5d335e71472661eae72080aa12df15329264657"]
+    accepted_codes = ["6663bf546c17ad9e331a98e07921762af2fd74b72d8dd00667f69df52bc315d5", "49312f6e7d6661b89d2dbc4956d5995158b5a5078615c598b25195f3ff4f62b0", "de00c642838326eb5eacfdf308258a4f70f17008e449197d4dd411dbffa43374", "d7c2cc41c984c6bdd7e4eddfa5d335e71472661eae72080aa12df15329264657", "1b313b51407e4ed21b9241ce7073704e"]
     for length, accepted_code in enumerate(accepted_codes):
         if code == accepted_code:
             if length == 0:
@@ -1483,6 +1519,8 @@ def check_secret_code(code):
                 code_func = 3
             elif length == 3:
                 code_func = 4
+            elif length == 4:
+                code_func = 5
             return True, code_func
         else:
             pass
@@ -1520,12 +1558,12 @@ def create_notification(ip, name):
 
 def get_recipient_ip(user, display_initiate, print_logs, default_color, private_mode, error_color, temp_sc, **kwargs):
     """Obtains the desired IP, MAC, or contact name that a message is to be sent to. Calls arp_scan() and mac_resolve() modules as appropiate"""
-    target_mac, target_name, is_invite, confirm_ip, message, ip, agreed_code, use_bluetooth, manual_port = None, None, kwargs.get(
-        "is_invite", False), kwargs.get("confirm_ip", None), kwargs.get("message", None), None, None, kwargs.get("use_bluetooth", False), False
+    target_mac, target_name, is_invite, confirm_ip, message, ip, agreed_code, use_bluetooth, manual_port, return_immediately = None, None, kwargs.get(
+        "is_invite", False), kwargs.get("confirm_ip", None), kwargs.get("message", None), None, None, kwargs.get("use_bluetooth", False), False, kwargs.get("return_immediately", False)
     try:
         override_port = int(override_port)
     except:
-        override_port = None
+        override_port = 15753
     if confirm_ip == None and not use_bluetooth:
         if graphic_mode:
             layout = [[gui.Text(gui_translate("Enter IP, MAC address or contact name of the recipient")), gui.InputText(
@@ -1560,7 +1598,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     break
                 elif event == "Rescan":
                     iteration, old_length = 0, len(nearby_devices)
-                    gui.popup_no_wait("Rescanning...", title=gui_translate(f"FiEncrypt - Bluetooth Scan (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
+                    gui.popup_no_wait(gui_translate("Rescanning..."), title=gui_translate(f"FiEncrypt - Bluetooth Scan (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
                     while len(nearby_devices) == old_length:
                         nearby_devices = discover_devices()
                         if len(nearby_devices) != old_length or iteration >= 25:
@@ -1643,6 +1681,12 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                             ip = target_ip
                         else:
                             ip = mac_resolve(target_mac, print_logs)
+                        if return_immediately:
+                            try:
+                                return ip, None, None, temp_sc, None, override_port
+                            except:
+                                menu(user, display_initiate, print_logs,
+                                     default_color, private_mode, error_color, print_speed=0)
                         if ip == None:
                             animated_print(
                                 f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
@@ -1674,11 +1718,29 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                         override_port = int(override_port)
                     else:
                         override_port = int(contact_override_port)
-                    target_name = target_name.replace("\n", "")
+                    if target_mac == None:
+                        if graphic_mode:
+                            gui.Popup(gui_translate("Invalid contact details!"), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                        else:
+                            animated_print(
+                                f"WARNING: Invalid contact details!", error=True, reset=True)
+                            Colors(default_color)
+                        connected = False
+                    if target_name != None:
+                        target_name = target_name.replace("\n", "")
                     if target_ip != None:
                         ip = target_ip.strip()
-                    else:
+                    elif target_mac != None:
                         ip = mac_resolve(target_mac.strip(), print_logs)
+                    else:
+                        ip, target_mac, target_name, temp_sc, agreed_code, override_port = get_recipient_ip(user, display_initiate, print_logs,
+                                         default_color, private_mode, error_color, temp_sc, return_immediately=True)
+                if return_immediately:
+                    try:
+                        return ip, None, None, temp_sc, None, override_port
+                    except:
+                        menu(user, display_initiate, print_logs,
+                             default_color, private_mode, error_color, print_speed=0)
                 if ip == None:
                     animated_print(
                         f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
@@ -1712,7 +1774,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                 else:
                     ip, target_mac, target_name, temp_sc, agreed_code, override_port = get_recipient_ip(user, display_initiate, print_logs,
                                                                             default_color, private_mode, error_color, temp_sc)
-            time.sleep(8)
+            time.sleep(2)
         elif "." not in ip:
             if ip.count(":") == 1:
                 ip = ip.split(":", 1)
@@ -1734,6 +1796,12 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                         ip = target_ip.strip()
                     else:
                         ip = mac_resolve(target_mac.strip(), print_logs)
+                    if return_immediately:
+                        try:
+                            return ip, None, None, temp_sc, None, override_port
+                        except:
+                            menu(user, display_initiate, print_logs,
+                                 default_color, private_mode, error_color, print_speed=0)
                     if ip == None:
                         animated_print(
                             f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
@@ -1764,6 +1832,12 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                             ip = target_ip
                         else:
                             ip = mac_resolve(target_mac, print_logs)
+                        if return_immediately:
+                            try:
+                                return ip, None, None, temp_sc, None, override_port
+                            except:
+                                menu(user, display_initiate, print_logs,
+                                     default_color, private_mode, error_color, print_speed=0)
                         if ip == None:
                             animated_print(
                                 f"WARNING: Unable to resolve IP address through ARP!", error=True, reset=True)
@@ -1876,8 +1950,7 @@ def get_recipient_ip(user, display_initiate, print_logs, default_color, private_
                     if "y" in proceed.lower():
                         pass
                     else:
-                        address, target_mac, target_name, temp_sc, agreed_code, override_port = get_recipient_ip(
-                            user, display_initiate, print_logs,                                                                    default_color, private_mode, error_color, temp_sc)
+                        address, target_mac, target_name, temp_sc, agreed_code, override_port = get_recipient_ip(user, display_initiate, print_logs, default_color, private_mode, error_color, temp_sc)
                 time.sleep(8)
             elif "." not in address:
                 if ":" in address:
@@ -2185,20 +2258,26 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
             "encryptionManager", current_user, print_logs)
         secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_color,
                    print_logs, private_mode, error_color)
-    completed_code = hash_current_user(str(secret_code))
+    completed_code = hash_value(str(secret_code))
     valid, func = check_secret_code(completed_code)
     if not valid:
-        if graphic_mode:
-            gui.Popup(gui_translate(f"Secret code {secret_code} does not exist!"),
-                      title=gui_translate("Warning"), font="Courier 20", auto_close=True, auto_close_duration=5)
+        completed_code = hash_value(str(secret_code), hash="md5")
+        valid, func = check_secret_code(completed_code)
+        if valid:
+            log("Secret Code Entered! Valid? True",
+                "encryptionManager", current_user, print_logs)
         else:
-            animated_print(
-                f"WARNING: Code not valid!", error=True, reset=True)
-            Colors(default_color)
-        log("Secret Code Entered! Valid? False",
-            "encryptionManager", current_user, print_logs)
-        secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_color,
-                   print_logs, private_mode, error_color)
+            if graphic_mode:
+                gui.Popup(gui_translate(f"Secret code {secret_code} does not exist!"),
+                          title=gui_translate("Warning"), font="Courier 20", auto_close=True, auto_close_duration=5)
+            else:
+                animated_print(
+                    f"WARNING: Code not valid!", error=True, reset=True)
+                Colors(default_color)
+            log("Secret Code Entered! Valid? False",
+                "encryptionManager", current_user, print_logs)
+            secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_color,
+                       print_logs, private_mode, error_color)
     else:
         log("Secret Code Entered! Valid? True",
             "encryptionManager", current_user, print_logs)
@@ -2395,6 +2474,98 @@ def secretcode(user, current_user, default_color, print_logs, private_mode, erro
             animated_print(f"Word filler troll {status}")
         menu(user, None, print_logs, default_color,
              private_mode, error_color, print_speed=0)
+    elif func == 5:
+        enter_home_directory()
+        if graphic_mode:
+            username, password = "", ""
+            while username == None or username.strip() == "" or password == None or password.strip() == "":
+                layout = [[gui.Text(gui_translate("Please confirm your login"))], [gui.Text(gui_translate("Username")), gui.InputText(
+                    key="username")], [gui.Text(gui_translate("Password")), gui.InputText(key="password", password_char="*")], [gui.Button(gui_translate("Login"), key="Login", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
+                window = gui.Window(title=gui_translate("FiEncrypt - Login Confirmation"),
+                                    layout=layout, margins=(100, 50), font="Courier 20")
+                event, values = window.read()
+                if event == "Login":
+                    username = values.get("username", None)
+                    password = values.get("password", None)
+                    if username == None or username.strip() == "":
+                        gui.Popup(gui_translate("Username cannot be blank!"), title=gui_translate("Warning"),
+                                  text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
+                    elif password == None or password.strip() == "":
+                        gui.Popup(gui_translate("Password cannot be blank!"), title=gui_translate("Warning"),
+                                  text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
+                window.close()
+        else:
+            animated_print(f"Please confirm your login: ")
+            username = privacy_input("Username", private_mode)
+            password = privacy_input("Password", 1)
+        valid = validate_login(username, password)
+        current_valid = username.lower().strip() == get_current_user().lower().strip()
+        if valid and current_valid:
+            user_target = privacy_input("Enter name of user you wish to delete (Case sensitive)", private_mode)
+            if user_target != None and user_target.strip() != "":
+                if user_target.strip().lower() == get_current_user().strip().lower():
+                    if graphic_mode:
+                        confirm_self_delete = gui.popup_yes_no(gui_translate(f"This action could affect the currently logged in account {get_current_user()}!\nDo you wish to proceed?"), title=gui_translate("Warning"), font="Courier 20", text_color="red")
+                        if confirm_self_delete == "Yes":
+                            confirm_self_delete = True
+                        else:
+                            gui.Popup(gui_translate("Aborting"), title=gui_translate("Warning"), font="Courier 20", auto_close=True, auto_close_duration=5)
+                            confirm_self_delete = False
+                    else:
+                        confirm_self_delete = to_boolean(privacy_input("Delete currently logged in account? [True|False]", private_mode))
+                    if confirm_self_delete:
+                        pass
+                    else:
+                        menu(user, None, print_logs, default_color,
+                            private_mode, error_color, print_speed=0)
+                enter_home_directory()
+                with open("CREDENTIALS.txt", "r+") as credentials_file:
+                    credentials = credentials_file.read().split("\n")
+                    for i, credential in enumerate(credentials):
+                        if hash_value(user_target.strip()) == credential and (i % 2) / 2 == 0:
+                            target_user_hash, target_user_index = credential, i
+                            print(credentials[i], credentials[i+1])
+                            del(credentials[i], credentials[i+1])
+                    credentials_file.seek(0)
+                    credentials_file.truncate()
+                    for new_credential in credentials:
+                        new_credential = new_credential.replace("\n", "")
+                        credentials_file.write(f"{new_credential}\n")
+                enter_home_directory()
+                try:
+                    shutil.rmtree(target_user_hash)
+                    if graphic_mode:
+                        gui.Popup(gui_translate(f"User account {user_target} successfully deleted! Restarting FiEncrypt"), title=gui_translate("Alert"), font="Courier 20", auto_close=True, auto_close_duration=5)
+                    else:
+                        animated_print(f"User account {user_target} successfully deleted! Restarting FiEncrypt")
+                    initiate()
+                except:
+                    if graphic_mode:
+                        gui.Popup(gui_translate(f"User {user_target} does not exist!"), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                    else:
+                        animated_print(f"WARNING: User {user_target} does not exist!", error=True, reset=True)
+                    secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_color,
+                               print_logs, private_mode, error_color)
+            else:
+                if graphic_mode:
+                    gui.Popup(gui_translate("Target cannot be blank!"), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                else:
+                    animated_print("WARNING: Target cannot be blank!", error=True, reset=True)
+                secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_color,
+                           print_logs, private_mode, error_color)
+        else:
+            if valid:
+                if graphic_mode:
+                    gui.Popup(gui_translate(f"Cannot log in as any user except {get_current_user()}!"), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                else:
+                    animated_print(f"WARNING: Cannot log in as any user except {get_current_user()}!", error=True, reset=True)
+            else:
+                if graphic_mode:
+                    gui.Popup(gui_translate("Invalid login!"), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                else:
+                    animated_print("WARNING: Invalid login!", error=True, reset=True)
+            secretcode(user, capitalize_user(capitalize_user(get_current_user())), default_color,
+                       print_logs, private_mode, error_color)
 
 
 def showcode(user, current_user, private_mode, print_logs, error_color, default_color):
@@ -2655,7 +2826,7 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
         log(f"New encryption code requested!",
             "encryptionManager", current_user, print_logs)
         enter_home_directory()
-        hide_tree()
+        protect_tree()
         if not auto_code:
             if not graphic_mode:
                 animated_print(f"New code successfully written to code.txt file")
@@ -2679,8 +2850,8 @@ def randomcode(user, current_user, auto_request, private_mode, print_logs, defau
 def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self, error_color, default_color, private_mode, print_logs, mailing, display_initiate, auto_code, **kwargs):
     """Allows user to create and send an encrypted message"""
     global override_port, contact_override_port
-    previous_message, poked, voice_message, outbound_file, manual, faulty_override, stored_message, sc, prev_messages, window, early_file, in_contacts, priority_code, use_bluetooth = kwargs.get(
-        "message", ""), kwargs.get("poked", False), False, False, False, kwargs.get("faulty", False), kwargs.get("stored_message", ""), temp_sc, kwargs.get("prev", []), kwargs.get("window", None), None, kwargs.get("in_contacts", None), kwargs.get("priority_code", None), kwargs.get("use_bluetooth", False)
+    previous_message, poked, voice_message, outbound_file, manual, faulty_override, stored_message, sc, prev_messages, window, early_file, in_contacts, priority_code, use_bluetooth, checking_mailbox = kwargs.get(
+        "message", ""), kwargs.get("poked", False), False, False, False, kwargs.get("faulty", False), kwargs.get("stored_message", ""), temp_sc, kwargs.get("prev", []), kwargs.get("window", None), None, kwargs.get("in_contacts", None), kwargs.get("priority_code", None), kwargs.get("use_bluetooth", False), kwargs.get("checking_mailbox", False)
     temp_display_name, prev_message_temp, images, agreed_code, get_username = get_foreign_user(), "", [], None, False
     if temp_display_name == None:
         temp_display_name = recipient_ip
@@ -2974,7 +3145,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
         pass
     if prev_messages == None:
         prev_messages = []
-    if conversation_mode and recipient_ip != "" and poked:
+    if conversation_mode and recipient_ip != "" and poked and not checking_mailbox:
         try:
             if faulty_override and stored_message.strip() != "":
                 message_text = stored_message
@@ -2985,12 +3156,21 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         temp_display_name = recipient_ip
                     enter_home_directory()
                     os.chdir("./cache")
+                    for i, image_name in enumerate(images):
+                        if not os.path.exists(image_name):
+                            del(images[i])
+                    enter_home_directory()
+                    os.chdir("./cache")
                     layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
+                        gui_translate(prev_message_temp, pm=True))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
                     window, overwrite_file = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20"), False
                     while True:
-                        event, values = window.read()
+                        try:
+                            event, values = window.read()
+                        except:
+                            message_text = "\\exit"
+                            break
                         if event == ">>":
                             message_text = values.get("message_input", "")
                             break
@@ -3027,12 +3207,21 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                               text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                     enter_home_directory()
                     os.chdir("./cache")
+                    for i, image_name in enumerate(images):
+                        if not os.path.exists(image_name):
+                            del(images[i])
+                    enter_home_directory()
+                    os.chdir("./cache")
                     layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
+                        gui_translate(prev_message_temp, pm=True))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     while True:
-                        event, values = window.read()
+                        try:
+                            event, values = window.read()
+                        except:
+                            message_text = "\\exit"
+                            break
                         if event == ">>":
                             message_text = values.get("message_input", "")
                             break
@@ -3148,8 +3337,13 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         pass
                 enter_home_directory()
                 os.chdir("./cache")
+                for i, image_name in enumerate(images):
+                    if not os.path.exists(image_name):
+                        del(images[i])
+                enter_home_directory()
+                os.chdir("./cache")
                 layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                    gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
+                    gui_translate(prev_message_temp, pm=True))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                     layout=layout, margins=(100, 50), font="Courier 20")
 
@@ -3164,7 +3358,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
             log("Server channel shutting down!", "networkManager", get_current_user(), print_logs)
             menu(user, None, print_logs, default_color,
                  private_mode, error_color, print_speed=0)
-    elif conversation_mode and recipient_ip != "":
+    elif conversation_mode and recipient_ip != "" and not checking_mailbox:
         try:
             if faulty_override and stored_message.strip() != "":
                 message_text = stored_message
@@ -3175,12 +3369,21 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         temp_display_name = recipient_ip
                     enter_home_directory()
                     os.chdir("./cache")
+                    for i, image_name in enumerate(images):
+                        if not os.path.exists(image_name):
+                            del(images[i])
+                    enter_home_directory()
+                    os.chdir("./cache")
                     layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
+                        gui_translate(prev_message_temp, pm=True))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     while True:
-                        event, values = window.read()
+                        try:
+                            event, values = window.read()
+                        except:
+                            message_text = "\\exit"
+                            break
                         if event == ">>":
                             message_text = values.get("message_input", "")
                             break
@@ -3218,12 +3421,21 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                               text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                     enter_home_directory()
                     os.chdir("./cache")
+                    for i, image_name in enumerate(images):
+                        if not os.path.exists(image_name):
+                            del(images[i])
+                    enter_home_directory()
+                    os.chdir("./cache")
                     layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                        gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
+                        gui_translate(prev_message_temp, pm=True))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
                     window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                         layout=layout, margins=(100, 50), font="Courier 20")
                     while True:
-                        event, values = window.read()
+                        try:
+                            event, values = window.read()
+                        except:
+                            message_text = "\\exit"
+                            break
                         if event == ">>":
                             message_text = values.get("message_input", "")
                             break
@@ -3280,12 +3492,21 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     temp_display_name = recipient_ip
                 enter_home_directory()
                 os.chdir("./cache")
+                for i, image_name in enumerate(images):
+                    if not os.path.exists(image_name):
+                        del(images[i])
+                enter_home_directory()
+                os.chdir("./cache")
                 layout = [[gui.Text(gui_translate(f"New Conversation"), font="Courier 30", text_color="red")], [gui.Text(
-                    gui_translate(prev_message_temp), font="Courier 20")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
+                    gui_translate(prev_message_temp, pm=True), font="Courier 20")], [gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file", font="Courier 20"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - New Conversation (Logged in as: {get_current_user()})"),
                                     layout=layout, margins=(100, 50))
                 while True:
-                    event, values = window.read()
+                    try:
+                        event, values = window.read()
+                    except:
+                        message_text = "\\exit"
+                        break
                     if event == ">>":
                         message_text = values.get("message_input", "")
                         break
@@ -3323,12 +3544,21 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                           text_color="red", font="Courier 15", auto_close=True, auto_close_duration=5)
                 enter_home_directory()
                 os.chdir("./cache")
+                for i, image_name in enumerate(images):
+                    if not os.path.exists(image_name):
+                        del(images[i])
+                enter_home_directory()
+                os.chdir("./cache")
                 layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                    gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
+                    gui_translate(prev_message_temp, pm=True))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.InputText(key="message_input", font="Courier 20"), gui.Button(gui_translate("File"), key="file"), gui.Button(gui_translate("Exit"), key="exit"), gui.Button(">>", bind_return_key=True, font="Courier 20")], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
                 window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                     layout=layout, margins=(100, 50), font="Courier 20")
                 while True:
-                    event, values = window.read()
+                    try:
+                        event, values = window.read()
+                    except:
+                        message_text = "\\exit"
+                        break
                     if event == ">>":
                         message_text = values.get("message_input", "")
                         break
@@ -3440,8 +3670,13 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     pass
             enter_home_directory()
             os.chdir("./cache")
+            for i, image_name in enumerate(images):
+                if not os.path.exists(image_name):
+                    del(images[i])
+            enter_home_directory()
+            os.chdir("./cache")
             layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
+                gui_translate(prev_message_temp, pm=True))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
             window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                 layout=layout, margins=(100, 50), font="Courier 20")
         elif graphic_mode:
@@ -3521,8 +3756,13 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     pass
             enter_home_directory()
             os.chdir("./cache")
+            for i, image_name in enumerate(images):
+                if not os.path.exists(image_name):
+                    del(images[i])
+            enter_home_directory()
+            os.chdir("./cache")
             layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
+                gui_translate(prev_message_temp, pm=True))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
             window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                 layout=layout, margins=(100, 50), font="Courier 20")
     try:
@@ -3717,16 +3957,16 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                 # for k in range(1, int(line_breaks) + 2):
                 #    sys.stdout.write("\033[F")
                 # time.sleep(0.2)
-                animated_print(f"{temp_output_phrase}")
+                animated_print(f"{temp_output_phrase}", pm=True)
             if print_logs and not graphic_mode:
                 animated_print(
-                    f"{temp_output_phrase}{' ' * int(len(temp_output_phrase) / 60)}")
+                    f"{temp_output_phrase}{' ' * int(len(temp_output_phrase) / 60)}", pm=True)
                 animated_print(f"Scrambling...")
-                animated_print(f"{scrambled_output_phrase}")
+                animated_print(f"{scrambled_output_phrase}", pm=True)
             elif not graphic_mode:
-                animated_print(f"{temp_scrambled_output_phrase}")
+                animated_print(f"{temp_scrambled_output_phrase}", pm=True)
         elif not graphic_mode:
-            animated_print(f"{scrambled_output_phrase}")
+            animated_print(f"{scrambled_output_phrase}", pm=True)
             sys.stdout.write("\033[K")
         output_file = open("./messageout.txt", "r+")
         for i in range(len(message_text)):
@@ -4292,7 +4532,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     message = random_filler(filler_length, output_phrase)
                 else:
                     message = output_phrase
-                packet = f"{message} |||| agreed, {hash_current_user(get_mac().strip())} | {encrypted_current_user}"
+                packet = f"{message} |||| agreed, {hash_value(get_mac().strip())} | {encrypted_current_user}"
             else:
                 packet = f"{message} |||| {str(decrypt_code)} | {encrypted_current_user}"
             content.close()
@@ -4317,7 +4557,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     decrypt_code = int(code2)
             message = content.read()
             if agreed_code != None and agreed_code.strip().lower() != "none":
-                packet = f"Request:False | Source_IP:{your_ip} | Name:{encrypted_current_user} |||| {message} |||| agreed, {hash_current_user(get_mac().strip())}"
+                packet = f"Request:False | Source_IP:{your_ip} | Name:{encrypted_current_user} |||| {message} |||| agreed, {hash_value(get_mac().strip())}"
             else:
                 packet = f"Request:False | Source_IP:{your_ip} | Name:{encrypted_current_user} |||| {message} |||| {str(decrypt_code)}"
             content.close()
@@ -4343,8 +4583,13 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                             sc.send("\\exit".encode())
                         except:
                             pass
+                    except BrokenPipeError:
+                        try:
+                            sc.send("\\exit".encode())
+                        except:
+                            pass
+                        raise
             except:
-                raise
                 if graphic_mode:
                     gui.Popup(gui_translate("Connection lost! Returning to menu..."),
                               title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
@@ -4370,6 +4615,7 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                     prev_messages[-1].append(None)
             except:
                 pass
+        recipient_ip = recipient_ip.replace("\n", "")
         if not skip and print_logs:
             if not graphic_mode:
                 animated_print(
@@ -4394,14 +4640,14 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
                         f"{get_foreign_user().capitalize()} is not available! Message left in their mailbox!")
                     get_foreign_user(new_user="\\reset")
                 else:
-                    animated_print(f"Message left!")
+                    animated_print(f"Message left in {recipient_ip.strip()}'s mailbox")
             else:
                 if get_foreign_user() != None:
                     gui.Popup(gui_translate(f"{get_foreign_user().capitalize()} is not available! Message left in their mailbox!"),
                               title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
                     get_foreign_user(new_user="\\reset")
                 else:
-                    gui.Popup(gui_translate(f"{recipient_ip} unavailable! Message left in their mailbox!"),
+                    gui.Popup(gui_translate(f"{recipient_ip.strip()} unavailable! Message left in their mailbox!"),
                               title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
         elif mailbox:
             if not graphic_mode:
@@ -4475,11 +4721,15 @@ def newmessage(code, user, recipient_ip, temp_sc, prefix, date, talking_to_self,
              private_mode, error_color, print_speed=0)
 
 
-def hash_current_user(user):
-    """Applies SHA256 encryption on string passed"""
-    hash_user = user.encode("utf-8")
-    hash_user = hashlib.sha256(hash_user).hexdigest()
-    return hash_user
+def hash_value(value, **kwargs):
+    """Applies various encryption methods on string passed"""
+    hash_type = kwargs.get("hash", "sha256")
+    hash_value = value.encode("utf-8")
+    if hash_type == "sha256":
+        hash_value = hashlib.sha256(hash_value).hexdigest()
+    elif hash_type == "md5":
+        hash_value = hashlib.md5(hash_value).hexdigest()
+    return hash_value
 
 
 def decode_foreign_user(code, prefix, user, default_color):
@@ -4555,14 +4805,7 @@ def validate_foreign_user(ip, expected_user, print_logs, temp_sc, **kwargs):
         sc = reply_link
     else:
         sc = temp_sc
-    # decrypted_username, encrypted_username, temp_encrypted_username = [], [], ""
-    # for i, char in enumerate(expected_user[::-1]):
-    #     decrypted_username.append(ord(char))
-    #     encrypted_username.append(chr(int(decrypted_username[i])+31))
-    # for char in encrypted_username:
-    #     temp_encrypted_username += char
-    # expected_user = temp_encrypted_username
-    encrypted_expected_user = hash_current_user(expected_user)[::-1]
+    encrypted_expected_user = hash_value(expected_user)[::-1]
     if graphic_mode:
         temp_popup = gui.Window(title=gui_translate(f"FiEncrypt - User Validation (Logged in as: {get_current_user()})"), layout=[
                                 [gui.Text(gui_translate("Validating User..."))]], margins=(100, 50), font="Courier 20", finalize=True)
@@ -4722,7 +4965,9 @@ def private_file_integrity(filename):
     with open(f"./CREDENTIALS.txt", "r+") as credentials:
         credential_lines = credentials.readlines()
         for i, line in enumerate(credential_lines):
-            if line.strip().lower() in filename.strip().lower() or "$mycache" in filename.strip().lower():
+            if line == None:
+                return False, 0
+            elif (line.strip().lower() in filename.strip().lower() and line.strip() != "") or "$mycache" in filename.strip().lower():
                 private_cache_queried = True
     if ("FiEncrypt/" in filename or "FiEncrypt.py" in filename) and not private_cache_queried:
         temp_path = filename.split("/")
@@ -4734,7 +4979,7 @@ def private_file_integrity(filename):
         except IndexError:
             return False, 1
     elif private_cache_queried:
-        hash_user = hash_current_user(get_current_user().lower().strip())
+        hash_user = hash_value(get_current_user().lower().strip())
         if hash_user not in filename:
             enter_home_directory()
             for file in os.listdir("."):
@@ -4780,6 +5025,13 @@ def get_ip_from_socket(sc):
     except:
         target_ip = ""
     return target_ip
+
+
+def socket_type(sc):
+    if "bluetooth" in str(sc).lower():
+        return "Bluetooth"
+    else:
+        return "IP"
 
 
 def sftp_send(recipient_ip, default_color, error_color, voice_message, code, prefix, temp_sc, **kwargs):
@@ -4858,7 +5110,6 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                 filename = "cache/voice_message.wav"
             else:
                 try:
-                    print(file_path)
                     if file_path == None:
                         if graphic_mode:
                             layout = [[gui.Text(gui_translate(f"Select file to send to {temp_foreign_user}"))], [
@@ -4873,7 +5124,6 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                 f"Enter path of file to send to {temp_foreign_user}", 0)
                     else:
                         filename = file_path.strip()
-                    print(filename, old_file_path)
                     if pass_os() == "win32":
                         filename = filename.replace("\\", "/")
                 except KeyboardInterrupt:
@@ -4941,7 +5191,7 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                             valid = validate_login(username, password)
                             current_valid = username.lower().strip() == get_current_user().lower().strip()
                             if valid and current_valid:
-                                filename = f"./{hash_current_user(username.lower().strip())}/files/{filename[1]}"
+                                filename = f"./{hash_value(username.lower().strip())}/files/{filename[1]}"
                             else:
                                 if graphic_mode:
                                     gui.Popup(gui_translate("Invalid login!"), title=gui_translate("Warning"),
@@ -5085,7 +5335,6 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                             os.system(f"{copy} {filename} ./cache/{os.path.basename(filename)}")
                     decrypted_header, passs, encrypted_header, header = [
                     ], 0, '', f"{filename}<SEPERATOR>{filesize}"
-                    print(header)
                     for i, k in enumerate(header):
                         if i < len(header) / 2 and len(str(code)) >= 4:
                             if len(str(code)) > 4:
@@ -5122,13 +5371,21 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                     title=gui_translate(f"FiEncrypt - File Transfer (Logged in as: {get_current_user()})"), layout=[[gui.Text(gui_translate("Sending file..."))]], font="Courier 20", finalize=True)
                                 progress = tqdm.tqdm(range(
                                     int(filesize)), f"Sending {os.path.basename(filename)}", unit="B", unit_scale=True, unit_divisor=1024)
+                                sys.stdout.write("\033[F")
+                                sys.stdout.write("\033[K")
+                                sys.stdout.flush()
                             else:
                                 progress = tqdm.tqdm(
                                     range(int(filesize)), f"Sending {os.path.basename(filename)}", unit="B", unit_scale=True, unit_divisor=1024)
+                            connection_type = socket_type(sc)
+                            if connection_type == "Bluetooth":
+                                buffer_size = 4096
+                            else:
+                                buffer_size = 8192
                             with open(filename, "rb") as f:
                                 try:
                                     for _ in progress:
-                                        bytes_read = f.read(4096)
+                                        bytes_read = f.read(buffer_size)
                                         if not bytes_read:
                                             break
                                         sc.sendall(bytes_read)
@@ -5143,6 +5400,9 @@ def sftp_send(recipient_ip, default_color, error_color, voice_message, code, pre
                                         Colors(default_color)
                                     file_link.close()
                                     sc.close()
+                                else:
+                                    time.sleep(2)
+                                    sc.send("\\exit".encode())
                             if graphic_mode:
                                 temp_window.close()
                             else:
@@ -5244,6 +5504,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
             time.sleep(1)
             file_recipient.connect((recipient_ip, 41731))
         file_recipient.send(str(True).encode())
+        connection_type = socket_type(file_recipient)
     except ConnectionResetError:
         if graphic_mode:
             gui.Popup(gui_translate("Connection reset by peer!"), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
@@ -5322,6 +5583,9 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                 try:
                     progress = tqdm.tqdm(range(int(filesize)),
                                          f"Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
+                    sys.stdout.write("\033[F")
+                    sys.stdout.write("\033[K")
+                    sys.stdout.flush()
                     fallback = False
                 except OSError:
                     fallback = True
@@ -5330,13 +5594,26 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
             enter_home_directory()
             if filename == "voice_message.wav":
                 filename = "foreign_voice_message.wav"
+            if connection_type == "Bluetooth":
+                buffer_size = 4096
+            else:
+                buffer_size = 8192
+            file_recipient.settimeout(10)
             with open(f"./cache/{filename}", "wb") as inbound_file:
                 if not fallback:
                     exception_counter = 0
                     for _ in progress:
                         try:
-                            bytes_read = file_recipient.recv(8192)
-                            inbound_file.write(bytes_read)
+                            bytes_read = file_recipient.recv(buffer_size)
+                            try:
+                                if bytes_read.decode().strip() != "\\exit":
+                                    inbound_file.write(bytes_read)
+                                else:
+                                    break
+                            except:
+                                inbound_file.write(bytes_read)
+                        except TimeoutError:
+                            break
                         except:
                             if exception_counter <= 5:
                                 exception_counter += 1
@@ -5344,10 +5621,11 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                                 break
                         if not bytes_read:
                             break
-                        progress.update(len(bytes_read))
                         if graphic_mode:
                             gui_recieve = gui.one_line_progress_meter(title=gui_translate(
-                                f"FiEncrypt - Recieving File (Logged in as: {get_current_user()})"), current_value=len(bytes_read), max_value=int(filesize), orientation="h")
+                                f"FiEncrypt - Recieving File (Logged in as: {get_current_user()})"), current_value=os.path.getsize(f"./cache/{filename}"), max_value=int(filesize), orientation="h")
+                        else:
+                            progress.update(len(bytes_read))
                 else:
                     if graphic_mode:
                         gui.Popup("File transfer failed", title=gui_translate("Warning"),
@@ -5423,11 +5701,11 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                         max_size = max_size.lower().split("mb")
                         max_size = int(max_size[0]) * 1048576
                     personal_cache_total_size = 0
-                    for path, dirs, temp_files in os.walk(f"./{hash_current_user(get_current_user().lower().strip())}/files"):
+                    for path, dirs, temp_files in os.walk(f"./{hash_value(get_current_user().lower().strip())}/files"):
                         for temp_file in temp_files:
                             personal_cache_total_size += os.path.getsize(
-                                f"./{hash_current_user(get_current_user().lower().strip())}/files/{temp_file}")
-                    os.chdir(f"./{hash_current_user(get_current_user().lower().strip())}/files")
+                                f"./{hash_value(get_current_user().lower().strip())}/files/{temp_file}")
+                    os.chdir(f"./{hash_value(get_current_user().lower().strip())}/files")
                     if pass_os() == "win32":
                         copy = "copy"
                     else:
@@ -5499,7 +5777,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                                         "'", "\\'").replace("(", "\\(").replace(")", "\\)")
                                 enter_home_directory()
                                 os.chdir(
-                                    f"./{hash_current_user(get_current_user().lower().strip())}/files")
+                                    f"./{hash_value(get_current_user().lower().strip())}/files")
                                 if pass_os() == "win32":
                                     filename = filename.replace("/", "\\")
                                     os.system(
@@ -5532,15 +5810,16 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
                     animated_print(
                         f"WARNING: File corrupt or incomplete! Check {os.getcwd()}/cache/{filename}", error=True, reset=True)
                     Colors(default_color)
-    except TimeoutError:
-        file_recipient.close()
-        filename = None
     except OSError:
         if graphic_mode:
             gui.Popup(gui_translate("Connection error! Aborting file transfer..."), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
         else:
             animated_print("WARNING: Connection error! Aborting file transfer...", error=True, reset=True)
         file_recipient.close()
+        try:
+            temp_popup.close()
+        except:
+            pass
         filename = None
     except OverflowError:
         log(f"File transfer overflow! File too large!", "networkManager", get_current_user(
@@ -5552,6 +5831,10 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
             animated_print(f"WARNING: File too large! Aborting...", error=True, reset=True)
             Colors(default_color)
         file_recipient.close()
+        try:
+            temp_popup.close()
+        except:
+            pass
     except KeyboardInterrupt:
         log(f"File transfer interrupted!", "networkManager", get_current_user(
         ), None)
@@ -5565,6 +5848,7 @@ def sftp_recieve(recipient_ip, user, default_color, error_color, code, prefix, t
         pass
     if graphic_mode:
         try:
+            temp_popup.close()
             time.sleep(2)
             window.close()
         except:
@@ -6159,7 +6443,7 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
                                             1] = reply_output_phrase[i+1].replace(">", "")
                     if not graphic_mode:
                         animated_print(
-                            f"\033[3m\033[43m{temp_reply_output_phrase.strip()}\"\033[0m{applied_default_color} -> \033[41m{reply_output_phrase[i+1].strip()}\033[0m")
+                            f"\033[3m\033[43m{temp_reply_output_phrase.strip()}\"\033[0m{applied_default_color} -> \033[41m{reply_output_phrase[i+1].strip()}\033[0m", pm=True)
                         Colors(default_color)
             else:
                 temp_output_phrase = reply_output_phrase[1].strip()
@@ -6169,13 +6453,13 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
                 reply_output_phrase = f"{reply_output_phrase[0]}:{reply_output_phrase[1]}"
                 if not graphic_mode:
                     animated_print(
-                        f"\033[3m\033[43m{reply_output_phrase}\"\033[0m{applied_default_color} -> \033[41m{temp_output_phrase}\033[0m")
+                        f"\033[3m\033[43m{reply_output_phrase}\"\033[0m{applied_default_color} -> \033[41m{temp_output_phrase}\033[0m", pm=True)
             cached_output_phrase = temp_output_phrase
         except:
             temp_output_phrase = cached_output_phrase
     else:
         if not graphic_mode:
-            animated_print(f"\033[41m{temp_output_phrase}\033[0m")
+            animated_print(f"\033[41m{temp_output_phrase}\033[0m", pm=True)
     if graphic_mode:
         prev_messages.append([temp_output_phrase, temp_timestamp, temp_display_name, temp_date])
         if just_recieved:
@@ -6384,9 +6668,14 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
                     pass
             enter_home_directory()
             os.chdir("./cache")
+            for i, image_name in enumerate(images):
+                if not os.path.exists(image_name):
+                    del(images[i])
+            enter_home_directory()
+            os.chdir("./cache")
             if temp_display_name.strip() != "":
                 layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                    gui_translate(prev_message_temp))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
+                    gui_translate(prev_message_temp, pm=True))]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
             else:
                 layout = [[gui.Text(gui_translate(f"Decrypted Message!"), font="Courier 30", text_color="red")], [gui.Text(gui_translate(f"From: UNKNOWN"))], [
                     gui.Text(temp_timestamp)], [gui.Text(gui_translate(temp_output_phrase))], [gui.Button(gui_translate("Delete"), key="Delete", bind_return_key=True)], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
@@ -6597,6 +6886,8 @@ def retrievemessage(old_code, user, current_user, prefix, recipient_ip, temp_sc,
                         f"That is unfortunate :( We will launch the encryption assistant momentarily")
                 #!Current unreliable
                 helper("decrypt", user, current_user)
+                menu(user, None, print_logs, default_color,
+                     private_mode, error_color, print_speed=0)
     # *Called if in conversation mode
     else:
         if poked:
@@ -6705,8 +6996,13 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                     pass
             enter_home_directory()
             os.chdir("./cache")
+            for i, image_name in enumerate(images):
+                if not os.path.exists(image_name):
+                    del(images[i])
+            enter_home_directory()
+            os.chdir("./cache")
             layout = [[gui.Text(gui_translate(f"Conversation with {temp_display_name}"), font="Courier 30", text_color="red")], [gui.Column([[gui.Text(
-                gui_translate(prev_message_temp))], [gui.Text("...")]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
+                gui_translate(prev_message_temp, pm=True))], [gui.Text("...")]], scrollable=True, size=(1000, 400))], [gui.Text(gui_translate("Media"), font="Courier 10")], [gui.Column([[gui.Image(filename=f"./{image_name}", size=(250, 200)) for image_name in images]], scrollable=True)], [gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
             window = gui.Window(title=gui_translate(f"FiEncrypt - Conversation (Logged in as: {get_current_user()})"),
                                 layout=layout, margins=(100, 50), font="Courier 20", finalize=True)
     enter_home_directory()
@@ -7018,6 +7314,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
     else:
         info = info.decode()
     if to_boolean(info):
+        recipient_ip = recipient_ip.replace("\n", "")
         if graphic_mode:
             gui.Popup(gui_translate(f"{recipient_ip} unavailable! Message left in their mailbox!"),
                       title=gui_translate(f"FiEncrypt - Sent To Mailbox (Logged in as: {get_current_user()})"), font="Courier 20", auto_close=True, auto_close_duration=5)
@@ -7378,17 +7675,10 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 priority_code = contact_details[3].strip().replace("\n", "")
         if "\\user_confirm" in message[0]:
             message[0] = message[0].split("=")
-            expected_user = message[0][1]
+            expected_user = message[0][1].strip()
             message[0] = message[0][0]
             reply_ip = message[1]
-            decrypted_target_user, encrypted_target_user = [], []
-            for i, char in enumerate(expected_user[::-1]):
-                encrypted_target_user.append(ord(char))
-                decrypted_target_user.append(chr(int(encrypted_target_user[i])-31))
-            expected_user = ""
-            for char in decrypted_target_user:
-                expected_user += char
-            if expected_user.strip().lower() == capitalize_user(get_current_user()).strip().lower():
+            if expected_user[::-1] == hash_value(get_current_user().strip().lower()):
                 sc.send(str(True).encode())
                 if not graphic_mode and not silent:
                     animated_print(f"Foreign user validated!")
@@ -7573,7 +7863,7 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 animated_print(
                     f"{foreign_user.capitalize()} has left chat! Goodbye {capitalize_user(get_current_user())}!")
             backup_current_user = user
-        elif "\\request_user" in message:
+        elif "\\request_user" in message and get_foreign_user() == None:
             skip = True
             accepted = id_packet(sc, mode="recieve", ip=get_ip_from_socket(sc))
             sc, username, temp_mac, temp_save_override_port = id_packet(sc, code=[code, prefix], mode="send")
@@ -7585,6 +7875,10 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
                 pass
             if username != None and username != "None" and len(temp_mac) == 19:
                 auto_generate_contact.add(username, temp_mac, None, "Auto-generated contact on username request", temp_save_override_port)
+            server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
+                           date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
+        elif "\\request_user" in message:
+            skip = True
             server_recieve(user, code, current_user, sc, recipient_ip, timestamp, prefix,
                            date, default_color, print_logs, private_mode, error_color, display_initiate, prev=prev_messages, window=window, in_contacts=in_contacts, priority_code=priority_code, use_bluetooth=use_bluetooth)
         # ?Removes any remnants of the .encode() attribute added to messages before they are sent
@@ -7720,7 +8014,10 @@ def server_recieve(user, code, current_user, temp_sc, recipient_ip, timestamp, p
 
 def helper(issue, user, current_user):
     """Module meant to automatically address known persistent issues in FiEncrypt"""
-    print("Helper not currently available! Please check back to https://www.github.com/le-firehawk/FiEncrypt for updates!")
+    try:
+        animated_print("WARNING: Helper not currently available! Please check back to https://www.github.com/le-firehawk/FiEncrypt for updates!", error=True, reset=True)
+    except:
+        print("Helper not currently available! Please check back to https://www.github.com/le-firehawk/FiEncrypt for updates!")
 
 
 def send_conversation_invite(user, current_user, default_color, private_mode, error_color, print_logs, display_initiate):
@@ -7888,7 +8185,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_color, de
     """Checks your mailbox for any unread messages"""
     enter_home_directory()
     if current_user != 2:
-        os.chdir(f"./{hash_current_user(get_current_user().strip().lower())}/inbox")
+        os.chdir(f"./{hash_value(get_current_user().strip().lower())}/inbox")
         with open(f"./messages.txt", "r+") as mailbox:
             letters = mailbox.readlines()
         for i, letter in enumerate(letters):
@@ -7912,6 +8209,7 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_color, de
     mailing = True
     for i, message in enumerate(index):
         if i != 0:
+            enter_home_directory()
             message = message.split(" - ")
             # *Places the message into the messagein.txt file, one at a time, deleting them as @retrievemessage() module is called
             with open("./messagein.txt", "r+") as message_file:
@@ -7933,14 +8231,19 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_color, de
                 message[1][1][0] = get_foreign_user(new_user=message[1][1][0])
                 if not graphic_mode:
                     animated_print(f"Message from {message[1][1][0].capitalize()}")
+                bad_message = False
             except IndexError:
                 log("Corrupted message in mailbox!", "mailManager", get_current_user(), print_logs)
-                animated_print(
-                    f"WARNING: Message {i} contains corrupted format! This message will be removed!", error=True, reset=True)
-                Colors(default_color)
+                if graphic_mode:
+                    gui.Popup(gui_translate(f"Message {i} contains corrupted format! This message will be removed!"), title=gui_translate("Warning"), font="Courier 20", text_color="red", auto_close=True, auto_close_duration=5)
+                else:
+                    animated_print(
+                        f"WARNING: Message {i} contains corrupted format! This message will be removed!", error=True, reset=True)
+                    Colors(default_color)
+                bad_message = True
             del(index[i])
             enter_home_directory()
-            os.chdir(f"./{hash_current_user(get_current_user().strip().lower())}/inbox")
+            os.chdir(f"./{hash_value(get_current_user().strip().lower())}/inbox")
             with open(f"./messages.txt", "w+") as inbox:
                 inbox.seek(0)
                 inbox.truncate()
@@ -7949,35 +8252,39 @@ def check_mailbox(user, current_user, index, mailing, timestamp, error_color, de
                 except IndexError:
                     pass
             try:
-                if graphic_mode:
+                if graphic_mode and not bad_message:
                     send_reply = retrievemessage(old_code, user, 2, prefix, message[1][1], None, timestamp,
                                                  True, False, default_color, print_logs, private_mode, error_color, index, display_initiate, temp_user=message[1][1][0], in_mailbox=True)
-                else:
+                elif not bad_message:
                     send_reply = None
                     retrievemessage(old_code, user, 2, prefix, message[1][1], None, timestamp,
                                     True, False, default_color, print_logs, private_mode, error_color, index, display_initiate, temp_user=message[1][1][0])
                 Colors(default_color)
-                if send_reply != None and graphic_mode:
-                    if send_reply:
-                        reply = "y"
+                if not bad_message:
+                    if send_reply != None and graphic_mode:
+                        if send_reply:
+                            reply = "y"
+                        else:
+                            reply = "n"
                     else:
-                        reply = "n"
-                else:
-                    reply = privacy_input(
-                        f"Would you like to send a reply? [Y|N]", private_mode)
-                if "y" in reply.lower():
-                    code, prefix, timestamp = showcode(capitalize_user(get_current_user()), 1, private_mode,
-                                                       print_logs, error_color, default_color)
-                    ip, target_mac, target_name, temp_sc, agreed_code, override_port = get_recipient_ip(
-                        user, display_initiate, print_logs, default_color, private_mode, error_color, None, confirm_ip=f"{message[1][1][0]}@{message[1][1][1]}")
-                    newmessage(code, user, message[1][1][1], temp_sc, prefix, None,
-                               False, error_color, default_color, private_mode, print_logs, False, display_initiate, False)
+                        reply = privacy_input(
+                            f"Would you like to send a reply? [Y|N]", private_mode)
+                    if "y" in reply.lower():
+                        code, prefix, timestamp = showcode(capitalize_user(get_current_user()), 1, private_mode,
+                                                           print_logs, error_color, default_color)
+                        ip, target_mac, target_name, temp_sc, agreed_code, override_port = get_recipient_ip(
+                            user, display_initiate, print_logs, default_color, private_mode, error_color, None, confirm_ip=f"{message[1][1][0]}@{message[1][1][1]}")
+                        newmessage(code, user, message[1][1][1], temp_sc, prefix, None,
+                                   False, error_color, default_color, private_mode, print_logs, False, display_initiate, False, checking_mailbox=True)
+                    else:
+                        check_mailbox(user, 2, index, mailing, timestamp, error_color,
+                                      default_color, display_initiate, print_logs, private_mode)
                 else:
                     check_mailbox(user, 2, index, mailing, timestamp, error_color,
                                   default_color, display_initiate, print_logs, private_mode)
             except UnboundLocalError:
                 Colors(default_color)
-    hide_tree()
+    protect_tree()
     mailing = False
     menu(user, display_initiate, print_logs,
          default_color, private_mode, error_color, print_speed=0)
@@ -8076,12 +8383,16 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
             override_port = 15753
         if translation:
             if "lang" in config_lines[14].lower():
-                lang = config_lines[14].split(" = ")
-                lang = parse_region(lang[1].strip(), order=0).capitalize()
+                lang = config_lines[14].split(" = ")[1].strip()
+                if len(lang) > 3:
+                    region_code = parse_region(lang, order=1)
+                else:
+                    region_code = lang
+                    lang = parse_region(lang, order=0).capitalize()
             else:
-                lang = "English"
+                lang, region_code = "English", "en"
         else:
-            lang = "English"
+            lang, region_code = "English", "en"
         if graphic_mode:
             if custom_scheme:
                 layout = [[gui.Text(f"{gui_translate('1. Debug mode:')} {debug_mode}")], [gui.Text(f"{gui_translate('2. Display initiate:')} {display_initiate}")], [gui.Text(f"{gui_translate('3. Print Speed:')} {printing_speed}")], [gui.Text(f"{gui_translate('4. Enable custom color scheme:')} {custom_scheme}")], [gui.Text(f"{gui_translate('5. Custom color:')} {display_color}")], [gui.Text(f"{gui_translate('6. Conversation mode:')} {conversation_mode}")], [gui.Text(f"{gui_translate('7. Graphic mode:')} {graphic_mode}")], [gui.Text(f"{gui_translate('8. Privacy mode:')} {private_mode}")], [gui.Text(f"{gui_translate('9. Auto code:')} {auto_code}")], [
@@ -8127,7 +8438,7 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                 animated_print(f"11. GUI Theme: {gui_theme}", speed=master_printing_speed)
                 animated_print(f"12. Translation: {translation}", speed=master_printing_speed)
                 animated_print(f"13. Region: {lang}", speed=master_printing_speed)
-                animated_print(f"14. Override Port: {override_port}", speed=master_print_speed)
+                animated_print(f"14. Override Port: {override_port}", speed=master_printing_speed)
                 animated_print(f"15. Create new user...", speed=master_printing_speed)
                 animated_print(f"16. Return to main menu", speed=master_printing_speed)
             else:
@@ -8143,8 +8454,8 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     f"9. Voice Message Duration: {voice_record_time}", speed=master_printing_speed)
                 animated_print(f"10. GUI Theme: {gui_theme}", speed=master_printing_speed)
                 animated_print(f"11. Translation: {translation}", speed=master_printing_speed)
-                animated_print(f"12. Region: {lang}", speed=master_print_speed)
-                animated_print(f"13. Override Port: {override_port}", speed=master_print_speed)
+                animated_print(f"12. Region: {lang}", speed=master_printing_speed)
+                animated_print(f"13. Override Port: {override_port}", speed=master_printing_speed)
                 animated_print(f"14. Create new user...", speed=master_printing_speed)
                 animated_print(f"15. Return to main menu", speed=master_printing_speed)
             choice = privacy_input(
@@ -8432,68 +8743,106 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                         f"Enter new theme name", private_mode)
                 config_lines[12] = f"gui_theme = {gui_theme}"
             else:
+                old_translate = translation
                 if graphic_mode:
-                    layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="translate")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [
+                    layout = [[gui.Text(gui_translate("True/False", status=old_translate)), gui.InputText(key="translate")], [gui.Button(gui_translate("Update", status=old_translate), key="Update", bind_return_key=True)], [
                         gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
                     window = gui.Window(
-                        title=gui_translate(f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})"), layout=layout, margins=(100, 50), font="Courier 20")
+                        title=gui_translate(f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})", status=old_translate), layout=layout, margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         translation = values.get("translate", False)
                     window.close()
                 else:
                     translation = to_boolean(privacy_input(f"True/False", private_mode))
-                if translation and "supress_translate_warning" not in config_lines[-1]:
-                        if graphic_mode:
-                            layout = [[gui.Text("*** WARNING ***", text_color="red", font="Courier 30")], [gui.Text("Enabling translate will expose sensitive data, including private messages, \nto data harvesting on the part of the relevant services. Please disable translation if you take issue with this.")], [gui.Button("Accept"), gui.Button("Decline")], [gui.Checkbox("Supress future warnings", key="supress_translate_warning")]]
-                            temp_popup = gui.Window(title=f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})", layout=layout, font="Courier 20")
-                            while True:
-                                event, values = temp_popup.read()
-                                if event == "Accept":
-                                    supress_translate_warning = values.get("supress_translate_warning", False)
-                                    break
-                                elif event == "Decline":
-                                    translation, supress_translate_warning = False, False
-                                    break
-                            temp_popup.close()
-                            if supress_translate_warning and translation:
-                                if "supress_translate_warning" not in config_lines[-1]:
-                                    config_lines.append("supress_translate_warning")
-                        else:
-                            animated_print("WARNING: Enabling translate will expose sensitive data, including private messages, to data harvesting on the part of the relevant services. Please disable translation if you take issue with this.", error=True, reset=True)
-                config_lines[13] = f"translation = {translation}"
+                if translation and "supress_translate_warning" not in config_lines:
+                    if graphic_mode:
+                        layout = [[gui.Text("*** WARNING ***", text_color="red", font="Courier 30")], [gui.Text(gui_translate("Enabling translate will expose sensitive data, including private messages,\nto data harvesting on the part of the relevant services. Please disable translation if you take issue with this.", status=old_translate))], [gui.Button(gui_translate("Accept", status=old_translate)), gui.Button(gui_translate("Decline", status=old_translate))], [gui.Checkbox(gui_translate("Supress future warnings (Ignored if declined)", status=old_translate), key="supress_translate_warning")], [gui.Checkbox(gui_translate("Do not translate private messages", status=old_translate), key="no_translate_pm")]]
+                        temp_popup = gui.Window(title=f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})", layout=layout, font="Courier 20")
+                        while True:
+                            event, values = temp_popup.read()
+                            if event == "Accept":
+                                supress_translate_warning, no_translate_pm = values.get("supress_translate_warning", False), values.get("no_translate_pm", False)
+                                break
+                            elif event == "Decline":
+                                supress_translate_warning, no_translate_pm = False, False
+                                break
+                        temp_popup.close()
+                        if to_boolean(supress_translate_warning) and translation:
+                            if "supress_translate_warning" not in config_lines:
+                                config_lines.append("supress_translate_warning")
+                            if not supress_translate_warning:
+                                translation = False
+                        if to_boolean(no_translate_pm) and translation:
+                            if "no_translate_pm" not in config_lines:
+                                config_lines.append("no_translate_pm")
+                            if not supress_translate_warning:
+                                translation = False
+                    else:
+                        animated_print("WARNING: Enabling translate will expose sensitive data, including private messages,\nto data harvesting on the part of the relevant services.\nPlease disable translation if you take issue with this.", error=True, reset=True, speed=printing_speed)
+                        config_lines.append("supress_translate_warning")
+                        message_translate_override = privacy_input("Disable translation of private messages? [Y|N]", private_mode)
+                        if "y" in message_translate_override.lower() and "no_translate_pm" not in config_lines:
+                            config_lines.append("no_translate_pm")
+                        elif "y" in message_translate_override.lower():
+                            animated_print("Private message translation already disabled!")
+                config_lines[13] = f"translation = {to_boolean(translation)}"
+                if to_boolean(translation):
+                    TranslationManager = Translate(region_code)
+                    if not graphic_mode:
+                        animated_print("WARNING: Restarting FiEncrypt to apply language change!", error=True, reset=True)
+                        initiate()
         elif choice == "12":
             if custom_scheme:
+                old_translate = translation
                 if graphic_mode:
-                    layout = [[gui.Text(gui_translate("True/False")), gui.InputText(key="translate")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [
+                    layout = [[gui.Text(gui_translate("True/False", status=old_translate)), gui.InputText(key="translate")], [gui.Button(gui_translate("Update", status=old_translate), key="Update", bind_return_key=True)], [
                         gui.Text("FiEncrypt (C) le_firehawk 2021", font="Courier 10", text_color="grey")]]
                     window = gui.Window(
-                        title=gui_translate(f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})"), layout=layout, margins=(100, 50), font="Courier 20")
+                        title=gui_translate(f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})", status=old_translate), layout=layout, margins=(100, 50), font="Courier 20")
                     event, values = window.read()
                     if event == "Update":
                         translation = values.get("translate", False)
                     window.close()
                 else:
                     translation = to_boolean(privacy_input(f"True/False", private_mode))
-                if translation and "supress_translate_warning" not in config_lines[-1]:
-                        if graphic_mode:
-                            layout = [[gui.Text("*** WARNING ***", text_color="red", font="Courier 30")], [gui.Text("Enabling translate will expose sensitive data, including private messages, \nto data harvesting on the part of the relevant services. Please disable translation if you take issue with this.")], [gui.Button("Accept"), gui.Button("Decline")], [gui.Checkbox("Supress future warnings", key="supress_translate_warning")]]
-                            temp_popup = gui.Window(title=f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})", layout=layout, font="Courier 20")
-                            while True:
-                                event, values = temp_popup.read()
-                                if event == "Accept":
-                                    supress_translate_warning = values.get("supress_translate_warning", False)
-                                    break
-                                elif event == "Decline":
-                                    translation, supress_translate_warning = False, False
-                                    break
-                            temp_popup.close()
-                            if supress_translate_warning and translation:
-                                if "supress_translate_warning" not in config_lines[-1]:
-                                    config_lines.append("supress_translate_warning")
-                        else:
-                            animated_print("WARNING: Enabling translate will expose sensitive data, including private messages, to data harvesting on the part of the relevant services. Please disable translation if you take issue with this.", error=True, reset=True)
-                config_lines[13] = f"translation = {translation}"
+                if translation and "supress_translate_warning" not in config_lines:
+                    if graphic_mode:
+                        layout = [[gui.Text("*** WARNING ***", text_color="red", font="Courier 30")], [gui.Text(gui_translate("Enabling translate will expose sensitive data, including private messages,\nto data harvesting on the part of the relevant services. Please disable translation if you take issue with this.", status=old_translate))], [gui.Button(gui_translate("Accept", status=old_translate)), gui.Button(gui_translate("Decline", status=old_translate))], [gui.Checkbox(gui_translate("Supress future warnings (Ignored if declined)", status=old_translate), key="supress_translate_warning")], [gui.Checkbox(gui_translate("Do not translate private messages", status=old_translate), key="no_translate_pm")]]
+                        temp_popup = gui.Window(title=f"FiEncrypt - Enable Translation (Logged in as: {get_current_user()})", layout=layout, font="Courier 20")
+                        while True:
+                            event, values = temp_popup.read()
+                            if event == "Accept":
+                                supress_translate_warning, no_translate_pm = values.get("supress_translate_warning", False), values.get("no_translate_pm", False)
+                                break
+                            elif event == "Decline":
+                                supress_translate_warning, no_translate_pm = False, False
+                                break
+                        temp_popup.close()
+                        if to_boolean(supress_translate_warning) and translation:
+                            if "supress_translate_warning" not in config_lines:
+                                config_lines.append("supress_translate_warning")
+                            if not supress_translate_warning:
+                                translation = False
+                        if to_boolean(no_translate_pm) and translation:
+                            if "no_translate_pm" not in config_lines:
+                                config_lines.append("no_translate_pm")
+                            if not supress_translate_warning:
+                                translation = False
+                    else:
+                        animated_print("WARNING: Enabling translate will expose sensitive data, including private messages,\nto data harvesting on the part of the relevant services.\nPlease disable translation if you take issue with this.", error=True, reset=True, speed=printing_speed)
+                        config_lines.append("supress_translate_warning")
+                        message_translate_override = privacy_input("Disable translation of private messages? [Y|N]", private_mode)
+                        if "y" in message_translate_override.lower() and "no_translate_pm" not in config_lines:
+                            config_lines.append("no_translate_pm")
+                        elif "y" in message_translate_override.lower():
+                            animated_print("Private message translation already disabled!")
+                config_lines[13] = f"translation = {to_boolean(translation)}"
+                if to_boolean(translation):
+                    TranslationManager = Translate(region_code)
+                    if not graphic_mode:
+                        animated_print("WARNING: Restarting FiEncrypt to apply language change!", error=True, reset=True)
+                        initiate()
             else:
                 if graphic_mode:
                     layout = [[gui.Text(gui_translate("Enter Region Code or Language")), gui.InputText(key="region_code")], [gui.Button(gui_translate("Update"), key="Update", bind_return_key=True)], [
@@ -8503,12 +8852,18 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     event, values = window.read()
                     if event == "Update":
                         lang = values.get("region_code", "en")
-                        if len(lang.strip()) != 2:
-                            lang = parse_region(lang, order=1)
+                        if len(lang.strip()) > 3:
+                            cfg_lang = parse_region(lang, order=1)
+                        else:
+                            cfg_lang = lang
                     window.close()
                 else:
-                    lang = privacy_input("Enter region code", private_mode)
-                config_lines[14] = f"lang = {lang}"
+                    lang = privacy_input("Enter Region Code or Language", private_mode)
+                    if len(lang.strip()) > 3:
+                        cfg_lang = parse_region(lang, order=1)
+                    else:
+                        cfg_lang = lang
+                config_lines[14] = f"lang = {cfg_lang}"
                 TranslationManager = Translate(lang)
                 lang = parse_region(lang, order=0)
         elif choice == "13":
@@ -8522,11 +8877,17 @@ def config_settings(user, current_user, default_color, print_logs, private_mode,
                     if event == "Update":
                         lang = values.get("region_code", "en")
                         if len(lang.strip()) > 3:
-                            lang = parse_region(lang, order=1)
+                            cfg_lang = parse_region(lang, order=1)
+                        else:
+                            cfg_lang = lang
                     window.close()
                 else:
-                    lang = privacy_input("Enter region code", private_mode)
-                config_lines[14] = f"lang = {lang}"
+                    lang = privacy_input("Enter Region Code or Language", private_mode)
+                    if len(lang.strip()) > 3:
+                        cfg_lang = parse_region(lang, order=1)
+                    else:
+                        cfg_lang = lang
+                config_lines[14] = f"lang = {cfg_lang}"
                 TranslationManager = Translate(lang)
                 lang = parse_region(lang, order=0)
             else:
@@ -8754,7 +9115,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                 else:
                     animated_print(files)
         enter_home_directory()
-        if len([filenum for filenum in os.listdir(f"./{hash_current_user(get_current_user().lower().strip())}/files")]) > 0:
+        if len([filenum for filenum in os.listdir(f"./{hash_value(get_current_user().lower().strip())}/files")]) > 0:
             menu_state = ["", "", "", "", "", ""]
         else:
             if not straight_to_menu:
@@ -8769,7 +9130,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
     else:
         files = None
         enter_home_directory()
-        if len([filenum for filenum in os.listdir(f"./{hash_current_user(get_current_user().lower().strip())}/files")]) > 0:
+        if len([filenum for filenum in os.listdir(f"./{hash_value(get_current_user().lower().strip())}/files")]) > 0:
             if not straight_to_menu:
                 if graphic_mode:
                     gui.Popup(gui_translate("Public cache is empty!"), title=gui_translate("Warning"),
@@ -8850,11 +9211,11 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
                 for temp_file in temp_files:
                     cache_total_size += os.path.getsize(f"./cache/{temp_file}")
             personal_cache_total_size = 0
-            for path, dirs, temp_files in os.walk(f"./{hash_current_user(get_current_user().lower().strip())}/files"):
+            for path, dirs, temp_files in os.walk(f"./{hash_value(get_current_user().lower().strip())}/files"):
                 for temp_file in temp_files:
                     personal_cache_total_size += os.path.getsize(
-                        f"./{hash_current_user(get_current_user().lower().strip())}/files/{temp_file}")
-            os.chdir(f"./{hash_current_user(get_current_user().lower().strip())}/files")
+                        f"./{hash_value(get_current_user().lower().strip())}/files/{temp_file}")
+            os.chdir(f"./{hash_value(get_current_user().lower().strip())}/files")
             if pass_os == "win32":
                 copy = "copy"
             else:
@@ -8976,7 +9337,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
             valid = validate_login(username, password)
             current_valid = username.lower().strip() == get_current_user().lower().strip()
             if valid and current_valid:
-                os.chdir(f"./{hash_current_user(username.lower().strip())}/files")
+                os.chdir(f"./{hash_value(username.lower().strip())}/files")
                 for root, dirs, files in os.walk("./", topdown=False):
                     if not graphic_mode:
                         for file in files:
@@ -9028,7 +9389,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
             valid = validate_login(username, password)
             current_valid = username.lower().strip() == get_current_user().lower().strip()
             if valid and current_valid:
-                os.chdir(f"./{hash_current_user(username.lower().strip())}")
+                os.chdir(f"./{hash_value(username.lower().strip())}")
                 shutil.rmtree("./files")
                 os.mkdir("./files")
             else:
@@ -9059,7 +9420,7 @@ def manage_cache(user, current_user, default_color, print_logs, private_mode, er
     print("")
     enter_home_directory()
     os.chdir(f"./cache")
-    if len([filenum for filenum in os.listdir(f"../{hash_current_user(get_current_user().lower().strip())}/files")]) == 0 or len([filenum for filenum in os.listdir(".")]) == 0:
+    if len([filenum for filenum in os.listdir(f"../{hash_value(get_current_user().lower().strip())}/files")]) == 0 or len([filenum for filenum in os.listdir(".")]) == 0:
         manage_cache(user, current_user, default_color, print_logs,
                      private_mode, error_color, files=files)
     else:
@@ -9220,10 +9581,12 @@ def menu(user, display_initiate, print_logs, default_color, private_mode, error_
             if display_initiate:
                 establish_tree()
             else:
-                helper("all", backup_user)
+                helper("all", get_current_user(), backup_user)
+                func = 0
         elif func == 6:
             if display_initiate:
-                helper("all", backup_user)
+                helper("all", get_current_user(), backup_user)
+                func = 0
             else:
                 secretcode(user, capitalize_user(get_current_user()), default_color,
                            print_logs, private_mode, error_color)
@@ -9799,6 +10162,7 @@ def initiate():
     log("GUI module imported!", "moduleManager", get_current_user(), False)
     home_directory, operating_system, user = enter_home_directory()
     print_logs, display_initiate, graphic_mode, private_mode, color_enabled, default_color, auto_code, voice_record_time, gui_theme, translation, lang, override_port = retrieve_config_settings()
+    protect_tree()
     if translation:
         TranslationManager = Translate(lang)
     else:
