@@ -14,10 +14,18 @@ host_ips() {
 run_ssh() {
   local target="$1" command="$2"
   # Intentionally split SSH_OPTS so config authors can provide ordinary ssh flags.
-  if command -v timeout >/dev/null 2>&1; then
-    timeout "$(operation_timeout)s" ssh -o ConnectTimeout="$(operation_timeout)" $SSH_OPTS "$target" "$command"
+  local timeout_s
+  timeout_s="$(operation_timeout)"
+  if [[ -n "${SSH_PASSWORD:-}" ]] && command -v sshpass >/dev/null 2>&1; then
+    if command -v timeout >/dev/null 2>&1; then
+      timeout "${timeout_s}s" sshpass -p "$SSH_PASSWORD" ssh $SSH_OPTS -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o ConnectTimeout="$timeout_s" "$target" "$command"
+    else
+      sshpass -p "$SSH_PASSWORD" ssh $SSH_OPTS -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o ConnectTimeout="$timeout_s" "$target" "$command"
+    fi
+  elif command -v timeout >/dev/null 2>&1; then
+    timeout "${timeout_s}s" ssh -o ConnectTimeout="$timeout_s" $SSH_OPTS "$target" "$command"
   else
-    ssh -o ConnectTimeout="$(operation_timeout)" $SSH_OPTS "$target" "$command"
+    ssh -o ConnectTimeout="$timeout_s" $SSH_OPTS "$target" "$command"
   fi
 }
 

@@ -10,7 +10,7 @@ This directory expands the provided shell sketch into a real-results-only Bash d
 - Docker container status over SSH with `docker ps` discovery or configured container names, rendered one container per row. If SSH fails for an IP, Docker rows are marked `SSH_FAILED` with the SSH failure reason.
 - Docker logs over SSH with `docker logs --tail`, wrapped to the current screen width.
 
-All collection activity is logged to stderr. Use `--log-file path` to also append those logs to a file.
+All collection activity is logged to stderr. Use `--log-file path` to also append those logs to a file. If SSH failures look password-related and `sshpass` is installed, interactive mode offers a password popup and retries SSH for the current cycle.
 
 ## Run
 
@@ -24,7 +24,7 @@ For CI or non-interactive checks:
 ./main.sh --config hosts.conf --once
 ```
 
-Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback). The main screen auto-refreshes on the configured interval; use the Refresh button to refresh immediately. In `dialog`, use the Docker Logs button to open a separate container-log picker/screen; logs are not shown on the main dashboard.
+Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback). A progress popup appears while checks are running so the TUI starts immediately instead of waiting on collectors. The main screen auto-refreshes on the configured interval; use the Refresh button to refresh immediately. In `dialog`, use the Docker Logs button to open a separate container-log picker/screen; logs are not shown on the main dashboard.
 
 ## Config
 

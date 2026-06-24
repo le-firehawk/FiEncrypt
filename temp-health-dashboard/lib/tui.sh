@@ -11,6 +11,94 @@ require_tui_or_once() {
   fi
 }
 
+
+collect_dashboard_cycle() {
+  if [[ "$RUN_ONCE" -eq 0 && -t 1 ]]; then
+    collect_with_progress_popup
+  else
+    clear_cycle_cache
+    collect_ping_parallel
+    collect_ssh_parallel
+    collect_systemd_parallel
+    collect_docker_parallel
+  fi
+}
+
+collect_with_progress_popup() {
+  if command -v dialog >/dev/null 2>&1; then
+    {
+      echo 5; echo "XXX"; echo "Preparing health checks"; echo "XXX"
+      clear_cycle_cache
+      echo 30; echo "XXX"; echo "Running ICMP checks"; echo "XXX"
+      collect_ping_parallel
+      echo 70; echo "XXX"; echo "Running SSH checks"; echo "XXX"
+      collect_ssh_parallel
+      echo 100; echo "XXX"; echo "Endpoint checks complete"; echo "XXX"
+    } | dialog --colors --title "Running Health Checks" --gauge "Starting endpoint checks..." 10 70 0 2>/dev/tty
+    maybe_prompt_for_ssh_password || true
+    {
+      echo 10; echo "XXX"; echo "Running systemd checks"; echo "XXX"
+      collect_systemd_parallel
+      echo 65; echo "XXX"; echo "Running Docker checks"; echo "XXX"
+      collect_docker_parallel
+      echo 100; echo "XXX"; echo "Health checks complete"; echo "XXX"
+    } | dialog --colors --title "Running Health Checks" --gauge "Finishing checks..." 10 70 0 2>/dev/tty
+  elif command -v whiptail >/dev/null 2>&1; then
+    {
+      echo 5; clear_cycle_cache
+      echo 30; collect_ping_parallel
+      echo 70; collect_ssh_parallel
+      echo 100
+    } | whiptail --title "Running Health Checks" --gauge "Running endpoint checks..." 10 70 0 2>/dev/tty
+    maybe_prompt_for_ssh_password >/dev/null 2>&1 || true
+    {
+      echo 10; collect_systemd_parallel
+      echo 65; collect_docker_parallel
+      echo 100
+    } | whiptail --title "Running Health Checks" --gauge "Finishing checks..." 10 70 0 2>/dev/tty
+  else
+    clear_cycle_cache
+    collect_ping_parallel
+    collect_ssh_parallel
+    collect_systemd_parallel
+    collect_docker_parallel
+  fi
+}
+
+maybe_prompt_for_ssh_password() {
+  ssh_password_candidate_failures >/dev/null || return 0
+  if ! command -v sshpass >/dev/null 2>&1; then
+    if command -v dialog >/dev/null 2>&1; then
+      dialog --title "SSH password authentication" --msgbox "One or more SSH checks failed in a way that may be resolved with password authentication, but sshpass is not installed. Install sshpass or configure SSH keys/agent forwarding, then refresh." 10 72 2>/dev/tty || true
+    elif command -v whiptail >/dev/null 2>&1; then
+      whiptail --title "SSH password authentication" --msgbox "One or more SSH checks may accept password authentication, but sshpass is not installed. Install sshpass or configure SSH keys/agent forwarding, then refresh." 10 72 2>/dev/tty || true
+    fi
+    return 0
+  fi
+  local password status=0
+  if command -v dialog >/dev/null 2>&1; then
+    password="$(dialog --insecure --title "SSH password authentication" --passwordbox "One or more SSH checks may accept password authentication. Enter an SSH password to retry SSH checks for this cycle, or Cancel to continue with SSH failures." 12 72 2>&1 >/dev/tty)" || status=$?
+  elif command -v whiptail >/dev/null 2>&1; then
+    password="$(whiptail --title "SSH password authentication" --passwordbox "One or more SSH checks may accept password authentication. Enter an SSH password to retry SSH checks for this cycle, or Cancel to continue with SSH failures." 12 72 2>&1 >/dev/tty)" || status=$?
+  else
+    return 0
+  fi
+  [[ "$status" -ne 0 || -z "$password" ]] && return 0
+  export SSH_PASSWORD="$password"
+  collect_ssh_parallel
+}
+
+ssh_password_candidate_failures() {
+  local file
+  for file in "$CACHE_DIR"/*.ssh "$CACHE_DIR"/*.ssh.err; do
+    [[ -e "$file" ]] || continue
+    if grep -Eiq 'permission denied|password|keyboard-interactive|publickey' "$file"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 render_dashboard() {
   if [[ "$RUN_ONCE" -eq 1 || ! -t 1 ]]; then
     render_plain_dashboard

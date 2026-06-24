@@ -26,11 +26,7 @@ log_event INFO "starting health dashboard config=$CONFIG_FILE interval=${REFRESH
 
 while true; do
   log_event INFO "starting collection cycle"
-  clear_cycle_cache
-  collect_ping_parallel
-  collect_ssh_parallel
-  collect_systemd_parallel
-  collect_docker_parallel
+  collect_dashboard_cycle
   REFRESH_NOW=0
   render_dashboard
   log_event INFO "finished collection cycle"
