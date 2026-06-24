@@ -14,6 +14,7 @@ assert_eq() { [[ "$1" == "$2" ]] || fail "expected '$2' got '$1'"; }
 CONFIG_FILE="$ROOT/hosts.conf"
 REFRESH_INTERVAL=5
 RUN_ONCE=1
+assert_eq "$(operation_timeout)" "4"
 init_cache
 declare -Ag HOST_IPS=([localhost]="127.0.0.1,127.0.0.2")
 
@@ -56,6 +57,7 @@ dashboard="$(build_dashboard_text 96)"
 grep -q '127.0.0.2' <<< "$dashboard" || fail "second IP was not rendered"
 grep -q 'SSH_FAILED' <<< "$dashboard" || fail "SSH failure did not skip downstream checks"
 grep -q 'auth denied' <<< "$dashboard" || fail "SSH failure reason was not rendered"
+! grep -q 'DOCKER LOGS' <<< "$dashboard" || fail "docker logs should not render on the main dashboard"
 grep -qE 'localhost[[:space:]]+127\.0\.0\.1[[:space:]]+ssh[[:space:]]+active' <<< "$dashboard" || fail "systemd unit row was not rendered"
 grep -qE 'localhost[[:space:]]+127\.0\.0\.1[[:space:]]+nginx[[:space:]]+failed' <<< "$dashboard" || fail "second systemd unit row was not rendered"
 

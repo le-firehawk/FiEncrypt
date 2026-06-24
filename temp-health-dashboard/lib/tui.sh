@@ -33,12 +33,14 @@ render_external_tui() {
   if command -v dialog >/dev/null 2>&1; then
     local dialogrc
     dialogrc="$(write_dark_dialogrc)"
-    DIALOGRC="$dialogrc" dialog --colors --clear --backtitle "Health Dashboard" --title "Dark Health Dashboard" --ok-label "Refresh" --extra-button --extra-label "Quit" --textbox "$tmp" "$height" "$width" 2>/dev/tty || status=$?
-    rm -f "$dialogrc"
-    rm -f "$tmp"
-    [[ "$status" -eq 3 || "$status" -eq 1 || "$status" -eq 255 ]] && exit 0
+    DIALOGRC="$dialogrc" dialog --colors --clear --backtitle "Health Dashboard" --title "Dark Health Dashboard" --ok-label "Refresh" --extra-button --extra-label "Docker Logs" --cancel-label "Quit" --textbox "$tmp" "$height" "$width" 2>/dev/tty || status=$?
+    rm -f "$dialogrc" "$tmp"
+    case "$status" in
+      3) render_docker_logs_picker ;;
+      1|255) exit 0 ;;
+    esac
   else
-    whiptail --title "Health Dashboard" --scrolltext --msgbox "$(cat "$tmp")" "$height" "$width" 2>/dev/tty || status=$?
+    whiptail --title "Health Dashboard" --scrolltext --ok-button "Refresh" --cancel-button "Quit" --msgbox "$(cat "$tmp")" "$height" "$width" 2>/dev/tty || status=$?
     rm -f "$tmp"
     [[ "$status" -ne 0 ]] && exit 0
   fi
@@ -50,21 +52,36 @@ render_plain_dashboard() {
 
 build_dashboard_text() {
   local width="$1" colorize="${2:-0}"
-  echo "Health Dashboard"
-  echo "Updated $(date '+%Y-%m-%d %H:%M:%S') | interval ${REFRESH_INTERVAL}s"
+  print_banner "HEALTH DASHBOARD" "$width" "$colorize"
+  echo "Updated $(date '+%Y-%m-%d %H:%M:%S') | interval ${REFRESH_INTERVAL}s | operation timeout $(operation_timeout)s"
   echo
   render_endpoint_table "$width" "$colorize"
   echo
   render_systemd_table "$width" "$colorize"
   echo
   render_docker_table "$width" "$colorize"
-  echo
-  render_logs_section "$width"
+
 }
 
 separator() {
   local width="$1"
+  (( width < 1 )) && width=1
   printf '%*s\n' "$width" '' | tr ' ' '-'
+}
+
+print_banner() {
+  local title="$1" width="$2" colorize="$3" line text
+  text="  $title  "
+  line="$(printf '%*s' "$width" '' | tr ' ' '=')"
+  if [[ "$colorize" -eq 1 ]]; then
+    printf '\Zb\Z6%s\Zn\n' "$line"
+    printf '\Zb\Z6%*s\Zn\n' $(((width + ${#text}) / 2)) "$text"
+    printf '\Zb\Z6%s\Zn\n' "$line"
+  else
+    printf '%s\n' "$line"
+    printf '%*s\n' $(((width + ${#text}) / 2)) "$text"
+    printf '%s\n' "$line"
+  fi
 }
 
 print_subtitle() {
@@ -112,8 +129,12 @@ DIALOGRC
 
 render_endpoint_table() {
   local width="$1" colorize="${2:-0}" host_w=18 ip_w=15 check_w=8 status_w=12 detail_w
-  detail_w=$((width - host_w - ip_w - check_w - status_w - 8))
-  (( detail_w < 20 )) && detail_w=20
+  detail_w=$((width - host_w - ip_w - check_w - status_w - 4))
+  if (( detail_w < 16 )); then
+    detail_w=16
+    ip_w=$((width - host_w - check_w - status_w - detail_w - 4))
+    (( ip_w < 10 )) && ip_w=10
+  fi
   print_subtitle "ENDPOINT CHECKS" "$width" "$colorize"
   printf '%-*s %-*s %-*s %-*s %s\n' "$host_w" HOST "$ip_w" IP "$check_w" CHECK "$status_w" STATUS DETAIL
   separator "$width"
@@ -134,8 +155,12 @@ emit_endpoint_row() {
 
 render_systemd_table() {
   local width="$1" colorize="${2:-0}" host_w=18 ip_w=15 unit_w=28 status_w=12 detail_w
-  detail_w=$((width - host_w - ip_w - unit_w - status_w - 8))
-  (( detail_w < 16 )) && detail_w=16
+  detail_w=$((width - host_w - ip_w - unit_w - status_w - 4))
+  if (( detail_w < 16 )); then
+    detail_w=16
+    unit_w=$((width - host_w - ip_w - status_w - detail_w - 4))
+    (( unit_w < 10 )) && unit_w=10
+  fi
   print_subtitle "SYSTEMD UNITS" "$width" "$colorize"
   printf '%-*s %-*s %-*s %-*s %s\n' "$host_w" HOST "$ip_w" IP "$unit_w" UNIT "$status_w" STATUS DETAIL
   separator "$width"
@@ -156,8 +181,12 @@ render_systemd_table() {
 
 render_docker_table() {
   local width="$1" colorize="${2:-0}" host_w=18 ip_w=15 container_w=28 status_w=12 detail_w
-  detail_w=$((width - host_w - ip_w - container_w - status_w - 8))
-  (( detail_w < 16 )) && detail_w=16
+  detail_w=$((width - host_w - ip_w - container_w - status_w - 4))
+  if (( detail_w < 16 )); then
+    detail_w=16
+    container_w=$((width - host_w - ip_w - status_w - detail_w - 4))
+    (( container_w < 10 )) && container_w=10
+  fi
   print_subtitle "DOCKER CONTAINERS" "$width" "$colorize"
   printf '%-*s %-*s %-*s %-*s %s\n' "$host_w" HOST "$ip_w" IP "$container_w" CONTAINER "$status_w" STATE HEALTH
   separator "$width"
@@ -194,6 +223,67 @@ wrap_text() {
   else
     printf '%s\n' "$text"
   fi
+}
+
+render_docker_logs_picker() {
+  local width height choice status=0 dialogrc
+  width="$(screen_cols)"; height="$(screen_lines)"
+  if command -v dialog >/dev/null 2>&1; then
+    mapfile -t docker_choices < <(docker_log_choices)
+    if [[ ${#docker_choices[@]} -eq 0 ]]; then
+      dialog --title "Docker Logs" --msgbox "No Docker containers are available in the current cycle." 8 60 2>/dev/tty || true
+      return 0
+    fi
+    dialogrc="$(write_dark_dialogrc)"
+    choice="$(DIALOGRC="$dialogrc" dialog --colors --clear --title "Docker Logs" --menu "Choose a container log screen" "$height" "$width" $((height - 8)) "${docker_choices[@]}" 2>&1 >/dev/tty)" || status=$?
+    rm -f "$dialogrc"
+    [[ "$status" -ne 0 || -z "$choice" ]] && return 0
+    render_selected_docker_logs "$choice"
+  fi
+}
+
+docker_log_choices() {
+  local host ip line kind container state health tag desc
+  for host in "${!HOST_IPS[@]}"; do
+    while IFS= read -r ip; do
+      while IFS='=|' read -r kind container state health; do
+        [[ "$kind" != DOCKER ]] && continue
+        tag="${host}|${ip}|${container}"
+        desc="${state} ${health}"
+        printf '%s\n%s\n' "$tag" "$desc"
+      done < <(get_docker_statuses "$host" "$ip")
+    done < <(host_ips "$host")
+  done
+}
+
+render_selected_docker_logs() {
+  local choice="$1" host ip container tmp width height logs in_container=0 line status=0 dialogrc
+  IFS='|' read -r host ip container <<< "$choice"
+  width="$(screen_cols)"; height="$(screen_lines)"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/health-dashboard-logs.XXXXXX")"
+  {
+    print_banner "DOCKER LOGS: $host $ip $container" "$width" 1
+    logs="$(get_docker_logs "$host" "$ip")"
+    if [[ -z "$logs" ]]; then
+      echo "No logs captured for this container."
+    else
+      while IFS= read -r line; do
+        if [[ "$line" == "===== $container =====" ]]; then
+          in_container=1
+          echo "$line"
+          continue
+        fi
+        if [[ "$line" == =====*===== && "$in_container" -eq 1 ]]; then
+          break
+        fi
+        [[ "$in_container" -eq 1 ]] && wrap_text "$line" "$((width - 2))"
+      done <<< "$logs"
+    fi
+  } > "$tmp"
+  dialogrc="$(write_dark_dialogrc)"
+  DIALOGRC="$dialogrc" dialog --colors --clear --title "Docker Logs" --textbox "$tmp" "$height" "$width" 2>/dev/tty || status=$?
+  rm -f "$dialogrc" "$tmp"
+  return 0
 }
 
 render_logs_section() {

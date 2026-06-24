@@ -14,7 +14,11 @@ host_ips() {
 run_ssh() {
   local target="$1" command="$2"
   # Intentionally split SSH_OPTS so config authors can provide ordinary ssh flags.
-  ssh $SSH_OPTS "$target" "$command"
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$(operation_timeout)s" ssh -o ConnectTimeout="$(operation_timeout)" $SSH_OPTS "$target" "$command"
+  else
+    ssh -o ConnectTimeout="$(operation_timeout)" $SSH_OPTS "$target" "$command"
+  fi
 }
 
 collect_ping_parallel() {
@@ -33,7 +37,7 @@ collect_ping_parallel() {
 ping_one() {
   local host="$1" ip="$2" tmp
   tmp="$CACHE_DIR/$(safe_key "${host}_${ip}").ping.raw"
-  if ping -c1 -W2 "$ip" > "$tmp" 2>/dev/null; then
+  if ping -c1 -W"$(operation_timeout)" "$ip" > "$tmp" 2>/dev/null; then
     local lat
     lat="$(sed -n 's/.*time=\([0-9.]*\).*/\1/p' "$tmp" | head -1)"
     printf 'PASS|%sms\n' "${lat:-unknown}"
