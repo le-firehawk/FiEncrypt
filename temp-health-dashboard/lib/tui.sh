@@ -40,16 +40,20 @@ render_external_tui() {
   if command -v dialog >/dev/null 2>&1; then
     local dialogrc
     dialogrc="$(write_dark_dialogrc)"
-    DIALOGRC="$dialogrc" dialog --colors --clear --backtitle "Health Dashboard" --title "Dark Health Dashboard" --ok-label "Close" --extra-button --extra-label "Docker Logs" --cancel-label "Quit" --textbox "$tmp" "$height" "$width" 2>/dev/tty || status=$?
+    DIALOGRC="$dialogrc" dialog --colors --timeout "$REFRESH_INTERVAL" --clear --title "Health Dashboard" --ok-label "Refresh" --extra-button --extra-label "Docker Logs" --cancel-label "Quit" --textbox "$tmp" "$height" "$width" 2>/dev/tty || status=$?
     rm -f "$dialogrc" "$tmp"
     case "$status" in
-      3) render_docker_logs_picker ;;
-      1|255) exit 0 ;;
+      3) render_docker_logs_picker; REFRESH_NOW=1 ;;
+      0|255) REFRESH_NOW=1 ;;
+      1) exit 0 ;;
     esac
   else
-    whiptail --title "Health Dashboard" --scrolltext --ok-button "Close" --cancel-button "Quit" --msgbox "$(cat "$tmp")" "$height" "$width" 2>/dev/tty || status=$?
+    timeout "$REFRESH_INTERVAL" whiptail --title "Health Dashboard" --scrolltext --ok-button "Refresh" --cancel-button "Quit" --msgbox "$(cat "$tmp")" "$height" "$width" 2>/dev/tty || status=$?
     rm -f "$tmp"
-    [[ "$status" -ne 0 ]] && exit 0
+    case "$status" in
+      0|124) REFRESH_NOW=1 ;;
+      *) exit 0 ;;
+    esac
   fi
 }
 
@@ -59,7 +63,9 @@ render_plain_dashboard() {
 
 build_dashboard_text() {
   local width="$1" colorize="${2:-0}"
-  print_banner "HEALTH DASHBOARD" "$width" "$colorize"
+  if [[ "$colorize" -eq 0 ]]; then
+    print_banner "HEALTH DASHBOARD" "$width" "$colorize"
+  fi
   echo "Updated $(date '+%Y-%m-%d %H:%M:%S') | interval ${REFRESH_INTERVAL}s | operation timeout $(operation_timeout)s"
   echo
   render_endpoint_table "$width" "$colorize"

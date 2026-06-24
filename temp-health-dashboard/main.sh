@@ -16,6 +16,7 @@ source "$SCRIPT_DIR/lib/tui.sh"
 CONFIG_FILE="$SCRIPT_DIR/hosts.conf"
 REFRESH_INTERVAL=5
 RUN_ONCE=0
+REFRESH_NOW=0
 
 parse_args "$@"
 load_config "$CONFIG_FILE"
@@ -30,8 +31,10 @@ while true; do
   collect_ssh_parallel
   collect_systemd_parallel
   collect_docker_parallel
+  REFRESH_NOW=0
   render_dashboard
   log_event INFO "finished collection cycle"
   [[ "$RUN_ONCE" -eq 1 ]] && break
+  [[ "$REFRESH_NOW" -eq 1 ]] && continue
   sleep "$REFRESH_INTERVAL"
 done
