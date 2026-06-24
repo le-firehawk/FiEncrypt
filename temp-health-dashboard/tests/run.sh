@@ -6,6 +6,7 @@ source "$ROOT/lib/common.sh"
 source "$ROOT/lib/config.sh"
 source "$ROOT/lib/collectors.sh"
 source "$ROOT/lib/tests.sh"
+source "$ROOT/lib/tui.sh"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 assert_eq() { [[ "$1" == "$2" ]] || fail "expected '$2' got '$1'"; }
@@ -14,6 +15,7 @@ CONFIG_FILE="$ROOT/hosts.conf"
 REFRESH_INTERVAL=5
 RUN_ONCE=1
 init_cache
+declare -Ag HOST_IPS=([localhost]="127.0.0.1,127.0.0.2")
 
 # ICMP ping test parsing: localhost should be reachable in normal Linux CI.
 ping_one localhost 127.0.0.1 > "$(cache_file localhost 127.0.0.1 ping)"
@@ -44,5 +46,17 @@ ready
 crashed
 DATA
 get_docker_logs localhost 127.0.0.1 | grep -q 'ready' || fail "docker logs were not readable"
+
+# Rendering test: every IP is displayed independently and each systemd unit has its own row.
+printf 'PASS|1ms\n' > "$(cache_file localhost 127.0.0.2 ping)"
+printf 'PASS|connected\n' > "$(cache_file localhost 127.0.0.2 ssh)"
+cat > "$(cache_file localhost 127.0.0.2 systemd)" <<'DATA'
+SYSTEMD=docker|active
+DATA
+: > "$(cache_file localhost 127.0.0.2 docker)"
+dashboard="$(build_dashboard_text 96)"
+grep -q '127.0.0.2' <<< "$dashboard" || fail "second IP was not rendered"
+grep -qE 'localhost[[:space:]]+127\.0\.0\.1[[:space:]]+ssh[[:space:]]+active' <<< "$dashboard" || fail "systemd unit row was not rendered"
+grep -qE 'localhost[[:space:]]+127\.0\.0\.1[[:space:]]+nginx[[:space:]]+failed' <<< "$dashboard" || fail "second systemd unit row was not rendered"
 
 echo "all tests passed"

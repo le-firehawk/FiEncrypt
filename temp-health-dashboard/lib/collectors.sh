@@ -48,7 +48,7 @@ collect_ssh_parallel() {
     (
       while IFS= read -r ip; do
         local_key="$(safe_key "${host}_${ip}")"
-        target="$(ssh_target_for "$host" "$ip")"
+        target="$(ssh_target_for_ip "$ip")"
         log_event INFO "ssh check host=$host ip=$ip target=$target"
         if run_ssh "$target" 'printf ok' >/dev/null 2>"$CACHE_DIR/${local_key}.ssh.err"; then
           printf 'PASS|connected\n' > "$CACHE_DIR/${local_key}.ssh"
@@ -66,7 +66,7 @@ collect_systemd_parallel() {
     (
       while IFS= read -r ip; do
         local_key="$(safe_key "${host}_${ip}")"
-        target="$(ssh_target_for "$host" "$ip")"
+        target="$(ssh_target_for_ip "$ip")"
         : > "$CACHE_DIR/${local_key}.systemd"
         IFS=',' read -ra services <<< "${HOST_SERVICES[$host]:-}"
         for service in "${services[@]}"; do
@@ -90,7 +90,7 @@ collect_docker_parallel() {
     (
       while IFS= read -r ip; do
         local_key="$(safe_key "${host}_${ip}")"
-        target="$(ssh_target_for "$host" "$ip")"
+        target="$(ssh_target_for_ip "$ip")"
         log_event INFO "docker check host=$host ip=$ip"
         collect_docker_for_host "$host" "$target" "$CACHE_DIR/${local_key}.docker" "$CACHE_DIR/${local_key}.docker_logs"
       done < <(host_ips "$host")

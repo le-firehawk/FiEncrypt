@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 declare -Ag HOST_IPS=()
-declare -Ag HOST_SSH_TARGETS=()
 declare -Ag HOST_SERVICES=()
 declare -Ag HOST_CONTAINERS=()
 SSH_USER="${SSH_USER:-}"
@@ -22,12 +21,11 @@ load_config() {
   fi
 }
 
-ssh_target_for() {
-  local host="$1" ip="$2" target
-  target="${HOST_SSH_TARGETS[$host]:-$ip}"
-  if [[ -n "$SSH_USER" && "$target" != *@* ]]; then
-    printf '%s@%s' "$SSH_USER" "$target"
+ssh_target_for_ip() {
+  local ip="$1"
+  if [[ -n "$SSH_USER" && "$ip" != *@* ]]; then
+    printf '%s@%s' "$SSH_USER" "$ip"
   else
-    printf '%s' "$target"
+    printf '%s' "$ip"
   fi
 }
