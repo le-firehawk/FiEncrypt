@@ -5,20 +5,26 @@ clear_cycle_cache() {
   rm -f "$CACHE_DIR"/*
 }
 
+host_ips() {
+  local host="$1"
+  IFS=',' read -ra ips <<< "${HOST_IPS[$host]}"
+  printf '%s\n' "${ips[@]}" | sed 's/[[:space:]]//g' | sed '/^$/d'
+}
+
+run_ssh() {
+  local target="$1" command="$2"
+  # Intentionally split SSH_OPTS so config authors can provide ordinary ssh flags.
+  ssh $SSH_OPTS "$target" "$command"
+}
+
 collect_ping_parallel() {
   for host in "${!HOST_IPS[@]}"; do
     (
-      IFS=',' read -ra ips <<< "${HOST_IPS[$host]}"
-      for ip in "${ips[@]}"; do
-        ip="${ip//[[:space:]]/}"
-        [[ -z "$ip" ]] && continue
+      while IFS= read -r ip; do
         local_key="$(safe_key "${host}_${ip}")"
-        if [[ "$DEMO_MODE" -eq 1 ]]; then
-          simulate_ping "$host" "$ip" > "$CACHE_DIR/${local_key}.ping"
-        else
-          ping_one "$host" "$ip" > "$CACHE_DIR/${local_key}.ping"
-        fi
-      done
+        log_event INFO "icmp ping host=$host ip=$ip"
+        ping_one "$host" "$ip" > "$CACHE_DIR/${local_key}.ping"
+      done < <(host_ips "$host")
     ) &
   done
   wait
@@ -37,75 +43,84 @@ ping_one() {
   rm -f "$tmp"
 }
 
-simulate_ping() {
-  local host="$1" ip="$2" seed latency
-  seed=$(cksum <<< "${host}${ip}" | awk '{print $1}')
-  if (( seed % 11 == 0 )); then
-    printf 'FAIL|timeout\n'
-  else
-    latency=$(( (seed % 90) + 8 ))
-    printf 'PASS|%sms\n' "$latency"
-  fi
-}
-
-collect_snapshots_parallel() {
+collect_ssh_parallel() {
   for host in "${!HOST_IPS[@]}"; do
     (
-      IFS=',' read -ra ips <<< "${HOST_IPS[$host]}"
-      for ip in "${ips[@]}"; do
-        ip="${ip//[[:space:]]/}"
-        [[ -z "$ip" ]] && continue
+      while IFS= read -r ip; do
         local_key="$(safe_key "${host}_${ip}")"
-        if [[ "$DEMO_MODE" -eq 1 ]]; then
-          simulate_snapshot "$host" "$ip" > "$CACHE_DIR/${local_key}.snapshot"
+        target="$(ssh_target_for "$host" "$ip")"
+        log_event INFO "ssh check host=$host ip=$ip target=$target"
+        if run_ssh "$target" 'printf ok' >/dev/null 2>"$CACHE_DIR/${local_key}.ssh.err"; then
+          printf 'PASS|connected\n' > "$CACHE_DIR/${local_key}.ssh"
         else
-          local_snapshot "$host" "$ip" > "$CACHE_DIR/${local_key}.snapshot"
+          printf 'FAIL|%s\n' "$(head -1 "$CACHE_DIR/${local_key}.ssh.err" 2>/dev/null || echo connection_failed)" > "$CACHE_DIR/${local_key}.ssh"
         fi
-      done
+      done < <(host_ips "$host")
     ) &
   done
   wait
 }
 
-local_snapshot() {
-  local host="$1"
-  printf 'BOOTSTRAP=PASS\n'
-  emit_containers "$host"
-  emit_services "$host"
+collect_systemd_parallel() {
+  for host in "${!HOST_IPS[@]}"; do
+    (
+      while IFS= read -r ip; do
+        local_key="$(safe_key "${host}_${ip}")"
+        target="$(ssh_target_for "$host" "$ip")"
+        : > "$CACHE_DIR/${local_key}.systemd"
+        IFS=',' read -ra services <<< "${HOST_SERVICES[$host]:-}"
+        for service in "${services[@]}"; do
+          service="${service//[[:space:]]/}"
+          [[ -z "$service" ]] && continue
+          log_event INFO "systemd check host=$host service=$service"
+          if state="$(run_ssh "$target" "systemctl is-active '$service'" 2>/dev/null)"; then
+            printf 'SYSTEMD=%s|%s\n' "$service" "$state" >> "$CACHE_DIR/${local_key}.systemd"
+          else
+            printf 'SYSTEMD=%s|failed\n' "$service" >> "$CACHE_DIR/${local_key}.systemd"
+          fi
+        done
+      done < <(host_ips "$host")
+    ) &
+  done
+  wait
 }
 
-simulate_snapshot() {
-  local host="$1" ip="$2" seed
-  seed=$(cksum <<< "${host}${ip}" | awk '{print $1}')
-  (( seed % 7 == 0 )) && printf 'BOOTSTRAP=WARN\n' || printf 'BOOTSTRAP=PASS\n'
-  emit_containers "$host" "$seed"
-  emit_services "$host" "$seed"
+collect_docker_parallel() {
+  for host in "${!HOST_IPS[@]}"; do
+    (
+      while IFS= read -r ip; do
+        local_key="$(safe_key "${host}_${ip}")"
+        target="$(ssh_target_for "$host" "$ip")"
+        log_event INFO "docker check host=$host ip=$ip"
+        collect_docker_for_host "$host" "$target" "$CACHE_DIR/${local_key}.docker" "$CACHE_DIR/${local_key}.docker_logs"
+      done < <(host_ips "$host")
+    ) &
+  done
+  wait
 }
 
-emit_containers() {
-  local host="$1" seed="${2:-1}" list="${HOST_CONTAINERS[$host]:-api,worker,db}"
-  IFS=',' read -ra containers <<< "$list"
+collect_docker_for_host() {
+  local host="$1" target="$2" status_file="$3" logs_file="$4" configured="${HOST_CONTAINERS[$host]:-}"
+  : > "$status_file"
+  : > "$logs_file"
+  if [[ -n "$configured" ]]; then
+    IFS=',' read -ra containers <<< "$configured"
+  else
+    mapfile -t containers < <(run_ssh "$target" "docker ps --format '{{.Names}}'" 2>/dev/null || true)
+  fi
   for container in "${containers[@]}"; do
     container="${container//[[:space:]]/}"
     [[ -z "$container" ]] && continue
-    if (( seed % 13 == 0 )); then
-      printf 'DOCKER=%s|running|unhealthy\n' "$container"
-    else
-      printf 'DOCKER=%s|running|healthy\n' "$container"
-    fi
-  done
-}
-
-emit_services() {
-  local host="$1" seed="${2:-1}" list="${HOST_SERVICES[$host]:-ssh,cron}"
-  IFS=',' read -ra services <<< "$list"
-  for service in "${services[@]}"; do
-    service="${service//[[:space:]]/}"
-    [[ -z "$service" ]] && continue
-    if (( seed % 17 == 0 )); then
-      printf 'SYSTEMD=%s|failed\n' "$service"
-    else
-      printf 'SYSTEMD=%s|active\n' "$service"
-    fi
+    local inspect state health logs
+    inspect="$(run_ssh "$target" "docker inspect --format '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' '$container'" 2>/dev/null || true)"
+    state="${inspect%%|*}"
+    health="${inspect#*|}"
+    [[ -z "$inspect" || "$state" == "$inspect" ]] && { state="missing"; health="unknown"; }
+    printf 'DOCKER=%s|%s|%s\n' "$container" "$state" "$health" >> "$status_file"
+    logs="$(run_ssh "$target" "docker logs --tail '$DOCKER_LOG_LINES' '$container' 2>&1" 2>/dev/null || true)"
+    {
+      printf '===== %s =====\n' "$container"
+      printf '%s\n' "$logs"
+    } >> "$logs_file"
   done
 }

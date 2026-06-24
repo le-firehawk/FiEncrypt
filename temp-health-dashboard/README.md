@@ -1,17 +1,44 @@
 # Temporary Health Dashboard TUI
 
-This directory expands the provided shell sketch into a runnable Bash health dashboard with:
+This directory expands the provided shell sketch into a real-results-only Bash TUI for host health checks.
 
-- argument parsing and config validation;
-- parallel ping and snapshot collection;
-- deterministic `--demo` data for systems without network reachability;
-- ANSI TUI rendering when attached to a terminal;
-- plain text rendering for CI, logs, and `--once` captures.
+## What it checks
 
-Run it from this directory:
+- ICMP reachability with `ping` for every configured host/IP.
+- SSH connectivity for every host/IP.
+- Systemd unit status over SSH with `systemctl is-active`.
+- Docker container status over SSH with `docker ps` discovery or configured container names.
+- Docker logs over SSH with `docker logs --tail`, visible in the TUI with `l` or always printed in `--once` mode.
+
+All collection activity is logged to stderr. Use `--log-file path` to also append those logs to a file.
+
+## Run
 
 ```bash
-./main.sh --demo --once
+./main.sh --config hosts.conf
 ```
 
-Use a custom config with `--config path/to/hosts.conf`. The config should define `HOST_IPS` and may define `HOST_SERVICES` and `HOST_CONTAINERS` associative arrays.
+For CI or non-interactive checks:
+
+```bash
+./main.sh --config hosts.conf --once
+```
+
+Interactive keys:
+
+- `q`: quit.
+- `l`: toggle Docker log display.
+
+## Config
+
+`hosts.conf` is a Bash config file. Define `HOST_IPS`; optionally define `HOST_SSH_TARGETS`, `HOST_SERVICES`, `HOST_CONTAINERS`, `SSH_USER`, `SSH_OPTS`, and `DOCKER_LOG_LINES`.
+
+If `HOST_CONTAINERS[host]` is empty or unset, the dashboard discovers containers on that host with `docker ps --format '{{.Names}}'` over SSH.
+
+## Tests
+
+Run the included smoke/unit test suite:
+
+```bash
+./tests/run.sh
+```
