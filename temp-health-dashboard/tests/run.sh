@@ -49,13 +49,13 @@ get_docker_logs localhost 127.0.0.1 | grep -q 'ready' || fail "docker logs were 
 
 # Rendering test: every IP is displayed independently and each systemd unit has its own row.
 printf 'PASS|1ms\n' > "$(cache_file localhost 127.0.0.2 ping)"
-printf 'PASS|connected\n' > "$(cache_file localhost 127.0.0.2 ssh)"
-cat > "$(cache_file localhost 127.0.0.2 systemd)" <<'DATA'
-SYSTEMD=docker|active
-DATA
-: > "$(cache_file localhost 127.0.0.2 docker)"
+printf 'FAIL|auth denied\n' > "$(cache_file localhost 127.0.0.2 ssh)"
+printf 'SYSTEMD=docker|SSH_FAILED|auth denied\n' > "$(cache_file localhost 127.0.0.2 systemd)"
+printf 'DOCKER=discovery|SSH_FAILED|auth denied\n' > "$(cache_file localhost 127.0.0.2 docker)"
 dashboard="$(build_dashboard_text 96)"
 grep -q '127.0.0.2' <<< "$dashboard" || fail "second IP was not rendered"
+grep -q 'SSH_FAILED' <<< "$dashboard" || fail "SSH failure did not skip downstream checks"
+grep -q 'auth denied' <<< "$dashboard" || fail "SSH failure reason was not rendered"
 grep -qE 'localhost[[:space:]]+127\.0\.0\.1[[:space:]]+ssh[[:space:]]+active' <<< "$dashboard" || fail "systemd unit row was not rendered"
 grep -qE 'localhost[[:space:]]+127\.0\.0\.1[[:space:]]+nginx[[:space:]]+failed' <<< "$dashboard" || fail "second systemd unit row was not rendered"
 

@@ -68,6 +68,17 @@ collect_systemd_parallel() {
         local_key="$(safe_key "${host}_${ip}")"
         target="$(ssh_target_for_ip "$ip")"
         : > "$CACHE_DIR/${local_key}.systemd"
+        if ssh_failed "$host" "$ip"; then
+          reason="$(ssh_failure_reason "$host" "$ip")"
+          log_event WARN "skipping systemd host=$host ip=$ip reason=$reason"
+          IFS=',' read -ra services <<< "${HOST_SERVICES[$host]:-}"
+          for service in "${services[@]}"; do
+            service="${service//[[:space:]]/}"
+            [[ -z "$service" ]] && continue
+            printf 'SYSTEMD=%s|SSH_FAILED|%s\n' "$service" "$reason" >> "$CACHE_DIR/${local_key}.systemd"
+          done
+          continue
+        fi
         IFS=',' read -ra services <<< "${HOST_SERVICES[$host]:-}"
         for service in "${services[@]}"; do
           service="${service//[[:space:]]/}"
@@ -92,6 +103,12 @@ collect_docker_parallel() {
         local_key="$(safe_key "${host}_${ip}")"
         target="$(ssh_target_for_ip "$ip")"
         log_event INFO "docker check host=$host ip=$ip"
+        if ssh_failed "$host" "$ip"; then
+          reason="$(ssh_failure_reason "$host" "$ip")"
+          log_event WARN "skipping docker host=$host ip=$ip reason=$reason"
+          collect_docker_ssh_failed "$host" "$reason" "$CACHE_DIR/${local_key}.docker" "$CACHE_DIR/${local_key}.docker_logs"
+          continue
+        fi
         collect_docker_for_host "$host" "$target" "$CACHE_DIR/${local_key}.docker" "$CACHE_DIR/${local_key}.docker_logs"
       done < <(host_ips "$host")
     ) &
@@ -123,4 +140,33 @@ collect_docker_for_host() {
       printf '%s\n' "$logs"
     } >> "$logs_file"
   done
+}
+
+
+ssh_failed() {
+  local result
+  result="$(get_ssh_result "$1" "$2")"
+  [[ "${result%%|*}" != PASS ]]
+}
+
+ssh_failure_reason() {
+  local result
+  result="$(get_ssh_result "$1" "$2")"
+  printf '%s' "${result#*|}"
+}
+
+collect_docker_ssh_failed() {
+  local host="$1" reason="$2" status_file="$3" logs_file="$4" configured="${HOST_CONTAINERS[$host]:-}"
+  : > "$status_file"
+  : > "$logs_file"
+  if [[ -n "$configured" ]]; then
+    IFS=',' read -ra containers <<< "$configured"
+    for container in "${containers[@]}"; do
+      container="${container//[[:space:]]/}"
+      [[ -z "$container" ]] && continue
+      printf 'DOCKER=%s|SSH_FAILED|%s\n' "$container" "$reason" >> "$status_file"
+    done
+  else
+    printf 'DOCKER=%s|SSH_FAILED|%s\n' "discovery" "$reason" >> "$status_file"
+  fi
 }

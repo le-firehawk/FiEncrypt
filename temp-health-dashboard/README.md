@@ -6,8 +6,8 @@ This directory expands the provided shell sketch into a real-results-only Bash d
 
 - ICMP reachability with `ping` for every configured host/IP.
 - SSH connectivity for every host/IP; host-level SSH overrides are intentionally not supported so every address is tested independently.
-- Systemd unit status over SSH with `systemctl is-active`, rendered one unit per row.
-- Docker container status over SSH with `docker ps` discovery or configured container names, rendered one container per row.
+- Systemd unit status over SSH with `systemctl is-active`, rendered one unit per row. If SSH fails for an IP, systemd rows are marked `SSH_FAILED` with the SSH failure reason instead of attempting remote commands.
+- Docker container status over SSH with `docker ps` discovery or configured container names, rendered one container per row. If SSH fails for an IP, Docker rows are marked `SSH_FAILED` with the SSH failure reason.
 - Docker logs over SSH with `docker logs --tail`, wrapped to the current screen width.
 
 All collection activity is logged to stderr. Use `--log-file path` to also append those logs to a file.
@@ -24,11 +24,13 @@ For CI or non-interactive checks:
 ./main.sh --config hosts.conf --once
 ```
 
-Interactive mode opens the external TUI viewer; close it to refresh or quit from the viewer controls.
+Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback); close it to refresh or quit from the viewer controls.
 
 ## Config
 
 `hosts.conf` is a Bash config file. Define `HOST_IPS`; optionally define `HOST_SERVICES`, `HOST_CONTAINERS`, `SSH_USER`, `SSH_OPTS`, and `DOCKER_LOG_LINES`.
+
+Define each host once in `HOST_IPS` and put multiple addresses in a comma-separated value, for example `[edge-a]="10.0.0.10,10.0.1.10"`. Repeating the same Bash associative-array key overwrites the earlier value, so only the last assignment survives.
 
 If `HOST_CONTAINERS[host]` is empty or unset, the dashboard discovers containers on that host with `docker ps --format '{{.Names}}'` over SSH.
 
