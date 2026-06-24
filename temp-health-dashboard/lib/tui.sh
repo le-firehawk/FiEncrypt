@@ -22,6 +22,13 @@ render_dashboard() {
 screen_cols() { tput cols 2>/dev/null || echo 120; }
 screen_lines() { tput lines 2>/dev/null || echo 40; }
 
+dashboard_text_width() {
+  local width="$1"
+  width=$((width - 4))
+  (( width < 60 )) && width=60
+  printf '%s' "$width"
+}
+
 render_external_tui() {
   local tmp width height status=0 colorize=0
   width="$(screen_cols)"; height="$(screen_lines)"
@@ -29,25 +36,25 @@ render_external_tui() {
   if command -v dialog >/dev/null 2>&1; then
     colorize=1
   fi
-  build_dashboard_text "$width" "$colorize" > "$tmp"
+  build_dashboard_text "$(dashboard_text_width "$width")" "$colorize" > "$tmp"
   if command -v dialog >/dev/null 2>&1; then
     local dialogrc
     dialogrc="$(write_dark_dialogrc)"
-    DIALOGRC="$dialogrc" dialog --colors --clear --backtitle "Health Dashboard" --title "Dark Health Dashboard" --ok-label "Refresh" --extra-button --extra-label "Docker Logs" --cancel-label "Quit" --textbox "$tmp" "$height" "$width" 2>/dev/tty || status=$?
+    DIALOGRC="$dialogrc" dialog --colors --clear --backtitle "Health Dashboard" --title "Dark Health Dashboard" --ok-label "Close" --extra-button --extra-label "Docker Logs" --cancel-label "Quit" --textbox "$tmp" "$height" "$width" 2>/dev/tty || status=$?
     rm -f "$dialogrc" "$tmp"
     case "$status" in
       3) render_docker_logs_picker ;;
       1|255) exit 0 ;;
     esac
   else
-    whiptail --title "Health Dashboard" --scrolltext --ok-button "Refresh" --cancel-button "Quit" --msgbox "$(cat "$tmp")" "$height" "$width" 2>/dev/tty || status=$?
+    whiptail --title "Health Dashboard" --scrolltext --ok-button "Close" --cancel-button "Quit" --msgbox "$(cat "$tmp")" "$height" "$width" 2>/dev/tty || status=$?
     rm -f "$tmp"
     [[ "$status" -ne 0 ]] && exit 0
   fi
 }
 
 render_plain_dashboard() {
-  build_dashboard_text "$(screen_cols)" 0
+  build_dashboard_text "$(dashboard_text_width "$(screen_cols)")" 0
 }
 
 build_dashboard_text() {
@@ -66,13 +73,13 @@ build_dashboard_text() {
 separator() {
   local width="$1"
   (( width < 1 )) && width=1
-  printf '%*s\n' "$width" '' | tr ' ' '-'
+  printf '%*s\n' "$((width - 1))" '' | tr ' ' '-'
 }
 
 print_banner() {
   local title="$1" width="$2" colorize="$3" line text
   text="  $title  "
-  line="$(printf '%*s' "$width" '' | tr ' ' '=')"
+  line="$(printf '%*s' "$((width - 1))" '' | tr ' ' '=')"
   if [[ "$colorize" -eq 1 ]]; then
     printf '\Zb\Z6%s\Zn\n' "$line"
     printf '\Zb\Z6%*s\Zn\n' $(((width + ${#text}) / 2)) "$text"

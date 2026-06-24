@@ -42,6 +42,7 @@ ping_one() {
     lat="$(sed -n 's/.*time=\([0-9.]*\).*/\1/p' "$tmp" | head -1)"
     printf 'PASS|%sms\n' "${lat:-unknown}"
   else
+    log_event WARN "icmp ping failed host=$host ip=$ip"
     printf 'FAIL|unreachable\n'
   fi
   rm -f "$tmp"
@@ -57,7 +58,9 @@ collect_ssh_parallel() {
         if run_ssh "$target" 'printf ok' >/dev/null 2>"$CACHE_DIR/${local_key}.ssh.err"; then
           printf 'PASS|connected\n' > "$CACHE_DIR/${local_key}.ssh"
         else
-          printf 'FAIL|%s\n' "$(head -1 "$CACHE_DIR/${local_key}.ssh.err" 2>/dev/null || echo connection_failed)" > "$CACHE_DIR/${local_key}.ssh"
+          reason="$(head -1 "$CACHE_DIR/${local_key}.ssh.err" 2>/dev/null || echo connection_failed)"
+          log_event WARN "ssh check failed host=$host ip=$ip target=$target reason=$reason"
+          printf 'FAIL|%s\n' "$reason" > "$CACHE_DIR/${local_key}.ssh"
         fi
       done < <(host_ips "$host")
     ) &
@@ -91,6 +94,7 @@ collect_systemd_parallel() {
           if state="$(run_ssh "$target" "systemctl is-active '$service'" 2>/dev/null)"; then
             printf 'SYSTEMD=%s|%s\n' "$service" "$state" >> "$CACHE_DIR/${local_key}.systemd"
           else
+            log_event WARN "systemd check failed host=$host ip=$ip service=$service"
             printf 'SYSTEMD=%s|failed\n' "$service" >> "$CACHE_DIR/${local_key}.systemd"
           fi
         done
@@ -137,6 +141,9 @@ collect_docker_for_host() {
     state="${inspect%%|*}"
     health="${inspect#*|}"
     [[ -z "$inspect" || "$state" == "$inspect" ]] && { state="missing"; health="unknown"; }
+    if [[ "$state" != running || !( "$health" == healthy || "$health" == no-healthcheck ) ]]; then
+      log_event WARN "docker check failed host=$host target=$target container=$container state=$state health=$health"
+    fi
     printf 'DOCKER=%s|%s|%s\n' "$container" "$state" "$health" >> "$status_file"
     logs="$(run_ssh "$target" "docker logs --tail '$DOCKER_LOG_LINES' '$container' 2>&1" 2>/dev/null || true)"
     {
