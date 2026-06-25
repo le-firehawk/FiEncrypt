@@ -20,6 +20,7 @@ collect_dashboard_cycle() {
   fi
   collect_systemd_parallel
   collect_docker_parallel
+  collect_timesync_parallel
 }
 
 maybe_prompt_for_ssh_password() {
@@ -159,6 +160,8 @@ build_dashboard_text() {
   render_systemd_table "$width" "$colorize"
   echo
   render_docker_table "$width" "$colorize"
+  echo
+  render_timesync_table "$width" "$colorize"
 
 }
 
@@ -273,6 +276,24 @@ render_systemd_table() {
         emit_wrapped_row "$host_w" "$ip_w" "$unit_w" "$status_w" "$detail_w" "$colorize" "$host" "$ip" "$unit" "$state" "$detail"
       done < <(get_systemd_statuses "$host" "$ip")
       [[ "$emitted" -eq 0 ]] && emit_wrapped_row "$host_w" "$ip_w" "$unit_w" "$status_w" "$detail_w" "$colorize" "$host" "$ip" "none configured" "n/a" "No HOST_SERVICES entries"
+    done < <(host_ips "$host")
+  done
+  return 0
+}
+
+render_timesync_table() {
+  local width="$1" colorize="${2:-0}" host_w=18 ip_w=15 status_w=12 detail_w
+  detail_w=$((width - host_w - ip_w - status_w - 3))
+  (( detail_w < 16 )) && detail_w=16
+  print_subtitle "TIME SYNC / NTP" "$width" "$colorize"
+  printf '%-*s %-*s %-*s %s\n' "$host_w" HOST "$ip_w" IP "$status_w" STATUS DETAIL
+  separator "$width"
+  for host in "${!HOST_IPS[@]}"; do
+    while IFS= read -r ip; do
+      local line state detail
+      line="$(get_timesync_status "$host" "$ip")"
+      state="${line#*=}"; state="${state%%|*}"; detail="${line#*|}"
+      emit_wrapped_row "$host_w" "$ip_w" 1 "$status_w" "$detail_w" "$colorize" "$host" "$ip" "" "$state" "$detail"
     done < <(host_ips "$host")
   done
   return 0

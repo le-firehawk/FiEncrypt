@@ -6,8 +6,9 @@ This directory expands the provided shell sketch into a real-results-only Bash d
 
 - ICMP reachability with `ping` for every configured host/IP.
 - SSH connectivity for every host/IP; host-level SSH overrides are intentionally not supported so every address is tested independently.
-- Systemd unit status over SSH with `systemctl is-active`, rendered one unit per row. If SSH fails for an IP, systemd rows are marked `SSH_FAILED` with the SSH failure reason instead of attempting remote commands.
-- Docker container status over SSH with `docker ps` discovery or configured container names, rendered one container per row. If SSH fails for an IP, Docker rows are marked `SSH_FAILED` with the SSH failure reason.
+- Systemd unit status over SSH with `systemctl is-active`, rendered one unit per row. For hosts with multiple IPs, generic SSH-backed checks run on the first SSH-successful IP and later IPs are marked `SKIPPED`; if an earlier IP does not yield an SSH result, the next IP is tried.
+- Docker container status over SSH with `docker ps` discovery or configured container names, rendered one container per row. If SSH fails for every IP, Docker rows are marked `SSH_FAILED` with the SSH failure reason.
+- Time synchronization health over SSH, including NTP synchronization status and the best available NTP source from `chronyc` or `ntpq`.
 - Docker logs over SSH with `docker logs --tail`, wrapped to the current screen width.
 
 All collection activity is logged to stderr. Use `--log-file path` to also append those logs to a file. When SSH checks fail, interactive mode offers a password-auth popup; if `sshpass` is installed and a password is entered, SSH checks are retried for the current cycle using `sshpass -d` so the password is provided directly to sshpass; the password retry path leaves stdin available for sshpass and disables OpenSSH askpass helpers so GUI key-passphrase prompts cannot steal control before sshpass handles the password prompt. If the prompt is cancelled or `sshpass` is unavailable, SSH-dependent checks are skipped with that reason instead of repeatedly prompting.

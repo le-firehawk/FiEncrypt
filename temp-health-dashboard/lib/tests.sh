@@ -10,6 +10,7 @@ get_ssh_result() { cat "$(cache_file "$1" "$2" ssh)" 2>/dev/null || echo "FAIL|m
 get_systemd_statuses() { cat "$(cache_file "$1" "$2" systemd)" 2>/dev/null || true; }
 get_docker_statuses() { cat "$(cache_file "$1" "$2" docker)" 2>/dev/null || true; }
 get_docker_logs() { cat "$(cache_file "$1" "$2" docker_logs)" 2>/dev/null || true; }
+get_timesync_status() { cat "$(cache_file "$1" "$2" timesync)" 2>/dev/null || echo "TIMESYNC=missing|no result"; }
 
 status_icon() {
   case "$1" in

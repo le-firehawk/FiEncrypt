@@ -90,13 +90,72 @@ collect_ssh_parallel() {
   wait
 }
 
+generic_ip_for_host() {
+  local host="$1" ip result
+  while IFS= read -r ip; do
+    result="$(get_ssh_result "$host" "$ip")"
+    if [[ "${result%%|*}" == PASS ]]; then
+      printf '%s' "$ip"
+      return 0
+    fi
+  done < <(host_ips "$host")
+  return 1
+}
+
+collect_timesync_parallel() {
+  for host in "${!HOST_IPS[@]}"; do
+    (
+      selected_ip="$(generic_ip_for_host "$host" || true)"
+      while IFS= read -r ip; do
+        local_key="$(safe_key "${host}_${ip}")"
+        target="$(ssh_target_for_ip "$ip")"
+        : > "$CACHE_DIR/${local_key}.timesync"
+        if [[ -n "$selected_ip" && "$ip" != "$selected_ip" && "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" == PASS ]]; then
+          printf 'TIMESYNC=SKIPPED|checked via %s\n' "$selected_ip" > "$CACHE_DIR/${local_key}.timesync"
+          continue
+        fi
+        if [[ -z "$selected_ip" || "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" != PASS ]]; then
+          reason="$(ssh_failure_reason "$host" "$ip")"
+          printf 'TIMESYNC=SSH_FAILED|%s\n' "$reason" > "$CACHE_DIR/${local_key}.timesync"
+          continue
+        fi
+        collect_timesync_for_target "$target" > "$CACHE_DIR/${local_key}.timesync"
+      done < <(host_ips "$host")
+    ) &
+  done
+  wait
+}
+
+collect_timesync_for_target() {
+  local target="$1" sync source detail
+  sync="$(run_ssh "$target" "timedatectl show -p NTPSynchronized --value 2>/dev/null || true" 2>/dev/null || true)"
+  source="$(run_ssh "$target" "(chronyc -n sources 2>/dev/null | awk '/^[\\^=][*+]/ {print \\\$2; exit}') || (ntpq -pn 2>/dev/null | awk '/^\\*/ {print \\\$1; exit}') || true" 2>/dev/null || true)"
+  [[ -z "$source" ]] && source="unknown"
+  if [[ "$sync" == yes ]]; then
+    printf 'TIMESYNC=PASS|source=%s synchronized=yes\n' "$source"
+  else
+    detail="source=${source} synchronized=${sync:-unknown}"
+    log_event WARN "time sync check failed target=$target $detail"
+    printf 'TIMESYNC=FAIL|%s\n' "$detail"
+  fi
+}
+
 collect_systemd_parallel() {
   for host in "${!HOST_IPS[@]}"; do
     (
+      selected_ip="$(generic_ip_for_host "$host" || true)"
       while IFS= read -r ip; do
         local_key="$(safe_key "${host}_${ip}")"
         target="$(ssh_target_for_ip "$ip")"
         : > "$CACHE_DIR/${local_key}.systemd"
+        if [[ -n "$selected_ip" && "$ip" != "$selected_ip" && "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" == PASS ]]; then
+          IFS=',' read -ra services <<< "${HOST_SERVICES[$host]:-}"
+          for service in "${services[@]}"; do
+            service="${service//[[:space:]]/}"; [[ -z "$service" ]] && continue
+            printf 'SYSTEMD=%s|SKIPPED|checked via %s\n' "$service" "$selected_ip" >> "$CACHE_DIR/${local_key}.systemd"
+          done
+          continue
+        fi
         if ssh_failed "$host" "$ip"; then
           reason="$(ssh_failure_reason "$host" "$ip")"
           log_event WARN "skipping systemd host=$host ip=$ip reason=$reason"
@@ -129,10 +188,16 @@ collect_systemd_parallel() {
 collect_docker_parallel() {
   for host in "${!HOST_IPS[@]}"; do
     (
+      selected_ip="$(generic_ip_for_host "$host" || true)"
       while IFS= read -r ip; do
         local_key="$(safe_key "${host}_${ip}")"
         target="$(ssh_target_for_ip "$ip")"
         log_event INFO "docker check host=$host ip=$ip"
+        if [[ -n "$selected_ip" && "$ip" != "$selected_ip" && "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" == PASS ]]; then
+          printf 'DOCKER=%s|SKIPPED|checked via %s\n' "generic" "$selected_ip" > "$CACHE_DIR/${local_key}.docker"
+          : > "$CACHE_DIR/${local_key}.docker_logs"
+          continue
+        fi
         if ssh_failed "$host" "$ip"; then
           reason="$(ssh_failure_reason "$host" "$ip")"
           log_event WARN "skipping docker host=$host ip=$ip reason=$reason"
