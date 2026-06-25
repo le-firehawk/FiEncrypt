@@ -61,4 +61,7 @@ grep -q 'auth denied' <<< "$dashboard" || fail "SSH failure reason was not rende
 grep -qE 'localhost[[:space:]]+127\.0\.0\.1[[:space:]]+ssh[[:space:]]+active' <<< "$dashboard" || fail "systemd unit row was not rendered"
 grep -qE 'localhost[[:space:]]+127\.0\.0\.1[[:space:]]+nginx[[:space:]]+failed' <<< "$dashboard" || fail "second systemd unit row was not rendered"
 
+mark_ssh_password_prompt_cancelled "password prompt cancelled; SSH-dependent checks skipped"
+grep -q 'SSH-dependent checks skipped' "$(cache_file localhost 127.0.0.2 ssh)" || fail "SSH cancellation reason was not cached"
+
 echo "all tests passed"

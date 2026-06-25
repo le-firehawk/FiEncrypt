@@ -24,6 +24,7 @@ collect_dashboard_cycle() {
 }
 
 maybe_prompt_for_ssh_password() {
+  [[ "${SSH_PASSWORD_PROMPT_DECLINED:-0}" -eq 1 ]] && return 0
   ssh_password_candidate_failures >/dev/null || return 0
   if ! command -v sshpass >/dev/null 2>&1; then
     if command -v dialog >/dev/null 2>&1; then
@@ -31,6 +32,8 @@ maybe_prompt_for_ssh_password() {
     elif command -v whiptail >/dev/null 2>&1; then
       whiptail --title "SSH password authentication" --msgbox "One or more SSH checks failed. If the target permits password authentication, install sshpass or configure SSH keys/agent forwarding, then refresh." 10 72 2>/dev/tty || true
     fi
+    SSH_PASSWORD_PROMPT_DECLINED=1
+    mark_ssh_password_prompt_cancelled "sshpass unavailable; SSH-dependent checks skipped"
     return 0
   fi
   local password status=0
@@ -41,9 +44,26 @@ maybe_prompt_for_ssh_password() {
   else
     return 0
   fi
-  [[ "$status" -ne 0 || -z "$password" ]] && return 0
+  if [[ "$status" -ne 0 || -z "$password" ]]; then
+    SSH_PASSWORD_PROMPT_DECLINED=1
+    mark_ssh_password_prompt_cancelled "password prompt cancelled; SSH-dependent checks skipped"
+    return 0
+  fi
   export SSH_PASSWORD="$password"
   collect_ssh_parallel
+}
+
+mark_ssh_password_prompt_cancelled() {
+  local reason="$1" host ip key current
+  for host in "${!HOST_IPS[@]}"; do
+    while IFS= read -r ip; do
+      current="$(get_ssh_result "$host" "$ip")"
+      [[ "${current%%|*}" == PASS ]] && continue
+      key="$(safe_key "${host}_${ip}")"
+      printf 'FAIL|%s\n' "$reason" > "$CACHE_DIR/${key}.ssh"
+      log_event WARN "ssh password prompt cancelled host=$host ip=$ip reason=$reason"
+    done < <(host_ips "$host")
+  done
 }
 
 ssh_password_candidate_failures() {
@@ -90,8 +110,9 @@ render_external_tui() {
     rm -f "$dialogrc" "$tmp"
     case "$status" in
       3) render_docker_logs_picker; REFRESH_NOW=1 ;;
-      0|255) REFRESH_NOW=1 ;;
+      0) REFRESH_NOW=1 ;;
       1) exit 0 ;;
+      255) REFRESH_NOW=0 ;;
     esac
   else
     timeout "$REFRESH_INTERVAL" whiptail --title "Health Dashboard" --scrolltext --ok-button "Refresh [${REFRESH_INTERVAL}s]" --cancel-button "Quit" --msgbox "$(cat "$tmp")" "$height" "$width" 2>/dev/tty || status=$?
