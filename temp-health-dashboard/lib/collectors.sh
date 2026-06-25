@@ -18,14 +18,14 @@ run_ssh() {
   timeout_s="$(operation_timeout)"
   if [[ -n "${SSH_PASSWORD:-}" ]] && command -v sshpass >/dev/null 2>&1; then
     if command -v timeout >/dev/null 2>&1; then
-      timeout "${timeout_s}s" env SSHPASS="$SSH_PASSWORD" sshpass -e ssh $SSH_OPTS -o NumberOfPasswordPrompts=1 -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o ConnectTimeout="$timeout_s" "$target" "$command"
+      timeout "${timeout_s}s" env SSHPASS="$SSH_PASSWORD" sshpass -e ssh -n -T $SSH_OPTS -o LogLevel=ERROR -o NumberOfPasswordPrompts=1 -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o ConnectTimeout="$timeout_s" "$target" "$command"
     else
-      SSHPASS="$SSH_PASSWORD" sshpass -e ssh $SSH_OPTS -o NumberOfPasswordPrompts=1 -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o ConnectTimeout="$timeout_s" "$target" "$command"
+      SSHPASS="$SSH_PASSWORD" sshpass -e ssh -n -T $SSH_OPTS -o LogLevel=ERROR -o NumberOfPasswordPrompts=1 -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o ConnectTimeout="$timeout_s" "$target" "$command"
     fi
   elif command -v timeout >/dev/null 2>&1; then
-    timeout "${timeout_s}s" ssh -o BatchMode=yes -o ConnectTimeout="$timeout_s" $SSH_OPTS "$target" "$command"
+    timeout "${timeout_s}s" ssh -n -T -o LogLevel=ERROR -o BatchMode=yes -o ConnectTimeout="$timeout_s" $SSH_OPTS "$target" "$command"
   else
-    ssh -o BatchMode=yes -o ConnectTimeout="$timeout_s" $SSH_OPTS "$target" "$command"
+    ssh -n -T -o LogLevel=ERROR -o BatchMode=yes -o ConnectTimeout="$timeout_s" $SSH_OPTS "$target" "$command"
   fi
 }
 
@@ -63,7 +63,7 @@ collect_ssh_parallel() {
         local_key="$(safe_key "${host}_${ip}")"
         target="$(ssh_target_for_ip "$ip")"
         log_event INFO "ssh check host=$host ip=$ip target=$target"
-        if run_ssh "$target" 'printf ok' >/dev/null 2>"$CACHE_DIR/${local_key}.ssh.err"; then
+        if run_ssh "$target" 'true' >/dev/null 2>"$CACHE_DIR/${local_key}.ssh.err"; then
           printf 'PASS|connected\n' > "$CACHE_DIR/${local_key}.ssh"
         else
           reason="$(head -1 "$CACHE_DIR/${local_key}.ssh.err" 2>/dev/null || echo connection_failed)"

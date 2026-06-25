@@ -99,7 +99,7 @@ dashboard_text_width() {
 }
 
 render_external_tui() {
-  local tmp width height status=0 colorize=0
+  local tmp width height status=0 colorize=0 choice=""
   width="$(screen_cols)"; height="$(screen_lines)"
   tmp="$(mktemp "${TMPDIR:-/tmp}/health-dashboard.XXXXXX")"
   if command -v dialog >/dev/null 2>&1; then
@@ -109,22 +109,18 @@ render_external_tui() {
   if command -v dialog >/dev/null 2>&1; then
     local dialogrc
     dialogrc="$(write_dark_dialogrc)"
-    DIALOGRC="$dialogrc" dialog --colors --timeout "$REFRESH_INTERVAL" --clear --title "Health Dashboard" --yes-label "Refresh [${REFRESH_INTERVAL}s]" --extra-button --extra-label "Docker Logs" --no-label "q Quit" --yesno "$(cat "$tmp")" "$height" "$width" 2>/dev/tty || status=$?
+    choice="$(DIALOGRC="$dialogrc" dialog --colors --clear --title "Health Dashboard" --cancel-label "q Quit" --menu "$(cat "$tmp")" "$height" "$width" 4       refresh "Refresh now"       logs "Docker logs"       q "Quit"       2>&1 >/dev/tty)" || status=$?
     rm -f "$dialogrc" "$tmp"
-    case "$status" in
-      3) render_docker_logs_picker; REFRESH_NOW=1 ;;
-      0) REFRESH_NOW=1 ;;
-      1) exit 0 ;;
-      255) REFRESH_NOW=0 ;;
-    esac
   else
-    timeout "$REFRESH_INTERVAL" whiptail --title "Health Dashboard" --yes-button "Refresh [${REFRESH_INTERVAL}s]" --no-button "q Quit" --yesno "$(cat "$tmp")" "$height" "$width" 2>/dev/tty || status=$?
+    choice="$(whiptail --title "Health Dashboard" --cancel-button "q Quit" --menu "$(cat "$tmp")" "$height" "$width" 4       refresh "Refresh now"       logs "Docker logs"       q "Quit"       2>&1 >/dev/tty)" || status=$?
     rm -f "$tmp"
-    case "$status" in
-      0|124) REFRESH_NOW=1 ;;
-      *) exit 0 ;;
-    esac
   fi
+  [[ "$status" -ne 0 ]] && exit 0
+  case "$choice" in
+    refresh) REFRESH_NOW=1 ;;
+    logs) render_docker_logs_picker; REFRESH_NOW=1 ;;
+    q) exit 0 ;;
+  esac
 }
 
 render_cli_dashboard() {
