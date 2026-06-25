@@ -18,14 +18,14 @@ run_ssh() {
   timeout_s="$(operation_timeout)"
   if [[ -n "${SSH_PASSWORD:-}" ]] && command -v sshpass >/dev/null 2>&1; then
     if command -v timeout >/dev/null 2>&1; then
-      timeout "${timeout_s}s" env SSHPASS="$SSH_PASSWORD" sshpass -e ssh -n -T $SSH_OPTS -o LogLevel=ERROR -o NumberOfPasswordPrompts=1 -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o ConnectTimeout="$timeout_s" "$target" "$command"
+      timeout "${timeout_s}s" env SSHPASS="$SSH_PASSWORD" SSH_ASKPASS= SSH_ASKPASS_REQUIRE=never DISPLAY= KDE_SSH_ASKPASS= sshpass -e ssh -n -T $SSH_OPTS -o LogLevel=ERROR -o NumberOfPasswordPrompts=1 -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o ConnectTimeout="$timeout_s" "$target" "$command"
     else
-      SSHPASS="$SSH_PASSWORD" sshpass -e ssh -n -T $SSH_OPTS -o LogLevel=ERROR -o NumberOfPasswordPrompts=1 -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o ConnectTimeout="$timeout_s" "$target" "$command"
+      env SSHPASS="$SSH_PASSWORD" SSH_ASKPASS= SSH_ASKPASS_REQUIRE=never DISPLAY= KDE_SSH_ASKPASS= sshpass -e ssh -n -T $SSH_OPTS -o LogLevel=ERROR -o NumberOfPasswordPrompts=1 -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o ConnectTimeout="$timeout_s" "$target" "$command"
     fi
   elif command -v timeout >/dev/null 2>&1; then
-    timeout "${timeout_s}s" ssh -n -T -o LogLevel=ERROR -o BatchMode=yes -o ConnectTimeout="$timeout_s" $SSH_OPTS "$target" "$command"
+    timeout "${timeout_s}s" env SSH_ASKPASS= SSH_ASKPASS_REQUIRE=never DISPLAY= KDE_SSH_ASKPASS= ssh -n -T -o LogLevel=ERROR -o BatchMode=yes -o ConnectTimeout="$timeout_s" $SSH_OPTS "$target" "$command"
   else
-    ssh -n -T -o LogLevel=ERROR -o BatchMode=yes -o ConnectTimeout="$timeout_s" $SSH_OPTS "$target" "$command"
+    env SSH_ASKPASS= SSH_ASKPASS_REQUIRE=never DISPLAY= KDE_SSH_ASKPASS= ssh -n -T -o LogLevel=ERROR -o BatchMode=yes -o ConnectTimeout="$timeout_s" $SSH_OPTS "$target" "$command"
   fi
 }
 

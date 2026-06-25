@@ -10,7 +10,7 @@ This directory expands the provided shell sketch into a real-results-only Bash d
 - Docker container status over SSH with `docker ps` discovery or configured container names, rendered one container per row. If SSH fails for an IP, Docker rows are marked `SSH_FAILED` with the SSH failure reason.
 - Docker logs over SSH with `docker logs --tail`, wrapped to the current screen width.
 
-All collection activity is logged to stderr. Use `--log-file path` to also append those logs to a file. When SSH checks fail, interactive mode offers a password-auth popup; if `sshpass` is installed and a password is entered, SSH checks are retried for the current cycle with password authentication enabled. If the prompt is cancelled or `sshpass` is unavailable, SSH-dependent checks are skipped with that reason instead of repeatedly prompting.
+All collection activity is logged to stderr. Use `--log-file path` to also append those logs to a file. When SSH checks fail, interactive mode offers a password-auth popup; if `sshpass` is installed and a password is entered, SSH checks are retried for the current cycle with password authentication enabled while SSH askpass helpers such as `ksshaskpass` are explicitly disabled. If the prompt is cancelled or `sshpass` is unavailable, SSH-dependent checks are skipped with that reason instead of repeatedly prompting.
 
 ## Run
 
