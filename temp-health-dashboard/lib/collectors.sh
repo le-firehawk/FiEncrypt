@@ -30,6 +30,21 @@ run_ssh() (
   fi
 )
 
+ssh_password_for_host() {
+  local host="$1"
+  if declare -p SSH_PASSWORDS >/dev/null 2>&1 && [[ -n "${SSH_PASSWORDS[$host]:-}" ]]; then
+    printf '%s' "${SSH_PASSWORDS[$host]}"
+  else
+    printf '%s' "${SSH_PASSWORD:-}"
+  fi
+}
+
+run_host_ssh() {
+  local host="$1" target="$2" command="$3" password
+  password="$(ssh_password_for_host "$host")"
+  SSH_PASSWORD="$password" run_ssh "$target" "$command"
+}
+
 ssh_error_reason_text() {
   local output="$1" status="${2:-}" reason
   reason="$(awk '!/^\+{1,} / && NF { print; exit }' <<< "$output")"
@@ -89,37 +104,39 @@ ping_one() {
 
 collect_ssh_parallel() {
   for host in "${!HOST_IPS[@]}"; do
-    (
-      while IFS= read -r ip; do
-        local_key="$(safe_key "${host}_${ip}")"
-        target="$(ssh_target_for_ip "$ip")"
-        local attempts max_attempts status output reason
-        attempts=1
-        max_attempts=$((SSH_CHECK_RETRIES + 1))
-        while :; do
-          log_event INFO "ssh check host=$host ip=$ip target=$target attempt=$attempts/$max_attempts"
-          if output="$(run_ssh "$target" 'true' 2>&1)"; then
-            : > "$CACHE_DIR/${local_key}.ssh.err"
-            printf 'PASS|connected\n' > "$CACHE_DIR/${local_key}.ssh"
-            break
-          fi
-          status=$?
-          reason="$(ssh_error_reason_text "$output" "$status")"
-          printf '%s\n' "$output" > "$CACHE_DIR/${local_key}.ssh.err"
-          if (( attempts < max_attempts )) && ssh_retryable_reason "$reason"; then
-            log_event WARN "ssh check transient failure host=$host ip=$ip target=$target attempt=$attempts/$max_attempts reason=$reason; retrying"
-            attempts=$((attempts + 1))
-            sleep 0.2
-            continue
-          fi
-          log_event WARN "ssh check failed host=$host ip=$ip target=$target attempts=$attempts reason=$reason"
-          printf 'FAIL|%s\n' "$reason" > "$CACHE_DIR/${local_key}.ssh"
-          break
-        done
-      done < <(host_ips "$host")
-    ) &
+    collect_ssh_for_host "$host" &
   done
   wait
+}
+
+collect_ssh_for_host() {
+  local host="$1" ip local_key target attempts max_attempts status output reason
+  while IFS= read -r ip; do
+    local_key="$(safe_key "${host}_${ip}")"
+    target="$(ssh_target_for_ip "$ip")"
+    attempts=1
+    max_attempts=$((SSH_CHECK_RETRIES + 1))
+    while :; do
+      log_event INFO "ssh check host=$host ip=$ip target=$target attempt=$attempts/$max_attempts"
+      if output="$(run_host_ssh "$host" "$target" 'true' 2>&1)"; then
+        : > "$CACHE_DIR/${local_key}.ssh.err"
+        printf 'PASS|connected\n' > "$CACHE_DIR/${local_key}.ssh"
+        break
+      fi
+      status=$?
+      reason="$(ssh_error_reason_text "$output" "$status")"
+      printf '%s\n' "$output" > "$CACHE_DIR/${local_key}.ssh.err"
+      if (( attempts < max_attempts )) && ssh_retryable_reason "$reason"; then
+        log_event WARN "ssh check transient failure host=$host ip=$ip target=$target attempt=$attempts/$max_attempts reason=$reason; retrying"
+        attempts=$((attempts + 1))
+        sleep 0.2
+        continue
+      fi
+      log_event WARN "ssh check failed host=$host ip=$ip target=$target attempts=$attempts reason=$reason"
+      printf 'FAIL|%s\n' "$reason" > "$CACHE_DIR/${local_key}.ssh"
+      break
+    done
+  done < <(host_ips "$host")
 }
 
 generic_ip_for_host() {
@@ -151,7 +168,7 @@ collect_timesync_parallel() {
           printf 'TIMESYNC=SSH_FAILED|%s\n' "$reason" > "$CACHE_DIR/${local_key}.timesync"
           continue
         fi
-        collect_timesync_for_target "$target" > "$CACHE_DIR/${local_key}.timesync"
+        collect_timesync_for_target "$host" "$target" > "$CACHE_DIR/${local_key}.timesync"
       done < <(host_ips "$host")
     ) &
   done
@@ -159,9 +176,9 @@ collect_timesync_parallel() {
 }
 
 collect_timesync_for_target() {
-  local target="$1" sync source detail
-  sync="$(run_ssh "$target" "timedatectl show -p NTPSynchronized --value 2>/dev/null || true" 2>/dev/null || true)"
-  source="$(run_ssh "$target" "(chronyc -n sources 2>/dev/null | awk '/^[\\^=][*+]/ {print \\\$2; exit}') || (ntpq -pn 2>/dev/null | awk '/^\\*/ {print \\\$1; exit}') || true" 2>/dev/null || true)"
+  local host="$1" target="$2" sync source detail
+  sync="$(run_host_ssh "$host" "$target" "timedatectl show -p NTPSynchronized --value 2>/dev/null || true" 2>/dev/null || true)"
+  source="$(run_host_ssh "$host" "$target" "(chronyc -n sources 2>/dev/null | awk '/^[\\^=][*+]/ {print \\\$2; exit}') || (ntpq -pn 2>/dev/null | awk '/^\\*/ {print \\\$1; exit}') || true" 2>/dev/null || true)"
   [[ -z "$source" ]] && source="unknown"
   if [[ "$sync" == yes ]]; then
     printf 'TIMESYNC=PASS|source=%s synchronized=yes\n' "$source"
@@ -204,7 +221,7 @@ collect_systemd_parallel() {
           service="${service//[[:space:]]/}"
           [[ -z "$service" ]] && continue
           log_event INFO "systemd check host=$host service=$service"
-          if state="$(run_ssh "$target" "systemctl is-active '$service' 2>/dev/null || true" 2>/dev/null)"; then
+          if state="$(run_host_ssh "$host" "$target" "systemctl is-active '$service' 2>/dev/null || true" 2>/dev/null)"; then
             [[ -z "$state" ]] && state="unknown"
             if [[ "$state" != active ]]; then
               log_event WARN "systemd check failed host=$host ip=$ip service=$service state=$state"
@@ -267,13 +284,13 @@ collect_docker_for_host() {
   if [[ -n "$configured" ]]; then
     IFS=',' read -ra containers <<< "$configured"
   else
-    mapfile -t containers < <(run_ssh "$target" "docker ps --format '{{.Names}}'" 2>/dev/null || true)
+    mapfile -t containers < <(run_host_ssh "$host" "$target" "docker ps --format '{{.Names}}'" 2>/dev/null || true)
   fi
   for container in "${containers[@]}"; do
     container="${container//[[:space:]]/}"
     [[ -z "$container" ]] && continue
     local inspect state health logs
-    inspect="$(run_ssh "$target" "docker inspect --format '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' '$container'" 2>/dev/null || true)"
+    inspect="$(run_host_ssh "$host" "$target" "docker inspect --format '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' '$container'" 2>/dev/null || true)"
     state="${inspect%%|*}"
     health="${inspect#*|}"
     [[ -z "$inspect" || "$state" == "$inspect" ]] && { state="missing"; health="unknown"; }
@@ -281,7 +298,7 @@ collect_docker_for_host() {
       log_event WARN "docker check failed host=$host target=$target container=$container state=$state health=$health"
     fi
     printf 'DOCKER=%s|%s|%s\n' "$container" "$state" "$health" >> "$status_file"
-    logs="$(run_ssh "$target" "docker logs --tail '$DOCKER_LOG_LINES' '$container' 2>&1" 2>/dev/null || true)"
+    logs="$(run_host_ssh "$host" "$target" "docker logs --tail '$DOCKER_LOG_LINES' '$container' 2>&1" 2>/dev/null || true)"
     {
       printf '===== %s =====\n' "$container"
       printf '%s\n' "$logs"

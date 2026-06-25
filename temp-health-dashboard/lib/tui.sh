@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 
+declare -Ag SSH_PASSWORDS=()
+declare -Ag SSH_PASSWORD_PROMPT_DECLINED_HOSTS=()
+declare -Ag SSH_PASSWORD_ATTEMPTED_HOSTS=()
+LOADING_ACTIVE=0
+LOADING_PIPE=""
+LOADING_FD=""
+LOADING_PID=""
+LOADING_DIALOGRC=""
+
 require_tui_or_once() {
   if [[ "$RUN_ONCE" -eq 0 && ! -t 1 ]]; then
     echo "Interactive TUI mode requires a TTY. Use --once for non-interactive output." >&2
@@ -12,6 +21,7 @@ require_tui_or_once() {
 
 
 collect_dashboard_cycle() {
+  collection_loading_start
   collection_loading_update 5 "Preparing checks" "Clearing previous cycle data and preparing the health-check cache."
   clear_cycle_cache
   collection_loading_update 15 "ICMP checks" "Pinging every configured host/IP endpoint."
@@ -19,7 +29,9 @@ collect_dashboard_cycle() {
   collection_loading_update 35 "SSH checks" "Testing SSH connectivity for every configured host/IP endpoint."
   collect_ssh_parallel
   if [[ "$RUN_ONCE" -eq 0 && -t 1 ]]; then
+    collection_loading_stop
     maybe_prompt_for_ssh_password || true
+    collection_loading_start
   fi
   collection_loading_update 60 "Systemd checks" "Checking configured systemd units on the first SSH-successful IP per host."
   collect_systemd_parallel
@@ -28,39 +40,47 @@ collect_dashboard_cycle() {
   collection_loading_update 95 "Time sync checks" "Checking NTP synchronization and source health."
   collect_timesync_parallel
   collection_loading_update 100 "Rendering summary" "Health checks finished; rendering the updated dashboard."
+  collection_loading_stop
 }
 
 maybe_prompt_for_ssh_password() {
-  [[ "${SSH_PASSWORD_PROMPT_DECLINED:-0}" -eq 1 ]] && return 0
-  [[ "${SSH_PASSWORD_ATTEMPTED:-0}" -eq 1 ]] && return 0
-  ssh_password_candidate_failures >/dev/null || return 0
+  local host password status
+  local -a password_hosts
+  mapfile -t password_hosts < <(ssh_password_candidate_hosts)
+  [[ ${#password_hosts[@]} -eq 0 ]] && return 0
   if ! command -v sshpass >/dev/null 2>&1; then
     if command -v dialog >/dev/null 2>&1; then
       dialog --title "SSH password authentication" --msgbox "One or more SSH checks failed. If the target permits password authentication, install sshpass or configure SSH keys/agent forwarding, then refresh." 10 72 2>/dev/tty || true
     elif command -v whiptail >/dev/null 2>&1; then
       whiptail --title "SSH password authentication" --msgbox "One or more SSH checks failed. If the target permits password authentication, install sshpass or configure SSH keys/agent forwarding, then refresh." 10 72 2>/dev/tty || true
     fi
-    SSH_PASSWORD_PROMPT_DECLINED=1
-    mark_ssh_password_prompt_cancelled "sshpass unavailable; SSH-dependent checks skipped"
+    for host in "${password_hosts[@]}"; do
+      SSH_PASSWORD_PROMPT_DECLINED_HOSTS[$host]=1
+      mark_ssh_password_prompt_cancelled "$host" "sshpass unavailable; SSH-dependent checks skipped"
+    done
     return 0
   fi
-  local password status=0
-  if command -v dialog >/dev/null 2>&1; then
-    password="$(dialog --insecure --title "SSH password authentication" --passwordbox "One or more SSH checks failed. If the target permits password authentication, enter an SSH password to retry SSH checks for this cycle, or Cancel to continue with SSH failures." 12 72 2>&1 >/dev/tty)" || status=$?
-  elif command -v whiptail >/dev/null 2>&1; then
-    password="$(whiptail --title "SSH password authentication" --passwordbox "One or more SSH checks failed. If the target permits password authentication, enter an SSH password to retry SSH checks for this cycle, or Cancel to continue with SSH failures." 12 72 2>&1 >/dev/tty)" || status=$?
-  else
-    return 0
-  fi
-  if [[ "$status" -ne 0 || -z "$password" ]]; then
-    SSH_PASSWORD_PROMPT_DECLINED=1
-    mark_ssh_password_prompt_cancelled "password prompt cancelled; SSH-dependent checks skipped"
-    return 0
-  fi
-  export SSH_PASSWORD="$password"
-  SSH_PASSWORD_ATTEMPTED=1
-  show_loading_popup "Retrying SSH authentication" "Password accepted by the TUI. Retrying SSH checks with sshpass before rendering the updated dashboard summary..."
-  collect_ssh_parallel
+  for host in "${password_hosts[@]}"; do
+    status=0
+    if command -v dialog >/dev/null 2>&1; then
+      password="$(dialog --insecure --title "SSH password authentication: $host" --passwordbox "SSH checks failed for host '$host'. If this host permits password authentication, enter the password once; it will be reused for every configured IP on this host during this run. Cancel to keep SSH-dependent checks skipped for this host." 13 78 2>&1 >/dev/tty)" || status=$?
+    elif command -v whiptail >/dev/null 2>&1; then
+      password="$(whiptail --title "SSH password authentication: $host" --passwordbox "SSH checks failed for host '$host'. If this host permits password authentication, enter the password once; it will be reused for every configured IP on this host during this run. Cancel to keep SSH-dependent checks skipped for this host." 13 78 2>&1 >/dev/tty)" || status=$?
+    else
+      return 0
+    fi
+    if [[ "$status" -ne 0 || -z "$password" ]]; then
+      SSH_PASSWORD_PROMPT_DECLINED_HOSTS[$host]=1
+      mark_ssh_password_prompt_cancelled "$host" "password prompt cancelled; SSH-dependent checks skipped"
+      continue
+    fi
+    SSH_PASSWORDS[$host]="$password"
+    SSH_PASSWORD_ATTEMPTED_HOSTS[$host]=1
+    collection_loading_start
+    collection_loading_update 40 "Retrying SSH authentication" "Password accepted for host '$host'. Retrying SSH checks on every configured IP for this host before rendering the updated dashboard summary."
+    collect_ssh_for_host "$host"
+    collection_loading_stop
+  done
 }
 
 show_loading_popup() {
@@ -79,40 +99,74 @@ show_loading_popup() {
 collection_loading_update() {
   local percent="$1" stage="$2" detail="$3"
   [[ "$RUN_ONCE" -eq 1 ]] && return 0
-  if command -v dialog >/dev/null 2>&1 || command -v whiptail >/dev/null 2>&1; then
-    show_loading_popup "Running health checks (${percent}%)" "${stage}
-
-${detail}
-
-The dashboard will refresh automatically when this cycle completes."
+  if [[ "$LOADING_ACTIVE" -eq 1 && -n "$LOADING_FD" ]]; then
+    {
+      printf 'XXX\n%s\n%s\n\n%s\n\nThe dashboard will refresh automatically when this cycle completes.\nXXX\n' "$percent" "$stage" "$detail"
+    } >&"$LOADING_FD" || true
   elif [[ -t 1 ]]; then
     clear 2>/dev/null || true
     printf 'Running health checks (%s%%)\n\n%s\n\n%s\n\nThe dashboard will refresh automatically when this cycle completes.\n' "$percent" "$stage" "$detail"
   fi
 }
 
-mark_ssh_password_prompt_cancelled() {
-  local reason="$1" host ip key current
-  for host in "${!HOST_IPS[@]}"; do
-    while IFS= read -r ip; do
-      current="$(get_ssh_result "$host" "$ip")"
-      [[ "${current%%|*}" == PASS ]] && continue
-      key="$(safe_key "${host}_${ip}")"
-      printf 'FAIL|%s\n' "$reason" > "$CACHE_DIR/${key}.ssh"
-      log_event WARN "ssh password prompt cancelled host=$host ip=$ip reason=$reason"
-    done < <(host_ips "$host")
-  done
+collection_loading_start() {
+  [[ "$RUN_ONCE" -eq 1 || ! -t 1 || "$LOADING_ACTIVE" -eq 1 ]] && return 0
+  if command -v dialog >/dev/null 2>&1 || command -v whiptail >/dev/null 2>&1; then
+    LOADING_PIPE="$(mktemp -u "${TMPDIR:-/tmp}/health-loading.XXXXXX")"
+    mkfifo "$LOADING_PIPE"
+    if command -v dialog >/dev/null 2>&1; then
+      LOADING_DIALOGRC="$(write_dark_dialogrc)"
+      DIALOGRC="$LOADING_DIALOGRC" dialog --colors --title "Running health checks" --gauge "Starting health checks..." 10 78 0 < "$LOADING_PIPE" 2>/dev/tty &
+    else
+      whiptail --title "Running health checks" --gauge "Starting health checks..." 10 78 0 < "$LOADING_PIPE" 2>/dev/tty &
+    fi
+    LOADING_PID=$!
+    exec {LOADING_FD}>"$LOADING_PIPE"
+  fi
+  LOADING_ACTIVE=1
 }
 
-ssh_password_candidate_failures() {
-  local file
-  for file in "$CACHE_DIR"/*.ssh "$CACHE_DIR"/*.ssh.err; do
-    [[ -e "$file" ]] || continue
-    if grep -Eiq 'FAIL|permission denied|password|keyboard-interactive|publickey|authentication|auth' "$file"; then
-      return 0
-    fi
+collection_loading_stop() {
+  [[ "$LOADING_ACTIVE" -eq 0 ]] && return 0
+  if [[ -n "$LOADING_FD" ]]; then
+    exec {LOADING_FD}>&- || true
+    LOADING_FD=""
+  fi
+  [[ -n "$LOADING_PID" ]] && wait "$LOADING_PID" 2>/dev/null || true
+  [[ -n "$LOADING_PIPE" ]] && rm -f "$LOADING_PIPE"
+  [[ -n "$LOADING_DIALOGRC" ]] && rm -f "$LOADING_DIALOGRC"
+  LOADING_PIPE=""
+  LOADING_PID=""
+  LOADING_DIALOGRC=""
+  LOADING_ACTIVE=0
+}
+
+mark_ssh_password_prompt_cancelled() {
+  local host="$1" reason="$2" ip key current
+  while IFS= read -r ip; do
+    current="$(get_ssh_result "$host" "$ip")"
+    [[ "${current%%|*}" == PASS ]] && continue
+    key="$(safe_key "${host}_${ip}")"
+    printf 'FAIL|%s\n' "$reason" > "$CACHE_DIR/${key}.ssh"
+    log_event WARN "ssh password prompt cancelled host=$host ip=$ip reason=$reason"
+  done < <(host_ips "$host")
+}
+
+ssh_password_candidate_hosts() {
+  local host ip key
+  for host in "${!HOST_IPS[@]}"; do
+    [[ -n "${SSH_PASSWORDS[$host]:-}" ]] && continue
+    [[ -n "${SSH_PASSWORD_ATTEMPTED_HOSTS[$host]:-}" ]] && continue
+    [[ -n "${SSH_PASSWORD_PROMPT_DECLINED_HOSTS[$host]:-}" ]] && continue
+    while IFS= read -r ip; do
+      key="$(safe_key "${host}_${ip}")"
+      if { [[ -f "$CACHE_DIR/${key}.ssh" ]] && grep -Eiq 'FAIL|permission denied|password|keyboard-interactive|publickey|authentication|auth' "$CACHE_DIR/${key}.ssh"; } ||
+         { [[ -f "$CACHE_DIR/${key}.ssh.err" ]] && grep -Eiq 'permission denied|password|keyboard-interactive|publickey|authentication|auth' "$CACHE_DIR/${key}.ssh.err"; }; then
+        printf '%s\n' "$host"
+        break
+      fi
+    done < <(host_ips "$host")
   done
-  return 1
 }
 
 render_dashboard() {

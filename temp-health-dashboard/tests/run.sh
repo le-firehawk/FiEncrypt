@@ -17,6 +17,8 @@ RUN_ONCE=1
 assert_eq "$(operation_timeout)" "4"
 init_cache
 declare -Ag HOST_IPS=([localhost]="127.0.0.1,127.0.0.2")
+SSH_PASSWORDS[localhost]="host-secret"
+assert_eq "$(ssh_password_for_host localhost)" "host-secret"
 
 # ICMP ping test parsing: localhost should be reachable in normal Linux CI.
 ping_one localhost 127.0.0.1 > "$(cache_file localhost 127.0.0.1 ping)"
@@ -73,7 +75,7 @@ grep -qE 'localhost[[:space:]]+127\.0\.0\.1[[:space:]]+ssh[[:space:]]+active' <<
 grep -qE 'localhost[[:space:]]+127\.0\.0\.1[[:space:]]+nginx[[:space:]]+failed' <<< "$dashboard" || fail "second systemd unit row was not rendered"
 grep -q 'journalctl' <<< "$dashboard" || fail "systemd templated failure guidance was not rendered"
 
-mark_ssh_password_prompt_cancelled "password prompt cancelled; SSH-dependent checks skipped"
+mark_ssh_password_prompt_cancelled localhost "password prompt cancelled; SSH-dependent checks skipped"
 grep -q 'SSH-dependent checks skipped' "$(cache_file localhost 127.0.0.2 ssh)" || fail "SSH cancellation reason was not cached"
 
 echo "all tests passed"
