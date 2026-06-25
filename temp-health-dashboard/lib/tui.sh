@@ -52,7 +52,21 @@ maybe_prompt_for_ssh_password() {
   fi
   export SSH_PASSWORD="$password"
   SSH_PASSWORD_ATTEMPTED=1
+  show_loading_popup "Retrying SSH authentication" "Password accepted by the TUI. Retrying SSH checks with sshpass before rendering the updated dashboard summary..."
   collect_ssh_parallel
+}
+
+show_loading_popup() {
+  local title="$1" message="$2"
+  [[ "$RUN_ONCE" -eq 1 || ! -t 1 ]] && return 0
+  if command -v dialog >/dev/null 2>&1; then
+    local dialogrc
+    dialogrc="$(write_dark_dialogrc)"
+    DIALOGRC="$dialogrc" dialog --colors --title "$title" --infobox "$message" 7 72 2>/dev/tty || true
+    rm -f "$dialogrc"
+  elif command -v whiptail >/dev/null 2>&1; then
+    whiptail --title "$title" --infobox "$message" 7 72 2>/dev/tty || true
+  fi
 }
 
 mark_ssh_password_prompt_cancelled() {

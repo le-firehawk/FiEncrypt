@@ -34,10 +34,11 @@ ssh_retryable_reason "connection_failed (ssh exited 255 without stderr)" || fail
 
 # Systemd unit status summary test.
 cat > "$(cache_file localhost 127.0.0.1 systemd)" <<'DATA'
-SYSTEMD=ssh|active
-SYSTEMD=nginx|failed
+SYSTEMD=ssh|active|ssh is active and running
+SYSTEMD=nginx|failed|nginx is failed; inspect journalctl -u nginx for the failure log
 DATA
 assert_eq "$(get_systemd_statuses localhost 127.0.0.1 | summarize_status_lines SYSTEMD)" "1/2 ok"
+assert_eq "$(systemd_result_message nginx failed)" "nginx is failed; inspect journalctl -u nginx for the failure log"
 
 # Docker container status summary and log viewing test.
 cat > "$(cache_file localhost 127.0.0.1 docker)" <<'DATA'
@@ -70,6 +71,7 @@ grep -q 'source=192.0.2.1' <<< "$dashboard" || fail "NTP source was not rendered
 ! grep -q 'DOCKER LOGS' <<< "$dashboard" || fail "docker logs should not render on the main dashboard"
 grep -qE 'localhost[[:space:]]+127\.0\.0\.1[[:space:]]+ssh[[:space:]]+active' <<< "$dashboard" || fail "systemd unit row was not rendered"
 grep -qE 'localhost[[:space:]]+127\.0\.0\.1[[:space:]]+nginx[[:space:]]+failed' <<< "$dashboard" || fail "second systemd unit row was not rendered"
+grep -q 'journalctl' <<< "$dashboard" || fail "systemd templated failure guidance was not rendered"
 
 mark_ssh_password_prompt_cancelled "password prompt cancelled; SSH-dependent checks skipped"
 grep -q 'SSH-dependent checks skipped' "$(cache_file localhost 127.0.0.2 ssh)" || fail "SSH cancellation reason was not cached"

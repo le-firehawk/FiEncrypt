@@ -204,17 +204,34 @@ collect_systemd_parallel() {
           service="${service//[[:space:]]/}"
           [[ -z "$service" ]] && continue
           log_event INFO "systemd check host=$host service=$service"
-          if state="$(run_ssh "$target" "systemctl is-active '$service'" 2>/dev/null)"; then
-            printf 'SYSTEMD=%s|%s\n' "$service" "$state" >> "$CACHE_DIR/${local_key}.systemd"
+          if state="$(run_ssh "$target" "systemctl is-active '$service' 2>/dev/null || true" 2>/dev/null)"; then
+            [[ -z "$state" ]] && state="unknown"
+            if [[ "$state" != active ]]; then
+              log_event WARN "systemd check failed host=$host ip=$ip service=$service state=$state"
+            fi
+            printf 'SYSTEMD=%s|%s|%s\n' "$service" "$state" "$(systemd_result_message "$service" "$state")" >> "$CACHE_DIR/${local_key}.systemd"
           else
             log_event WARN "systemd check failed host=$host ip=$ip service=$service"
-            printf 'SYSTEMD=%s|failed\n' "$service" >> "$CACHE_DIR/${local_key}.systemd"
+            printf 'SYSTEMD=%s|unknown|%s\n' "$service" "$(systemd_result_message "$service" unknown)" >> "$CACHE_DIR/${local_key}.systemd"
           fi
         done
       done < <(host_ips "$host")
     ) &
   done
   wait
+}
+
+systemd_result_message() {
+  local unit="$1" state="$2"
+  case "$state" in
+    active) printf '%s is active and running' "$unit" ;;
+    inactive) printf '%s is installed but inactive; start or enable it if this service should be running' "$unit" ;;
+    failed) printf '%s is failed; inspect journalctl -u %s for the failure log' "$unit" "$unit" ;;
+    activating) printf '%s is still activating; check for slow startup dependencies' "$unit" ;;
+    deactivating) printf '%s is deactivating; confirm this is expected during maintenance' "$unit" ;;
+    unknown) printf '%s status is unknown; systemctl did not return a usable state' "$unit" ;;
+    *) printf '%s returned systemd state %s' "$unit" "$state" ;;
+  esac
 }
 
 collect_docker_parallel() {
