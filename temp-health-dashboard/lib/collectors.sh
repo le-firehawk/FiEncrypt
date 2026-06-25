@@ -30,10 +30,15 @@ run_ssh() (
   fi
 )
 
-ssh_error_reason() {
-  local file="$1" reason
-  reason="$(sed -n '/^[+][+]* /d; /^[[:space:]]*$/d; p; q' "$file" 2>/dev/null || true)"
+ssh_error_reason_text() {
+  local output="$1" reason
+  reason="$(awk '!/^\+{1,} / && NF { print; exit }' <<< "$output")"
   printf '%s' "${reason:-connection_failed}"
+}
+
+ssh_error_reason() {
+  local file="$1"
+  ssh_error_reason_text "$(cat "$file" 2>/dev/null || true)"
 }
 
 collect_ping_parallel() {
@@ -70,10 +75,12 @@ collect_ssh_parallel() {
         local_key="$(safe_key "${host}_${ip}")"
         target="$(ssh_target_for_ip "$ip")"
         log_event INFO "ssh check host=$host ip=$ip target=$target"
-        if run_ssh "$target" 'true' >/dev/null 2>"$CACHE_DIR/${local_key}.ssh.err"; then
+        if output="$(run_ssh "$target" 'true' 2>&1)"; then
+          : > "$CACHE_DIR/${local_key}.ssh.err"
           printf 'PASS|connected\n' > "$CACHE_DIR/${local_key}.ssh"
         else
-          reason="$(ssh_error_reason "$CACHE_DIR/${local_key}.ssh.err")"
+          printf '%s\n' "$output" > "$CACHE_DIR/${local_key}.ssh.err"
+          reason="$(ssh_error_reason_text "$output")"
           log_event WARN "ssh check failed host=$host ip=$ip target=$target reason=$reason"
           printf 'FAIL|%s\n' "$reason" > "$CACHE_DIR/${local_key}.ssh"
         fi

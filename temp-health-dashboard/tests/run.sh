@@ -27,6 +27,7 @@ printf 'PASS|connected\n' > "$(cache_file localhost 127.0.0.1 ssh)"
 assert_eq "$(get_ssh_result localhost 127.0.0.1)" "PASS|connected"
 printf '+ local target=host command=true\nPermission denied (publickey,password).\n' > "$(cache_file localhost 127.0.0.1 ssh.err)"
 assert_eq "$(ssh_error_reason "$(cache_file localhost 127.0.0.1 ssh.err)")" "Permission denied (publickey,password)."
+assert_eq "$(ssh_error_reason_text $'+ local target=host command=true\nPermission denied (publickey,password).')" "Permission denied (publickey,password)."
 
 # Systemd unit status summary test.
 cat > "$(cache_file localhost 127.0.0.1 systemd)" <<'DATA'
