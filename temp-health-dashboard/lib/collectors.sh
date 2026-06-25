@@ -18,9 +18,9 @@ run_ssh() {
   timeout_s="$(operation_timeout)"
   if [[ -n "${SSH_PASSWORD:-}" ]] && command -v sshpass >/dev/null 2>&1; then
     if command -v timeout >/dev/null 2>&1; then
-      timeout "${timeout_s}s" sshpass -p "$SSH_PASSWORD" ssh $SSH_OPTS -o NumberOfPasswordPrompts=1 -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o ConnectTimeout="$timeout_s" "$target" "$command"
+      timeout "${timeout_s}s" env SSHPASS="$SSH_PASSWORD" sshpass -e ssh $SSH_OPTS -o NumberOfPasswordPrompts=1 -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o ConnectTimeout="$timeout_s" "$target" "$command"
     else
-      sshpass -p "$SSH_PASSWORD" ssh $SSH_OPTS -o NumberOfPasswordPrompts=1 -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o ConnectTimeout="$timeout_s" "$target" "$command"
+      SSHPASS="$SSH_PASSWORD" sshpass -e ssh $SSH_OPTS -o NumberOfPasswordPrompts=1 -o BatchMode=no -o PreferredAuthentications=password,keyboard-interactive -o ConnectTimeout="$timeout_s" "$target" "$command"
     fi
   elif command -v timeout >/dev/null 2>&1; then
     timeout "${timeout_s}s" ssh -o BatchMode=yes -o ConnectTimeout="$timeout_s" $SSH_OPTS "$target" "$command"

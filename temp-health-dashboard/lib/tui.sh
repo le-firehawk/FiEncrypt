@@ -24,6 +24,7 @@ collect_dashboard_cycle() {
 
 maybe_prompt_for_ssh_password() {
   [[ "${SSH_PASSWORD_PROMPT_DECLINED:-0}" -eq 1 ]] && return 0
+  [[ "${SSH_PASSWORD_ATTEMPTED:-0}" -eq 1 ]] && return 0
   ssh_password_candidate_failures >/dev/null || return 0
   if ! command -v sshpass >/dev/null 2>&1; then
     if command -v dialog >/dev/null 2>&1; then
@@ -49,6 +50,7 @@ maybe_prompt_for_ssh_password() {
     return 0
   fi
   export SSH_PASSWORD="$password"
+  SSH_PASSWORD_ATTEMPTED=1
   collect_ssh_parallel
 }
 
@@ -107,7 +109,7 @@ render_external_tui() {
   if command -v dialog >/dev/null 2>&1; then
     local dialogrc
     dialogrc="$(write_dark_dialogrc)"
-    DIALOGRC="$dialogrc" dialog --colors --timeout "$REFRESH_INTERVAL" --clear --title "Health Dashboard" --ok-label "Refresh [${REFRESH_INTERVAL}s]" --extra-button --extra-label "Docker Logs" --cancel-label "Quit" --textbox "$tmp" "$height" "$width" 2>/dev/tty || status=$?
+    DIALOGRC="$dialogrc" dialog --colors --timeout "$REFRESH_INTERVAL" --clear --title "Health Dashboard" --yes-label "Refresh [${REFRESH_INTERVAL}s]" --extra-button --extra-label "Docker Logs" --no-label "q Quit" --yesno "$(cat "$tmp")" "$height" "$width" 2>/dev/tty || status=$?
     rm -f "$dialogrc" "$tmp"
     case "$status" in
       3) render_docker_logs_picker; REFRESH_NOW=1 ;;
@@ -116,7 +118,7 @@ render_external_tui() {
       255) REFRESH_NOW=0 ;;
     esac
   else
-    timeout "$REFRESH_INTERVAL" whiptail --title "Health Dashboard" --scrolltext --ok-button "Refresh [${REFRESH_INTERVAL}s]" --cancel-button "Quit" --msgbox "$(cat "$tmp")" "$height" "$width" 2>/dev/tty || status=$?
+    timeout "$REFRESH_INTERVAL" whiptail --title "Health Dashboard" --yes-button "Refresh [${REFRESH_INTERVAL}s]" --no-button "q Quit" --yesno "$(cat "$tmp")" "$height" "$width" 2>/dev/tty || status=$?
     rm -f "$tmp"
     case "$status" in
       0|124) REFRESH_NOW=1 ;;

@@ -24,7 +24,7 @@ For CI or non-interactive checks:
 ./main.sh --config hosts.conf --once
 ```
 
-Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback). If neither package is installed, the tool warns and falls back to CLI stdin/stdout controls (`r` refresh, `l` logs, `q` quit). The main screen auto-refreshes on the configured interval; use the `Refresh [Ns]` button to refresh immediately, `Quit` to exit, or wait for the countdown timeout. In `dialog`, use the Docker Logs button to open a separate container-log picker/screen; logs are not shown on the main dashboard.
+Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback). If neither package is installed, the tool warns and falls back to CLI stdin/stdout controls (`r` refresh, `l` logs, `q` quit). The main screen auto-refreshes on the configured interval; use the `Refresh [Ns]` button to refresh immediately, `q Quit` to exit, or wait for the countdown timeout. In `dialog`, use the Docker Logs button to open a separate container-log picker/screen; logs are not shown on the main dashboard.
 
 ## Config
 
