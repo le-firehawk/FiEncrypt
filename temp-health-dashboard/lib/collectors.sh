@@ -19,9 +19,9 @@ run_ssh() (
   timeout_s="$(operation_timeout)"
   if [[ -n "${SSH_PASSWORD:-}" ]] && command -v sshpass >/dev/null 2>&1; then
     if command -v timeout >/dev/null 2>&1; then
-      timeout "${timeout_s}s" sshpass -d 3 ssh -T $SSH_OPTS -o LogLevel=ERROR -o NumberOfPasswordPrompts=1 -o BatchMode=no -o ConnectTimeout="$timeout_s" "$target" "$command" 3<<<"$SSH_PASSWORD"
+      timeout "${timeout_s}s" env SSH_ASKPASS_REQUIRE=never sshpass -d 3 ssh -T $SSH_OPTS -o LogLevel=ERROR -o NumberOfPasswordPrompts=1 -o BatchMode=no -o ConnectTimeout="$timeout_s" "$target" "$command" 3<<<"$SSH_PASSWORD"
     else
-      sshpass -d 3 ssh -T $SSH_OPTS -o LogLevel=ERROR -o NumberOfPasswordPrompts=1 -o BatchMode=no -o ConnectTimeout="$timeout_s" "$target" "$command" 3<<<"$SSH_PASSWORD"
+      env SSH_ASKPASS_REQUIRE=never sshpass -d 3 ssh -T $SSH_OPTS -o LogLevel=ERROR -o NumberOfPasswordPrompts=1 -o BatchMode=no -o ConnectTimeout="$timeout_s" "$target" "$command" 3<<<"$SSH_PASSWORD"
     fi
   elif command -v timeout >/dev/null 2>&1; then
     timeout "${timeout_s}s" ssh -n -T -o LogLevel=ERROR -o BatchMode=yes -o ConnectTimeout="$timeout_s" $SSH_OPTS "$target" "$command"
