@@ -31,14 +31,33 @@ run_ssh() (
 )
 
 ssh_error_reason_text() {
-  local output="$1" reason
+  local output="$1" status="${2:-}" reason
   reason="$(awk '!/^\+{1,} / && NF { print; exit }' <<< "$output")"
-  printf '%s' "${reason:-connection_failed}"
+  if [[ -n "$reason" ]]; then
+    printf '%s' "$reason"
+  elif [[ "$status" == 124 ]]; then
+    printf 'timeout after %ss' "$(operation_timeout)"
+  elif [[ -n "$status" ]]; then
+    printf 'connection_failed (ssh exited %s without stderr)' "$status"
+  else
+    printf 'connection_failed'
+  fi
 }
 
 ssh_error_reason() {
   local file="$1"
   ssh_error_reason_text "$(cat "$file" 2>/dev/null || true)"
+}
+
+ssh_retryable_reason() {
+  case "$1" in
+    connection_failed*|timeout\ after*|Connection\ reset*|kex_exchange_identification*|Connection\ timed\ out*|No\ route\ to\ host*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 collect_ping_parallel() {
@@ -74,16 +93,29 @@ collect_ssh_parallel() {
       while IFS= read -r ip; do
         local_key="$(safe_key "${host}_${ip}")"
         target="$(ssh_target_for_ip "$ip")"
-        log_event INFO "ssh check host=$host ip=$ip target=$target"
-        if output="$(run_ssh "$target" 'true' 2>&1)"; then
-          : > "$CACHE_DIR/${local_key}.ssh.err"
-          printf 'PASS|connected\n' > "$CACHE_DIR/${local_key}.ssh"
-        else
+        local attempts max_attempts status output reason
+        attempts=1
+        max_attempts=$((SSH_CHECK_RETRIES + 1))
+        while :; do
+          log_event INFO "ssh check host=$host ip=$ip target=$target attempt=$attempts/$max_attempts"
+          if output="$(run_ssh "$target" 'true' 2>&1)"; then
+            : > "$CACHE_DIR/${local_key}.ssh.err"
+            printf 'PASS|connected\n' > "$CACHE_DIR/${local_key}.ssh"
+            break
+          fi
+          status=$?
+          reason="$(ssh_error_reason_text "$output" "$status")"
           printf '%s\n' "$output" > "$CACHE_DIR/${local_key}.ssh.err"
-          reason="$(ssh_error_reason_text "$output")"
-          log_event WARN "ssh check failed host=$host ip=$ip target=$target reason=$reason"
+          if (( attempts < max_attempts )) && ssh_retryable_reason "$reason"; then
+            log_event WARN "ssh check transient failure host=$host ip=$ip target=$target attempt=$attempts/$max_attempts reason=$reason; retrying"
+            attempts=$((attempts + 1))
+            sleep 0.2
+            continue
+          fi
+          log_event WARN "ssh check failed host=$host ip=$ip target=$target attempts=$attempts reason=$reason"
           printf 'FAIL|%s\n' "$reason" > "$CACHE_DIR/${local_key}.ssh"
-        fi
+          break
+        done
       done < <(host_ips "$host")
     ) &
   done

@@ -6,6 +6,7 @@ declare -Ag HOST_CONTAINERS=()
 SSH_USER="${SSH_USER:-}"
 SSH_OPTS="${SSH_OPTS:--o StrictHostKeyChecking=accept-new}"
 DOCKER_LOG_LINES="${DOCKER_LOG_LINES:-40}"
+SSH_CHECK_RETRIES="${SSH_CHECK_RETRIES:-1}"
 
 load_config() {
   local file="$1"
@@ -17,6 +18,10 @@ load_config() {
   source "$file"
   if [[ ${#HOST_IPS[@]} -eq 0 ]]; then
     echo "Config must define HOST_IPS associative array" >&2
+    exit 1
+  fi
+  if [[ ! "$SSH_CHECK_RETRIES" =~ ^[0-9]+$ ]]; then
+    echo "SSH_CHECK_RETRIES must be a non-negative integer" >&2
     exit 1
   fi
 }

@@ -29,7 +29,7 @@ Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by
 
 ## Config
 
-`hosts.conf` is a Bash config file. Define `HOST_IPS`; optionally define `HOST_SERVICES`, `HOST_CONTAINERS`, `SSH_USER`, `SSH_OPTS`, and `DOCKER_LOG_LINES`. Use `--interval SECONDS` to configure operation timeouts; ICMP, SSH, systemd, and Docker operations use a timeout one second shorter than the interval, with a minimum of one second.
+`hosts.conf` is a Bash config file. Define `HOST_IPS`; optionally define `HOST_SERVICES`, `HOST_CONTAINERS`, `SSH_USER`, `SSH_OPTS`, `SSH_CHECK_RETRIES`, and `DOCKER_LOG_LINES`. Use `--interval SECONDS` to configure operation timeouts; ICMP, SSH, systemd, Docker, and time-sync operations use a timeout one second shorter than the interval, with a minimum of one second. `SSH_CHECK_RETRIES` defaults to `1` and only retries transient SSH transport failures such as blank-stderr exits and timeouts; authentication failures are not retried unless the interactive password retry path is used.
 
 Define each host once in `HOST_IPS` and put multiple addresses in a comma-separated value, for example `[edge-a]="10.0.0.10,10.0.1.10"`. Repeating the same Bash associative-array key overwrites the earlier value, so only the last assignment survives.
 
