@@ -10,7 +10,7 @@ This directory expands the provided shell sketch into a real-results-only Bash d
 - Docker container status over SSH with `docker ps` discovery or configured container names, rendered one container per row. If SSH fails for an IP, Docker rows are marked `SSH_FAILED` with the SSH failure reason.
 - Docker logs over SSH with `docker logs --tail`, wrapped to the current screen width.
 
-All collection activity is logged to stderr. Use `--log-file path` to also append those logs to a file. When SSH checks fail, interactive mode offers a password-auth popup; if `sshpass` is installed and a password is entered, SSH checks are retried for the current cycle. If the prompt is cancelled or `sshpass` is unavailable, SSH-dependent checks are skipped with that reason instead of repeatedly prompting.
+All collection activity is logged to stderr. Use `--log-file path` to also append those logs to a file. When SSH checks fail, interactive mode offers a password-auth popup; if `sshpass` is installed and a password is entered, SSH checks are retried for the current cycle with password authentication enabled. If the prompt is cancelled or `sshpass` is unavailable, SSH-dependent checks are skipped with that reason instead of repeatedly prompting.
 
 ## Run
 
@@ -24,7 +24,7 @@ For CI or non-interactive checks:
 ./main.sh --config hosts.conf --once
 ```
 
-Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback). The main screen auto-refreshes on the configured interval; use the `Refresh [Ns]` button to refresh immediately, `Quit` to exit, or wait for the countdown timeout. In `dialog`, use the Docker Logs button to open a separate container-log picker/screen; logs are not shown on the main dashboard.
+Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback). If neither package is installed, the tool warns and falls back to CLI stdin/stdout controls (`r` refresh, `l` logs, `q` quit). The main screen auto-refreshes on the configured interval; use the `Refresh [Ns]` button to refresh immediately, `Quit` to exit, or wait for the countdown timeout. In `dialog`, use the Docker Logs button to open a separate container-log picker/screen; logs are not shown on the main dashboard.
 
 ## Config
 

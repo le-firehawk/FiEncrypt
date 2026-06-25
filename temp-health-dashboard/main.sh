@@ -17,11 +17,14 @@ CONFIG_FILE="$SCRIPT_DIR/hosts.conf"
 REFRESH_INTERVAL=5
 RUN_ONCE=0
 REFRESH_NOW=0
+SUPPRESS_STDERR_LOGS=0
 
 parse_args "$@"
 load_config "$CONFIG_FILE"
 init_cache
 require_tui_or_once
+[[ "$RUN_ONCE" -eq 0 ]] && SUPPRESS_STDERR_LOGS=1
+trap 'printf "\nExiting health dashboard.\n" >&2; exit 130' INT TERM
 log_event INFO "starting health dashboard config=$CONFIG_FILE interval=${REFRESH_INTERVAL}s once=$RUN_ONCE"
 
 while true; do

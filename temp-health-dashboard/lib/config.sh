@@ -4,7 +4,7 @@ declare -Ag HOST_IPS=()
 declare -Ag HOST_SERVICES=()
 declare -Ag HOST_CONTAINERS=()
 SSH_USER="${SSH_USER:-}"
-SSH_OPTS="${SSH_OPTS:--o BatchMode=yes -o StrictHostKeyChecking=accept-new}"
+SSH_OPTS="${SSH_OPTS:--o StrictHostKeyChecking=accept-new}"
 DOCKER_LOG_LINES="${DOCKER_LOG_LINES:-40}"
 
 load_config() {

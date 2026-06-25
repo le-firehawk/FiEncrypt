@@ -6,8 +6,7 @@ require_tui_or_once() {
     exit 2
   fi
   if [[ "$RUN_ONCE" -eq 0 ]] && ! command -v dialog >/dev/null 2>&1 && ! command -v whiptail >/dev/null 2>&1; then
-    echo "Interactive TUI mode requires external tool 'dialog' or 'whiptail'. Use --once for plain output." >&2
-    exit 2
+    echo "Warning: dialog or whiptail is recommended for the interactive TUI. Install one of: dialog whiptail. Falling back to CLI stdin/stdout controls." >&2
   fi
 }
 
@@ -80,8 +79,10 @@ ssh_password_candidate_failures() {
 render_dashboard() {
   if [[ "$RUN_ONCE" -eq 1 || ! -t 1 ]]; then
     render_plain_dashboard
-  else
+  elif command -v dialog >/dev/null 2>&1 || command -v whiptail >/dev/null 2>&1; then
     render_external_tui
+  else
+    render_cli_dashboard
   fi
 }
 
@@ -122,6 +123,26 @@ render_external_tui() {
       *) exit 0 ;;
     esac
   fi
+}
+
+render_cli_dashboard() {
+  local key=""
+  clear 2>/dev/null || true
+  build_dashboard_text "$(dashboard_text_width "$(screen_cols)")" 0
+  printf '\n[Fallback CLI] Install dialog or whiptail for the full TUI. Commands: r=refresh now, l=docker logs, q=quit. Auto-refresh in %ss.\n' "$REFRESH_INTERVAL"
+  read -r -s -t "$REFRESH_INTERVAL" -n 1 key || true
+  case "${key:-}" in
+    r|R) REFRESH_NOW=1 ;;
+    l|L) render_cli_docker_logs; REFRESH_NOW=1 ;;
+    q|Q) exit 0 ;;
+  esac
+}
+
+render_cli_docker_logs() {
+  clear 2>/dev/null || true
+  render_logs_section "$(dashboard_text_width "$(screen_cols)")"
+  printf '\nPress any key to return to the dashboard...\n'
+  read -r -s -n 1 _ || true
 }
 
 render_plain_dashboard() {

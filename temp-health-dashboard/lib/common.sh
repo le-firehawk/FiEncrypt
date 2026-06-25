@@ -26,7 +26,7 @@ log_event() {
   local level="$1"; shift
   local line
   line="$(date '+%Y-%m-%dT%H:%M:%S%z') [$level] $*"
-  printf '%s\n' "$line" >&2
+  [[ "${SUPPRESS_STDERR_LOGS:-0}" -eq 1 ]] || printf '%s\n' "$line" >&2
   [[ -n "$LOG_FILE" ]] && printf '%s\n' "$line" >> "$LOG_FILE"
   return 0
 }
