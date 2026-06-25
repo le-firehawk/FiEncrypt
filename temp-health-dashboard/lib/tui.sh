@@ -12,15 +12,22 @@ require_tui_or_once() {
 
 
 collect_dashboard_cycle() {
+  collection_loading_update 5 "Preparing checks" "Clearing previous cycle data and preparing the health-check cache."
   clear_cycle_cache
+  collection_loading_update 15 "ICMP checks" "Pinging every configured host/IP endpoint."
   collect_ping_parallel
+  collection_loading_update 35 "SSH checks" "Testing SSH connectivity for every configured host/IP endpoint."
   collect_ssh_parallel
   if [[ "$RUN_ONCE" -eq 0 && -t 1 ]]; then
     maybe_prompt_for_ssh_password || true
   fi
+  collection_loading_update 60 "Systemd checks" "Checking configured systemd units on the first SSH-successful IP per host."
   collect_systemd_parallel
+  collection_loading_update 80 "Docker checks" "Collecting Docker container status and recent log snippets."
   collect_docker_parallel
+  collection_loading_update 95 "Time sync checks" "Checking NTP synchronization and source health."
   collect_timesync_parallel
+  collection_loading_update 100 "Rendering summary" "Health checks finished; rendering the updated dashboard."
 }
 
 maybe_prompt_for_ssh_password() {
@@ -66,6 +73,21 @@ show_loading_popup() {
     rm -f "$dialogrc"
   elif command -v whiptail >/dev/null 2>&1; then
     whiptail --title "$title" --infobox "$message" 7 72 2>/dev/tty || true
+  fi
+}
+
+collection_loading_update() {
+  local percent="$1" stage="$2" detail="$3"
+  [[ "$RUN_ONCE" -eq 1 ]] && return 0
+  if command -v dialog >/dev/null 2>&1 || command -v whiptail >/dev/null 2>&1; then
+    show_loading_popup "Running health checks (${percent}%)" "${stage}
+
+${detail}
+
+The dashboard will refresh automatically when this cycle completes."
+  elif [[ -t 1 ]]; then
+    clear 2>/dev/null || true
+    printf 'Running health checks (%s%%)\n\n%s\n\n%s\n\nThe dashboard will refresh automatically when this cycle completes.\n' "$percent" "$stage" "$detail"
   fi
 }
 
