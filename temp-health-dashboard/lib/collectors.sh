@@ -11,7 +11,8 @@ host_ips() {
   printf '%s\n' "${ips[@]}" | sed 's/[[:space:]]//g' | sed '/^$/d'
 }
 
-run_ssh() {
+run_ssh() (
+  { set +x; } 2>/dev/null
   local target="$1" command="$2"
   # Intentionally split SSH_OPTS so config authors can provide ordinary ssh flags.
   local timeout_s
@@ -27,6 +28,12 @@ run_ssh() {
   else
     ssh -n -T -o LogLevel=ERROR -o BatchMode=yes -o ConnectTimeout="$timeout_s" $SSH_OPTS "$target" "$command"
   fi
+)
+
+ssh_error_reason() {
+  local file="$1" reason
+  reason="$(sed -n '/^[+][+]* /d; /^[[:space:]]*$/d; p; q' "$file" 2>/dev/null || true)"
+  printf '%s' "${reason:-connection_failed}"
 }
 
 collect_ping_parallel() {
@@ -66,7 +73,7 @@ collect_ssh_parallel() {
         if run_ssh "$target" 'true' >/dev/null 2>"$CACHE_DIR/${local_key}.ssh.err"; then
           printf 'PASS|connected\n' > "$CACHE_DIR/${local_key}.ssh"
         else
-          reason="$(head -1 "$CACHE_DIR/${local_key}.ssh.err" 2>/dev/null || echo connection_failed)"
+          reason="$(ssh_error_reason "$CACHE_DIR/${local_key}.ssh.err")"
           log_event WARN "ssh check failed host=$host ip=$ip target=$target reason=$reason"
           printf 'FAIL|%s\n' "$reason" > "$CACHE_DIR/${local_key}.ssh"
         fi
