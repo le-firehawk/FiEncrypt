@@ -159,6 +159,10 @@ collect_timesync_parallel() {
         local_key="$(safe_key "${host}_${ip}")"
         target="$(ssh_target_for_ip "$ip")"
         : > "$CACHE_DIR/${local_key}.timesync"
+        if [[ "${HOST_TIMESYNC[$host]:-1}" =~ ^(0|no|false|disabled)$ ]]; then
+          printf 'TIMESYNC=SKIPPED|disabled in HOST_TIMESYNC\n' > "$CACHE_DIR/${local_key}.timesync"
+          continue
+        fi
         if [[ -n "$selected_ip" && "$ip" != "$selected_ip" && "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" == PASS ]]; then
           printf 'TIMESYNC=SKIPPED|checked via %s\n' "$selected_ip" > "$CACHE_DIR/${local_key}.timesync"
           continue

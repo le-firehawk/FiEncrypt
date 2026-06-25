@@ -75,6 +75,11 @@ grep -qE 'localhost[[:space:]]+127\.0\.0\.1[[:space:]]+ssh[[:space:]]+active' <<
 grep -qE 'localhost[[:space:]]+127\.0\.0\.1[[:space:]]+nginx[[:space:]]+failed' <<< "$dashboard" || fail "second systemd unit row was not rendered"
 grep -q 'journalctl' <<< "$dashboard" || fail "systemd templated failure guidance was not rendered"
 
+HOST_TIMESYNC[localhost]=0
+collect_timesync_parallel
+grep -q 'disabled in HOST_TIMESYNC' "$(cache_file localhost 127.0.0.1 timesync)" || fail "HOST_TIMESYNC disable setting was not honored"
+HOST_TIMESYNC[localhost]=1
+
 mark_ssh_password_prompt_cancelled localhost "password prompt cancelled; SSH-dependent checks skipped"
 grep -q 'SSH-dependent checks skipped' "$(cache_file localhost 127.0.0.2 ssh)" || fail "SSH cancellation reason was not cached"
 

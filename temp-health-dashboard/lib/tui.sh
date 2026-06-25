@@ -8,6 +8,9 @@ LOADING_PIPE=""
 LOADING_FD=""
 LOADING_PID=""
 LOADING_DIALOGRC=""
+LOADING_STATE_FILE=""
+LOADING_HEARTBEAT_PID=""
+LOADING_STARTED_AT=0
 
 require_tui_or_once() {
   if [[ "$RUN_ONCE" -eq 0 && ! -t 1 ]]; then
@@ -100,9 +103,8 @@ collection_loading_update() {
   local percent="$1" stage="$2" detail="$3"
   [[ "$RUN_ONCE" -eq 1 ]] && return 0
   if [[ "$LOADING_ACTIVE" -eq 1 && -n "$LOADING_FD" ]]; then
-    {
-      printf 'XXX\n%s\n%s\n\n%s\n\nThe dashboard will refresh automatically when this cycle completes.\nXXX\n' "$percent" "$stage" "$detail"
-    } >&"$LOADING_FD" || true
+    collection_loading_set_state "$percent" "$stage" "$detail"
+    collection_loading_write "$percent" "$stage" "$detail"
   elif [[ -t 1 ]]; then
     clear 2>/dev/null || true
     printf 'Running health checks (%s%%)\n\n%s\n\n%s\n\nThe dashboard will refresh automatically when this cycle completes.\n' "$percent" "$stage" "$detail"
@@ -113,6 +115,8 @@ collection_loading_start() {
   [[ "$RUN_ONCE" -eq 1 || ! -t 1 || "$LOADING_ACTIVE" -eq 1 ]] && return 0
   if command -v dialog >/dev/null 2>&1 || command -v whiptail >/dev/null 2>&1; then
     LOADING_PIPE="$(mktemp -u "${TMPDIR:-/tmp}/health-loading.XXXXXX")"
+    LOADING_STATE_FILE="$(mktemp "${TMPDIR:-/tmp}/health-loading-state.XXXXXX")"
+    LOADING_STARTED_AT="$(date +%s)"
     mkfifo "$LOADING_PIPE"
     if command -v dialog >/dev/null 2>&1; then
       LOADING_DIALOGRC="$(write_dark_dialogrc)"
@@ -122,12 +126,17 @@ collection_loading_start() {
     fi
     LOADING_PID=$!
     exec {LOADING_FD}>"$LOADING_PIPE"
+    collection_loading_set_state 0 "Starting health checks" "Preparing the loading screen."
+    collection_loading_heartbeat &
+    LOADING_HEARTBEAT_PID=$!
   fi
   LOADING_ACTIVE=1
 }
 
 collection_loading_stop() {
   [[ "$LOADING_ACTIVE" -eq 0 ]] && return 0
+  [[ -n "$LOADING_HEARTBEAT_PID" ]] && kill "$LOADING_HEARTBEAT_PID" 2>/dev/null || true
+  [[ -n "$LOADING_HEARTBEAT_PID" ]] && wait "$LOADING_HEARTBEAT_PID" 2>/dev/null || true
   if [[ -n "$LOADING_FD" ]]; then
     exec {LOADING_FD}>&- || true
     LOADING_FD=""
@@ -135,10 +144,48 @@ collection_loading_stop() {
   [[ -n "$LOADING_PID" ]] && wait "$LOADING_PID" 2>/dev/null || true
   [[ -n "$LOADING_PIPE" ]] && rm -f "$LOADING_PIPE"
   [[ -n "$LOADING_DIALOGRC" ]] && rm -f "$LOADING_DIALOGRC"
+  [[ -n "$LOADING_STATE_FILE" ]] && rm -f "$LOADING_STATE_FILE"
   LOADING_PIPE=""
   LOADING_PID=""
   LOADING_DIALOGRC=""
+  LOADING_STATE_FILE=""
+  LOADING_HEARTBEAT_PID=""
   LOADING_ACTIVE=0
+}
+
+collection_loading_set_state() {
+  local percent="$1" stage="$2" detail="$3"
+  [[ -z "$LOADING_STATE_FILE" ]] && return 0
+  {
+    printf '%s\n' "$percent"
+    printf '%s\n' "$stage"
+    printf '%s\n' "$detail"
+  } > "$LOADING_STATE_FILE"
+}
+
+collection_loading_heartbeat() {
+  local percent stage detail now elapsed
+  while :; do
+    if [[ -n "$LOADING_STATE_FILE" && -r "$LOADING_STATE_FILE" ]]; then
+      {
+        IFS= read -r percent || percent=0
+        IFS= read -r stage || stage="Running health checks"
+        IFS= read -r detail || detail=""
+      } < "$LOADING_STATE_FILE"
+      now="$(date +%s)"
+      elapsed=$((now - LOADING_STARTED_AT))
+      collection_loading_write "$percent" "$stage" "$detail (elapsed ${elapsed}s)"
+    fi
+    sleep 1
+  done
+}
+
+collection_loading_write() {
+  local percent="$1" stage="$2" detail="$3"
+  [[ -z "$LOADING_FD" ]] && return 0
+  {
+    printf 'XXX\n%s\n%s\n\n%s\n\nThe dashboard is still running checks and will refresh automatically when this cycle completes.\nXXX\n' "$percent" "$stage" "$detail"
+  } >&"$LOADING_FD" || true
 }
 
 mark_ssh_password_prompt_cancelled() {

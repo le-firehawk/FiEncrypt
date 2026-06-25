@@ -3,6 +3,7 @@
 declare -Ag HOST_IPS=()
 declare -Ag HOST_SERVICES=()
 declare -Ag HOST_CONTAINERS=()
+declare -Ag HOST_TIMESYNC=()
 SSH_USER="${SSH_USER:-}"
 SSH_OPTS="${SSH_OPTS:--o StrictHostKeyChecking=accept-new}"
 DOCKER_LOG_LINES="${DOCKER_LOG_LINES:-40}"
