@@ -82,7 +82,7 @@ collect_ping_parallel() {
         local_key="$(safe_key "${host}_${ip}")"
         log_event INFO "icmp ping host=$host ip=$ip"
         if declare -F collection_loading_update >/dev/null 2>&1; then
-          collection_loading_update 15 "ICMP checks: $host $ip" "Pinging $ip for host $host with timeout $(operation_timeout)s."
+          collection_loading_update 15 "ICMP checks: $host $ip" "Pinging $ip for host $host with up to $(icmp_attempts) attempt(s)."
         fi
         ping_one "$host" "$ip" > "$CACHE_DIR/${local_key}.ping"
       done < <(host_ips "$host")
@@ -92,40 +92,24 @@ collect_ping_parallel() {
 }
 
 ping_one() {
-  local host="$1" ip="$2" tmp timeout_flag timeout_s status=0 pid watcher
+  local host="$1" ip="$2" tmp attempts attempt lat
   tmp="$CACHE_DIR/$(safe_key "${host}_${ip}").ping.raw"
-  timeout_flag="${tmp}.timeout"
-  timeout_s="$(operation_timeout)"
-  ping -n -c1 -W"$timeout_s" "$ip" > "$tmp" 2>/dev/null &
-  pid=$!
-  (
-    sleep "$timeout_s"
-    if kill -0 "$pid" 2>/dev/null; then
-      : > "$timeout_flag"
-      kill "$pid" 2>/dev/null || true
-      sleep 0.1
-      kill -9 "$pid" 2>/dev/null || true
+  attempts="$(icmp_attempts)"
+  for ((attempt=1; attempt<=attempts; attempt++)); do
+    log_event INFO "icmp ping attempt host=$host ip=$ip attempt=$attempt/$attempts"
+    if declare -F collection_loading_update >/dev/null 2>&1; then
+      collection_loading_update 15 "ICMP checks: $host $ip" "Ping attempt $attempt of $attempts for $ip."
     fi
-  ) &
-  watcher=$!
-  wait "$pid" 2>/dev/null || status=$?
-  kill "$watcher" 2>/dev/null || true
-  wait "$watcher" 2>/dev/null || true
-  [[ -f "$timeout_flag" ]] && status=124
-  if [[ "$status" -eq 0 ]]; then
-    local lat
-    lat="$(sed -n 's/.*time=\([0-9.]*\).*/\1/p' "$tmp" | head -1)"
-    printf 'PASS|%sms\n' "${lat:-unknown}"
-  else
-    if [[ "$status" -eq 124 || "$status" -eq 137 ]]; then
-      log_event WARN "icmp ping timed out host=$host ip=$ip timeout=${timeout_s}s"
-      printf 'FAIL|timeout after %ss\n' "$timeout_s"
-    else
-      log_event WARN "icmp ping failed host=$host ip=$ip status=$status"
-      printf 'FAIL|unreachable\n'
+    if ping -n -c1 -W1 "$ip" > "$tmp" 2>/dev/null; then
+      lat="$(sed -n 's/.*time=\([0-9.]*\).*/\1/p' "$tmp" | head -1)"
+      printf 'PASS|%sms\n' "${lat:-unknown}"
+      rm -f "$tmp"
+      return 0
     fi
-  fi
-  rm -f "$tmp" "$timeout_flag"
+  done
+  log_event WARN "icmp ping failed host=$host ip=$ip attempts=$attempts"
+  printf 'FAIL|unreachable after %s attempts\n' "$attempts"
+  rm -f "$tmp"
 }
 
 collect_ssh_parallel() {

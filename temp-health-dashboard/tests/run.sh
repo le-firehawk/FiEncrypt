@@ -27,11 +27,18 @@ fake_bin="$CACHE_DIR/fakebin"
 mkdir -p "$fake_bin"
 cat > "$fake_bin/ping" <<'FAKEPING'
 #!/usr/bin/env bash
-sleep 5
+count_file="${FAKE_PING_COUNT:?}"
+count=0
+[[ -f "$count_file" ]] && count="$(cat "$count_file")"
+count=$((count + 1))
+printf '%s' "$count" > "$count_file"
+exit 1
 FAKEPING
 chmod +x "$fake_bin/ping"
-REFRESH_INTERVAL=2 PATH="$fake_bin:$PATH" ping_one timeout-host 192.0.2.1 > "$(cache_file timeout-host 192.0.2.1 ping)"
-assert_eq "$(get_ping_result timeout-host 192.0.2.1)" "FAIL|timeout after 1s"
+fake_count="$CACHE_DIR/fake-ping-count"
+REFRESH_INTERVAL=3 FAKE_PING_COUNT="$fake_count" PATH="$fake_bin:$PATH" ping_one timeout-host 192.0.2.1 > "$(cache_file timeout-host 192.0.2.1 ping)"
+assert_eq "$(get_ping_result timeout-host 192.0.2.1)" "FAIL|unreachable after 2 attempts"
+assert_eq "$(cat "$fake_count")" "2"
 REFRESH_INTERVAL=5
 
 # SSH result accessor and xtrace-safe reason parsing tests.

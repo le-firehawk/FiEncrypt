@@ -65,3 +65,7 @@ operation_timeout() {
     printf '%s' "$((interval - 1))"
   fi
 }
+
+icmp_attempts() {
+  operation_timeout
+}
