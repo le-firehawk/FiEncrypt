@@ -15,7 +15,6 @@ CONFIG_FILE="$ROOT/hosts.conf"
 REFRESH_INTERVAL=5
 RUN_ONCE=1
 assert_eq "$(operation_timeout)" "4"
-assert_eq "$(icmp_timeout)" "8"
 init_cache
 declare -Ag HOST_IPS=([localhost]="127.0.0.1,127.0.0.2")
 SSH_PASSWORDS[localhost]="host-secret"

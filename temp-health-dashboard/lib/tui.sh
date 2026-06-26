@@ -174,7 +174,7 @@ collection_loading_heartbeat() {
       } < "$LOADING_STATE_FILE"
       now="$(date +%s)"
       elapsed=$((now - LOADING_STARTED_AT))
-      collection_loading_write "$percent" "$stage" "$detail (elapsed ${elapsed}s)"
+      collection_loading_write "$percent" "$stage (elapsed ${elapsed}s)" "$detail"
     fi
     sleep 1
   done

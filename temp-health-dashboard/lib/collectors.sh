@@ -81,6 +81,9 @@ collect_ping_parallel() {
       while IFS= read -r ip; do
         local_key="$(safe_key "${host}_${ip}")"
         log_event INFO "icmp ping host=$host ip=$ip"
+        if declare -F collection_loading_update >/dev/null 2>&1; then
+          collection_loading_update 15 "ICMP checks: $host $ip" "Pinging $ip for host $host with timeout $(operation_timeout)s."
+        fi
         ping_one "$host" "$ip" > "$CACHE_DIR/${local_key}.ping"
       done < <(host_ips "$host")
     ) &
@@ -91,7 +94,7 @@ collect_ping_parallel() {
 ping_one() {
   local host="$1" ip="$2" tmp
   tmp="$CACHE_DIR/$(safe_key "${host}_${ip}").ping.raw"
-  if ping -c1 -W"$(icmp_timeout)" "$ip" > "$tmp" 2>/dev/null; then
+  if ping -c1 -W"$(operation_timeout)" "$ip" > "$tmp" 2>/dev/null; then
     local lat
     lat="$(sed -n 's/.*time=\([0-9.]*\).*/\1/p' "$tmp" | head -1)"
     printf 'PASS|%sms\n' "${lat:-unknown}"
