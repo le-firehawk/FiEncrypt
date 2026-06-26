@@ -5,14 +5,7 @@ LOG_FILE="${LOG_FILE:-}"
 
 usage() {
   cat <<'USAGE'
-Usage: ./main.sh [options]
-
-Options:
-  --config FILE       Hosts configuration file (default: ./hosts.conf)
-  --interval SECONDS  Refresh interval for live mode (default: 5)
-  --once              Run all real checks once, render a frame, and exit
-  --log-file FILE     Append stderr logs to FILE as well as stderr
-  -h, --help          Show this help
+Usage: ./main.sh [--config FILE] [--interval SECONDS] [--once] [--log-file FILE]
 USAGE
 }
 
@@ -44,28 +37,13 @@ parse_args() {
   done
 }
 
-safe_key() {
-  printf '%s' "$1" | tr -c '[:alnum:]_.-' '_'
-}
-
+safe_key() { printf '%s' "$1" | tr -c '[:alnum:]_.-' '_'; }
 
 validate_positive_int() {
-  local value="$1" name="$2"
-  if [[ ! "$value" =~ ^[0-9]+$ || "$value" -lt 1 ]]; then
-    echo "$name requires a positive integer number of seconds" >&2
-    exit 2
-  fi
+  [[ "$1" =~ ^[0-9]+$ && "$1" -gt 0 ]] || { echo "$2 requires a positive integer" >&2; exit 2; }
 }
 
 operation_timeout() {
   local interval="${REFRESH_INTERVAL:-5}"
-  if [[ ! "$interval" =~ ^[0-9]+$ || "$interval" -le 1 ]]; then
-    printf '1'
-  else
-    printf '%s' "$((interval - 1))"
-  fi
-}
-
-icmp_attempts() {
-  operation_timeout
+  [[ "$interval" =~ ^[0-9]+$ && "$interval" -gt 1 ]] && printf '%s' "$((interval - 1))" || printf '1'
 }
