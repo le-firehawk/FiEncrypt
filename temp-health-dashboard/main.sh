@@ -25,9 +25,18 @@ init_cache
 trap 'printf "\nExiting health dashboard.\n" >&2; exit 130' INT TERM
 
 while true; do
-  render_loading "Collecting health checks..."
-  collect_all
+  clear_cycle_cache
+  render_loading "Running ICMP checks..."
+  collect_ping_parallel
+  render_loading "Running SSH checks..."
+  collect_ssh_parallel
   maybe_prompt_for_ssh_password
+  render_loading "Running systemd checks..."
+  collect_systemd_parallel
+  render_loading "Running Docker checks..."
+  collect_docker_parallel
+  render_loading "Running NTP/time-sync checks..."
+  collect_timesync_parallel
   render_dashboard
   [[ "$RUN_ONCE" -eq 1 ]] && break
   sleep "$REFRESH_INTERVAL" || true

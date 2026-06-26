@@ -10,10 +10,16 @@ clear_cycle_cache() { mkdir -p "$CACHE_DIR"; rm -f "$CACHE_DIR"/*; }
 
 collect_all() {
   clear_cycle_cache
+  render_loading "Running ICMP checks..."
   collect_ping_parallel
+  render_loading "Running SSH checks..."
   collect_ssh_parallel
+  maybe_prompt_for_ssh_password
+  render_loading "Running systemd checks..."
   collect_systemd_parallel
+  render_loading "Running Docker checks..."
   collect_docker_parallel
+  render_loading "Running NTP/time-sync checks..."
   collect_timesync_parallel
 }
 
