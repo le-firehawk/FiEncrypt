@@ -92,27 +92,26 @@ collect_ping_parallel() {
 }
 
 ping_one() {
-  local host="$1" ip="$2" tmp timeout_s status=0 pid start now
+  local host="$1" ip="$2" tmp timeout_flag timeout_s status=0 pid watcher
   tmp="$CACHE_DIR/$(safe_key "${host}_${ip}").ping.raw"
+  timeout_flag="${tmp}.timeout"
   timeout_s="$(operation_timeout)"
   ping -n -c1 -W"$timeout_s" "$ip" > "$tmp" 2>/dev/null &
   pid=$!
-  start="$(date +%s)"
-  while kill -0 "$pid" 2>/dev/null; do
-    now="$(date +%s)"
-    if (( now - start >= timeout_s )); then
+  (
+    sleep "$timeout_s"
+    if kill -0 "$pid" 2>/dev/null; then
+      : > "$timeout_flag"
       kill "$pid" 2>/dev/null || true
       sleep 0.1
       kill -9 "$pid" 2>/dev/null || true
-      wait "$pid" 2>/dev/null || true
-      status=124
-      break
     fi
-    sleep 0.1
-  done
-  if [[ "$status" -eq 0 ]]; then
-    wait "$pid" 2>/dev/null || status=$?
-  fi
+  ) &
+  watcher=$!
+  wait "$pid" 2>/dev/null || status=$?
+  kill "$watcher" 2>/dev/null || true
+  wait "$watcher" 2>/dev/null || true
+  [[ -f "$timeout_flag" ]] && status=124
   if [[ "$status" -eq 0 ]]; then
     local lat
     lat="$(sed -n 's/.*time=\([0-9.]*\).*/\1/p' "$tmp" | head -1)"
@@ -126,7 +125,7 @@ ping_one() {
       printf 'FAIL|unreachable\n'
     fi
   fi
-  rm -f "$tmp"
+  rm -f "$tmp" "$timeout_flag"
 }
 
 collect_ssh_parallel() {
