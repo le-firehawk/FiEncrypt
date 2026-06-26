@@ -18,13 +18,18 @@ REFRESH_INTERVAL=5
 RUN_ONCE=0
 REFRESH_NOW=0
 SUPPRESS_STDERR_LOGS=0
+NEEDS_REDRAW=0
 
 parse_args "$@"
 load_config "$CONFIG_FILE"
 init_cache
 require_tui_or_once
 [[ "$RUN_ONCE" -eq 0 ]] && SUPPRESS_STDERR_LOGS=1
-trap 'printf "\nExiting health dashboard.\n" >&2; exit 130' INT TERM
+handle_resize() {
+  NEEDS_REDRAW=1
+}
+trap handle_resize WINCH
+trap 'collection_loading_stop 2>/dev/null || true; printf "\nExiting health dashboard.\n" >&2; exit 130' INT TERM
 log_event INFO "starting health dashboard config=$CONFIG_FILE interval=${REFRESH_INTERVAL}s once=$RUN_ONCE"
 
 while true; do
@@ -35,5 +40,9 @@ while true; do
   log_event INFO "finished collection cycle"
   [[ "$RUN_ONCE" -eq 1 ]] && break
   [[ "$REFRESH_NOW" -eq 1 ]] && continue
-  sleep "$REFRESH_INTERVAL"
+  sleep "$REFRESH_INTERVAL" || true
+  if [[ "$NEEDS_REDRAW" -eq 1 ]]; then
+    NEEDS_REDRAW=0
+    REFRESH_NOW=1
+  fi
 done

@@ -92,13 +92,26 @@ collect_ping_parallel() {
 }
 
 ping_one() {
-  local host="$1" ip="$2" tmp timeout_s status=0
+  local host="$1" ip="$2" tmp timeout_s status=0 pid start now
   tmp="$CACHE_DIR/$(safe_key "${host}_${ip}").ping.raw"
   timeout_s="$(operation_timeout)"
-  if command -v timeout >/dev/null 2>&1; then
-    timeout -k 1s "${timeout_s}s" ping -c1 -W"$timeout_s" "$ip" > "$tmp" 2>/dev/null || status=$?
-  else
-    ping -c1 -W"$timeout_s" "$ip" > "$tmp" 2>/dev/null || status=$?
+  ping -n -c1 -W"$timeout_s" "$ip" > "$tmp" 2>/dev/null &
+  pid=$!
+  start="$(date +%s)"
+  while kill -0 "$pid" 2>/dev/null; do
+    now="$(date +%s)"
+    if (( now - start >= timeout_s )); then
+      kill "$pid" 2>/dev/null || true
+      sleep 0.1
+      kill -9 "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+      status=124
+      break
+    fi
+    sleep 0.1
+  done
+  if [[ "$status" -eq 0 ]]; then
+    wait "$pid" 2>/dev/null || status=$?
   fi
   if [[ "$status" -eq 0 ]]; then
     local lat

@@ -253,7 +253,14 @@ render_external_tui() {
     choice="$(whiptail --title "Health Dashboard" --cancel-button "q Quit" --menu "$(cat "$tmp")" "$height" "$width" 4       refresh "Refresh now"       logs "Docker logs"       q "Quit"       2>&1 >/dev/tty)" || status=$?
     rm -f "$tmp"
   fi
-  [[ "$status" -ne 0 ]] && exit 0
+  if [[ "$status" -ne 0 ]]; then
+    if [[ "${NEEDS_REDRAW:-0}" -eq 1 ]]; then
+      NEEDS_REDRAW=0
+      REFRESH_NOW=1
+      return 0
+    fi
+    exit 0
+  fi
   case "$choice" in
     refresh) REFRESH_NOW=1 ;;
     logs) render_docker_logs_picker; REFRESH_NOW=1 ;;
