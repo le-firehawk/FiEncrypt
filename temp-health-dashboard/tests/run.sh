@@ -39,7 +39,11 @@ assert_eq "$(get_docker_statuses localhost 127.0.0.1 | summarize_status_lines DO
 printf '===== api =====\nready\n' > "$(cache_file localhost 127.0.0.1 docker_logs)"
 get_docker_logs localhost 127.0.0.1 | grep -q ready || fail "docker logs unreadable"
 
-printf 'TIMESYNC=PASS|source=192.0.2.1 synchronized=yes\n' > "$(cache_file localhost 127.0.0.1 timesync)"
+cat > "$(cache_file localhost 127.0.0.1 timesync)" <<'DATA'
+TIMESYNC=PASS|synchronized=yes primary=192.0.2.1
+TIMESYNC_SOURCE=192.0.2.1|chrony *
+TIMESYNC_SOURCE=192.0.2.2|chrony +
+DATA
 printf 'TIMESYNC=SKIPPED|checked via 127.0.0.1\n' > "$(cache_file localhost 127.0.0.2 timesync)"
 printf 'PASS|1ms\n' > "$(cache_file localhost 127.0.0.2 ping)"
 printf 'DOCKER=discovery|SSH_FAILED|auth denied\n' > "$(cache_file localhost 127.0.0.2 docker)"
@@ -48,7 +52,8 @@ printf 'SYSTEMD=docker|SSH_FAILED|auth denied\n' > "$(cache_file localhost 127.0
 dashboard="$(build_dashboard_text 100)"
 grep -q '127.0.0.2' <<< "$dashboard" || fail "second IP missing"
 grep -q 'TIME SYNC / NTP' <<< "$dashboard" || fail "timesync table missing"
-grep -q 'source=192.0.2.1' <<< "$dashboard" || fail "timesync source missing"
+grep -q 'primary=192.0.2.1' <<< "$dashboard" || fail "timesync primary missing"
+grep -q '192.0.2.2' <<< "$dashboard" || fail "secondary timesync source missing"
 grep -q 'journalctl' <<< "$dashboard" || fail "systemd guidance missing"
 
 echo "all tests passed"

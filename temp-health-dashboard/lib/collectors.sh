@@ -44,7 +44,6 @@ collect_ping_parallel() {
       local ip
       while IFS= read -r ip; do
         log_event INFO "icmp ping host=$host ip=$ip"
-        render_loading "ICMP $host $ip"
         ping_one "$host" "$ip" > "$(cache_file "$host" "$ip" ping)"
       done < <(host_ips "$host")
     ) &
@@ -135,13 +134,15 @@ systemd_result_message() {
   esac
 }
 
-ntp_source_command() {
+ntp_sources_command() {
   cat <<'REMOTE'
-chronyc -n sources 2>/dev/null | awk '/^[\^=][*+]/ {print $2; exit}'
-ntpq -pn 2>/dev/null | awk '/^\*/ {print $1; exit}'
-timedatectl show-timesync --property=ServerName --value 2>/dev/null | head -1
+chronyc -n sources 2>/dev/null | awk '/^[\^=][*+?-]/ {state=substr($1,2,1); print $2 "|chrony " state}'
+ntpq -pn 2>/dev/null | awk '/^[*+ -]/ {peer=$1; state=substr(peer,1,1); sub(/^[*+ -]/, "", peer); if (peer != "") print peer "|ntpq " state}'
+timedatectl show-timesync --property=ServerName --value 2>/dev/null | awk 'NF {print $0 "|timedatectl"}'
 REMOTE
 }
+
+ntp_source_command() { ntp_sources_command; }
 
 collect_systemd_parallel() {
   local host
@@ -206,17 +207,26 @@ collect_timesync_parallel() {
   local host
   for host in "${!HOST_IPS[@]}"; do
     (
-      local selected ip target sync source reason
+      local selected ip target sync sources source reason status_file
       selected="$(ssh_ok_ip "$host" || true)"
       while IFS= read -r ip; do
-        if [[ "${HOST_TIMESYNC[$host]:-1}" =~ ^(0|no|false|disabled)$ ]]; then printf 'TIMESYNC=SKIPPED|disabled in HOST_TIMESYNC\n' > "$(cache_file "$host" "$ip" timesync)"; continue; fi
-        if [[ -z "$selected" || "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" != PASS ]]; then reason="$(ssh_failed_reason "$host" "$ip")"; printf 'TIMESYNC=SSH_FAILED|%s\n' "$reason" > "$(cache_file "$host" "$ip" timesync)"; continue; fi
-        [[ "$ip" != "$selected" ]] && { printf 'TIMESYNC=SKIPPED|checked via %s\n' "$selected" > "$(cache_file "$host" "$ip" timesync)"; continue; }
+        status_file="$(cache_file "$host" "$ip" timesync)"
+        if [[ "${HOST_TIMESYNC[$host]:-1}" =~ ^(0|no|false|disabled)$ ]]; then printf 'TIMESYNC=SKIPPED|disabled in HOST_TIMESYNC\n' > "$status_file"; continue; fi
+        if [[ -z "$selected" || "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" != PASS ]]; then reason="$(ssh_failed_reason "$host" "$ip")"; printf 'TIMESYNC=SSH_FAILED|%s\n' "$reason" > "$status_file"; continue; fi
+        [[ "$ip" != "$selected" ]] && { printf 'TIMESYNC=SKIPPED|checked via %s\n' "$selected" > "$status_file"; continue; }
         target="$(ssh_target_for_ip "$ip")"
         sync="$(run_ssh "$host" "$target" "timedatectl show -p NTPSynchronized --value 2>/dev/null || true" 2>/dev/null || true)"
-        source="$(run_ssh "$host" "$target" "$(ntp_source_command)" 2>/dev/null | sed '/^$/d' | head -1 || true)"
+        sources="$(run_ssh "$host" "$target" "$(ntp_sources_command)" 2>/dev/null | sed '/^$/d' || true)"
+        source="$(printf '%s\n' "$sources" | cut -d'|' -f1 | head -1)"
         [[ -z "$source" ]] && source=unknown
-        [[ "$sync" == yes ]] && printf 'TIMESYNC=PASS|source=%s synchronized=yes\n' "$source" > "$(cache_file "$host" "$ip" timesync)" || printf 'TIMESYNC=FAIL|source=%s synchronized=%s\n' "$source" "${sync:-unknown}" > "$(cache_file "$host" "$ip" timesync)"
+        if [[ "$sync" == yes ]]; then printf 'TIMESYNC=PASS|synchronized=yes primary=%s\n' "$source" > "$status_file"; else printf 'TIMESYNC=FAIL|synchronized=%s primary=%s\n' "${sync:-unknown}" "$source" > "$status_file"; fi
+        if [[ -n "$sources" ]]; then
+          while IFS='|' read -r source detail; do
+            [[ -n "$source" ]] && printf 'TIMESYNC_SOURCE=%s|%s\n' "$source" "${detail:-source}" >> "$status_file"
+          done <<< "$sources"
+        else
+          printf 'TIMESYNC_SOURCE=unknown|no source reported\n' >> "$status_file"
+        fi
       done < <(host_ips "$host")
     ) &
   done

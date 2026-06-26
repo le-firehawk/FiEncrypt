@@ -6,7 +6,8 @@ get_ssh_result() { cat "$(cache_file "$1" "$2" ssh)" 2>/dev/null || echo "FAIL|m
 get_systemd_statuses() { cat "$(cache_file "$1" "$2" systemd)" 2>/dev/null || true; }
 get_docker_statuses() { cat "$(cache_file "$1" "$2" docker)" 2>/dev/null || true; }
 get_docker_logs() { cat "$(cache_file "$1" "$2" docker_logs)" 2>/dev/null || true; }
-get_timesync_status() { cat "$(cache_file "$1" "$2" timesync)" 2>/dev/null || echo "TIMESYNC=missing|no result"; }
+get_timesync_statuses() { cat "$(cache_file "$1" "$2" timesync)" 2>/dev/null || true; }
+get_timesync_status() { get_timesync_statuses "$1" "$2" | awk -F'=' '$1 == "TIMESYNC" {print; found=1; exit} END {if (!found) print "TIMESYNC=missing|no result"}'; }
 
 summarize_status_lines() {
   local type="$1"
