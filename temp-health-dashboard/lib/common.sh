@@ -2,6 +2,7 @@
 
 CACHE_DIR=""
 LOG_FILE="${LOG_FILE:-}"
+ICMP_TIMEOUT_SECONDS=8
 
 usage() {
   cat <<'USAGE'
@@ -64,4 +65,8 @@ operation_timeout() {
   else
     printf '%s' "$((interval - 1))"
   fi
+}
+
+icmp_timeout() {
+  printf '%s' "$ICMP_TIMEOUT_SECONDS"
 }

@@ -91,7 +91,7 @@ collect_ping_parallel() {
 ping_one() {
   local host="$1" ip="$2" tmp
   tmp="$CACHE_DIR/$(safe_key "${host}_${ip}").ping.raw"
-  if ping -c1 -W"$(operation_timeout)" "$ip" > "$tmp" 2>/dev/null; then
+  if ping -c1 -W"$(icmp_timeout)" "$ip" > "$tmp" 2>/dev/null; then
     local lat
     lat="$(sed -n 's/.*time=\([0-9.]*\).*/\1/p' "$tmp" | head -1)"
     printf 'PASS|%sms\n' "${lat:-unknown}"
