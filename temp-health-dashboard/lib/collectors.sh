@@ -56,9 +56,23 @@ run_ssh() {
   password="$(ssh_password_for_host "$host")"
   timeout_s="$(operation_timeout)"
   if [[ -n "$password" ]] && command -v sshpass >/dev/null 2>&1; then
-    SSHPASS="$password" timeout "${timeout_s}s" sshpass -e ssh -T $SSH_OPTS -o BatchMode=no -o NumberOfPasswordPrompts=1 -o ConnectTimeout="$timeout_s" "$target" "$command"
+    env SSHPASS="$password" SSH_ASKPASS=/bin/false SSH_ASKPASS_REQUIRE=never DISPLAY= \
+      timeout "${timeout_s}s" sshpass -e ssh -T $SSH_OPTS \
+      -o BatchMode=no \
+      -o PubkeyAuthentication=no \
+      -o PreferredAuthentications=password,keyboard-interactive \
+      -o NumberOfPasswordPrompts=1 \
+      -o ConnectTimeout="$timeout_s" \
+      "$target" "$command"
   else
-    timeout "${timeout_s}s" ssh -n -T $SSH_OPTS -o BatchMode=yes -o ConnectTimeout="$timeout_s" "$target" "$command"
+    env SSH_ASKPASS=/bin/false SSH_ASKPASS_REQUIRE=never DISPLAY= \
+      timeout "${timeout_s}s" ssh -n -T $SSH_OPTS \
+      -o BatchMode=yes \
+      -o PasswordAuthentication=no \
+      -o KbdInteractiveAuthentication=no \
+      -o NumberOfPasswordPrompts=0 \
+      -o ConnectTimeout="$timeout_s" \
+      "$target" "$command"
   fi
 }
 
