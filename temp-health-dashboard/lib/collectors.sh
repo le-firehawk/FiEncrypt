@@ -92,15 +92,26 @@ collect_ping_parallel() {
 }
 
 ping_one() {
-  local host="$1" ip="$2" tmp
+  local host="$1" ip="$2" tmp timeout_s status=0
   tmp="$CACHE_DIR/$(safe_key "${host}_${ip}").ping.raw"
-  if ping -c1 -W"$(operation_timeout)" "$ip" > "$tmp" 2>/dev/null; then
+  timeout_s="$(operation_timeout)"
+  if command -v timeout >/dev/null 2>&1; then
+    timeout -k 1s "${timeout_s}s" ping -c1 -W"$timeout_s" "$ip" > "$tmp" 2>/dev/null || status=$?
+  else
+    ping -c1 -W"$timeout_s" "$ip" > "$tmp" 2>/dev/null || status=$?
+  fi
+  if [[ "$status" -eq 0 ]]; then
     local lat
     lat="$(sed -n 's/.*time=\([0-9.]*\).*/\1/p' "$tmp" | head -1)"
     printf 'PASS|%sms\n' "${lat:-unknown}"
   else
-    log_event WARN "icmp ping failed host=$host ip=$ip"
-    printf 'FAIL|unreachable\n'
+    if [[ "$status" -eq 124 || "$status" -eq 137 ]]; then
+      log_event WARN "icmp ping timed out host=$host ip=$ip timeout=${timeout_s}s"
+      printf 'FAIL|timeout after %ss\n' "$timeout_s"
+    else
+      log_event WARN "icmp ping failed host=$host ip=$ip status=$status"
+      printf 'FAIL|unreachable\n'
+    fi
   fi
   rm -f "$tmp"
 }

@@ -23,6 +23,16 @@ assert_eq "$(ssh_password_for_host localhost)" "host-secret"
 # ICMP ping test parsing: localhost should be reachable in normal Linux CI.
 ping_one localhost 127.0.0.1 > "$(cache_file localhost 127.0.0.1 ping)"
 [[ "$(get_ping_result localhost 127.0.0.1)" == PASS\|* ]] || fail "ICMP ping to 127.0.0.1 did not pass"
+fake_bin="$CACHE_DIR/fakebin"
+mkdir -p "$fake_bin"
+cat > "$fake_bin/ping" <<'FAKEPING'
+#!/usr/bin/env bash
+sleep 5
+FAKEPING
+chmod +x "$fake_bin/ping"
+REFRESH_INTERVAL=2 PATH="$fake_bin:$PATH" ping_one timeout-host 192.0.2.1 > "$(cache_file timeout-host 192.0.2.1 ping)"
+assert_eq "$(get_ping_result timeout-host 192.0.2.1)" "FAIL|timeout after 1s"
+REFRESH_INTERVAL=5
 
 # SSH result accessor and xtrace-safe reason parsing tests.
 printf 'PASS|connected\n' > "$(cache_file localhost 127.0.0.1 ssh)"
