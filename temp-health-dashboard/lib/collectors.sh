@@ -135,6 +135,14 @@ systemd_result_message() {
   esac
 }
 
+ntp_source_command() {
+  cat <<'REMOTE'
+chronyc -n sources 2>/dev/null | awk '/^[\^=][*+]/ {print $2; exit}'
+ntpq -pn 2>/dev/null | awk '/^\*/ {print $1; exit}'
+timedatectl show-timesync --property=ServerName --value 2>/dev/null | head -1
+REMOTE
+}
+
 collect_systemd_parallel() {
   local host
   for host in "${!HOST_IPS[@]}"; do
@@ -206,7 +214,7 @@ collect_timesync_parallel() {
         [[ "$ip" != "$selected" ]] && { printf 'TIMESYNC=SKIPPED|checked via %s\n' "$selected" > "$(cache_file "$host" "$ip" timesync)"; continue; }
         target="$(ssh_target_for_ip "$ip")"
         sync="$(run_ssh "$host" "$target" "timedatectl show -p NTPSynchronized --value 2>/dev/null || true" 2>/dev/null || true)"
-        source="$(run_ssh "$host" "$target" "chronyc -n sources 2>/dev/null | awk '/^[\\^=][*+]/ {print \\$2; exit}'" 2>/dev/null || true)"
+        source="$(run_ssh "$host" "$target" "$(ntp_source_command)" 2>/dev/null | sed '/^$/d' | head -1 || true)"
         [[ -z "$source" ]] && source=unknown
         [[ "$sync" == yes ]] && printf 'TIMESYNC=PASS|source=%s synchronized=yes\n' "$source" > "$(cache_file "$host" "$ip" timesync)" || printf 'TIMESYNC=FAIL|source=%s synchronized=%s\n' "$source" "${sync:-unknown}" > "$(cache_file "$host" "$ip" timesync)"
       done < <(host_ips "$host")

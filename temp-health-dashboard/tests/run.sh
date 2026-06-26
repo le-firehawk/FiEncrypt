@@ -16,6 +16,7 @@ RUN_ONCE=1
 init_cache
 declare -Ag HOST_IPS=([localhost]="127.0.0.1,127.0.0.2")
 assert_eq "$(operation_timeout)" "4"
+ntp_source_command | grep -q 'print $2' || fail "NTP source command lost awk field quoting"
 
 ping_one localhost 127.0.0.1 > "$(cache_file localhost 127.0.0.1 ping)"
 [[ "$(get_ping_result localhost 127.0.0.1)" == PASS\|* ]] || fail "localhost ping failed"
