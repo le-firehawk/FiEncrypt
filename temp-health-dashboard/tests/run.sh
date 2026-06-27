@@ -24,6 +24,11 @@ is_check_skipped timesync || fail "ntp skip alias not detected"
 SKIP_CHECKS=""
 has_configured_docker_containers || fail "configured docker containers not detected"
 configured_docker_menu_args | grep -q "log|localhost|127.0.0.1|api" || fail "docker log submenu entries missing"
+SKIP_CHECKS="icmp,ssh,systemd,docker,ntp"
+skipped_dashboard="$(build_dashboard_text 80)"
+! grep -q "ENDPOINTS" <<< "$skipped_dashboard" || fail "skipped endpoint section rendered"
+! grep -q "TIME SYNC / NTP" <<< "$skipped_dashboard" || fail "skipped ntp section rendered"
+SKIP_CHECKS=""
 ntp_source_command | grep -q 'print $2' || fail "NTP source command lost awk field quoting"
 fakebin="$(mktemp -d)"
 cat > "$fakebin/chronyc" <<'FAKE'
@@ -54,9 +59,9 @@ NTPQ
 FAKE
 chmod +x "$fakebin"/*
 ntp_parsed="$(PATH="$fakebin:$PATH" bash -c "$(ntp_sources_command)")"
-grep -q '^192.0.2.10|ntpq|\*|127.0.0.1|selected peer' <<< "$ntp_parsed" || fail "ntpq selected peer not parsed"
-grep -q '^192.0.2.11|ntpq|+|127.0.0.1|candidate peer' <<< "$ntp_parsed" || fail "ntpq candidate peer not parsed"
-grep -q '^192.0.2.12|ntpq| |127.0.0.2|reachable peer' <<< "$ntp_parsed" || fail "ntpq unselected peer not parsed"
+grep -q '^192.0.2.10|ntpq|\*|selected peer' <<< "$ntp_parsed" || fail "ntpq selected peer not parsed"
+grep -q '^192.0.2.11|ntpq|+|candidate peer' <<< "$ntp_parsed" || fail "ntpq candidate peer not parsed"
+grep -q '^192.0.2.12|ntpq| |reachable peer' <<< "$ntp_parsed" || fail "ntpq unselected peer not parsed"
 ! grep -q '^remote|' <<< "$ntp_parsed" || fail "ntpq header parsed as source"
 rm -rf "$fakebin"
 
@@ -83,8 +88,8 @@ get_docker_logs localhost 127.0.0.1 | grep -q ready || fail "docker logs unreada
 
 cat > "$(cache_file localhost 127.0.0.1 timesync)" <<'DATA'
 TIMESYNC=PASS|synchronized=yes primary=192.0.2.1
-TIMESYNC_SOURCE=192.0.2.1|chrony|*|127.0.0.1|selected source currently disciplining the clock
-TIMESYNC_SOURCE=192.0.2.2|chrony|+|127.0.0.1|acceptable source combined with the selected source
+TIMESYNC_SOURCE=192.0.2.1|chrony|*|selected source currently disciplining the clock
+TIMESYNC_SOURCE=192.0.2.2|chrony|+|acceptable source combined with the selected source
 DATA
 : > "$(cache_file localhost 127.0.0.2 timesync)"
 printf 'PASS|1ms\n' > "$(cache_file localhost 127.0.0.2 ping)"
@@ -97,8 +102,6 @@ grep -q 'TIME SYNC / NTP' <<< "$dashboard" || fail "timesync table missing"
 grep -q 'primary=192.0.2.1' <<< "$dashboard" || fail "timesync primary missing"
 grep -q '192.0.2.2' <<< "$dashboard" || fail "secondary timesync source missing"
 grep -q 'acceptable source combined' <<< "$dashboard" || fail "timesync source detail missing"
-grep -q 'route-src=127.0.0.1' <<< "$dashboard" || fail "timesync route source missing"
-! grep -q '127.0.0.2 .*summary' <<< "$dashboard" || fail "timesync summary rendered for interface without sources"
 grep -q 'journalctl' <<< "$dashboard" || fail "systemd guidance missing"
 
 echo "all tests passed"

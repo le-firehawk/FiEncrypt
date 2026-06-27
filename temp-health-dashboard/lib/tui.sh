@@ -111,7 +111,7 @@ render_dashboard() {
     printf '%s\n' "$body"
     return 0
   fi
-  menu_args+=(refresh "Refresh now")
+  menu_args+=(refresh "Refresh display" recheck "Recheck now")
   has_configured_docker_containers && menu_args+=(logs "Docker Logs")
   menu_args+=(quit "Quit")
   if command -v dialog >/dev/null 2>&1; then
@@ -126,40 +126,51 @@ render_dashboard() {
     read -r -s -n 1 choice || true
     [[ -z "$choice" ]] && choice=refresh
   fi
-  [[ "$status" -ne 0 || "$choice" == quit || "$choice" == q ]] && exit 0
-  [[ "$choice" == logs || "$choice" == l ]] && has_configured_docker_containers && render_logs_menu
+  [[ "$status" -ne 0 || "$choice" == quit || "$choice" == q ]] && { printf '%s\n' quit; return 0; }
+  [[ "$choice" == logs || "$choice" == l ]] && has_configured_docker_containers && { render_logs_menu; printf '%s\n' refresh; return 0; }
+  [[ "$choice" == recheck ]] && printf '%s\n' recheck || printf '%s\n' refresh
+  return 0
 }
 
 
 build_dashboard_text() {
-  local width="$1" host ip result state detail line
+  local width="$1" host ip result state detail line printed
   printf 'Health Dashboard | updated %s | interval %ss | timeout %ss\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$REFRESH_INTERVAL" "$(operation_timeout)"
   printf '%*s\n' "$width" '' | tr ' ' '-'
-  printf 'ENDPOINTS\n%-18s %-15s %-8s %-12s %s\n' HOST IP CHECK STATUS DETAIL
-  for host in "${!HOST_IPS[@]}"; do
-    while IFS= read -r ip; do
-      result="$(get_ping_result "$host" "$ip")"; state="${result%%|*}"; detail="${result#*|}"; printf '%-18s %-15s %-8s %-12s %s\n' "$host" "$ip" ICMP "$state" "$detail"
-      result="$(get_ssh_result "$host" "$ip")"; state="${result%%|*}"; detail="${result#*|}"; printf '%-18s %-15s %-8s %-12s %s\n' "$host" "$ip" SSH "$state" "$detail"
-    done < <(host_ips "$host")
-  done
-  printf '\nSYSTEMD\n%-18s %-15s %-24s %-12s %s\n' HOST IP UNIT STATUS DETAIL
-  for host in "${!HOST_IPS[@]}"; do while IFS= read -r ip; do while IFS='=|' read -r _ unit state detail; do [[ -n "$unit" ]] && printf '%-18s %-15s %-24s %-12s %s\n' "$host" "$ip" "$unit" "$state" "$detail"; done < <(get_systemd_statuses "$host" "$ip"); done < <(host_ips "$host"); done
-  printf '\nDOCKER\n%-18s %-15s %-24s %-12s %s\n' HOST IP CONTAINER STATE HEALTH
-  for host in "${!HOST_IPS[@]}"; do while IFS= read -r ip; do while IFS='=|' read -r _ container state health; do [[ -n "$container" ]] && printf '%-18s %-15s %-24s %-12s %s\n' "$host" "$ip" "$container" "$state" "$health"; done < <(get_docker_statuses "$host" "$ip"); done < <(host_ips "$host"); done
-  printf '\nTIME SYNC / NTP\n%-18s %-15s %-18s %-12s %s\n' HOST IP SOURCE STATUS DETAIL
-  for host in "${!HOST_IPS[@]}"; do
-    while IFS= read -r ip; do
-      line="$(get_timesync_status "$host" "$ip")"
-      [[ "$line" == TIMESYNC=missing\|* ]] && continue
-      state="${line#*=}"; state="${state%%|*}"; detail="${line#*|}"
-      printf '%-18s %-15s %-18s %-12s %s\n' "$host" "$ip" summary "$state" "$detail"
-      while IFS='=|' read -r _ source provider source_state route_src source_detail; do
-        [[ -n "$source" ]] && printf '%-18s %-15s %-18s %-12s %s\n' "$host" "$ip" "$source" "$provider/$source_state" "route-src=$route_src $source_detail"
-      done < <(get_timesync_statuses "$host" "$ip" | awk -F'[=|]' '$1 == "TIMESYNC_SOURCE"')
-    done < <(host_ips "$host")
-  done
+  if ! is_check_skipped icmp || ! is_check_skipped ssh; then
+    printf 'ENDPOINTS\n%-18s %-15s %-8s %-12s %s\n' HOST IP CHECK STATUS DETAIL
+    for host in "${!HOST_IPS[@]}"; do
+      while IFS= read -r ip; do
+        if ! is_check_skipped icmp; then result="$(get_ping_result "$host" "$ip")"; state="${result%%|*}"; detail="${result#*|}"; printf '%-18s %-15s %-8s %-12s %s\n' "$host" "$ip" ICMP "$state" "$detail"; fi
+        if ! is_check_skipped ssh; then result="$(get_ssh_result "$host" "$ip")"; state="${result%%|*}"; detail="${result#*|}"; printf '%-18s %-15s %-8s %-12s %s\n' "$host" "$ip" SSH "$state" "$detail"; fi
+      done < <(host_ips "$host")
+    done
+  fi
+  if ! is_check_skipped systemd; then
+    printf '\nSYSTEMD\n%-18s %-15s %-24s %-12s %s\n' HOST IP UNIT STATUS DETAIL
+    for host in "${!HOST_IPS[@]}"; do while IFS= read -r ip; do while IFS='=|' read -r _ unit state detail; do [[ -n "$unit" ]] && printf '%-18s %-15s %-24s %-12s %s\n' "$host" "$ip" "$unit" "$state" "$detail"; done < <(get_systemd_statuses "$host" "$ip"); done < <(host_ips "$host"); done
+  fi
+  if ! is_check_skipped docker; then
+    printf '\nDOCKER\n%-18s %-15s %-24s %-12s %s\n' HOST IP CONTAINER STATE HEALTH
+    for host in "${!HOST_IPS[@]}"; do while IFS= read -r ip; do while IFS='=|' read -r _ container state health; do [[ -n "$container" ]] && printf '%-18s %-15s %-24s %-12s %s\n' "$host" "$ip" "$container" "$state" "$health"; done < <(get_docker_statuses "$host" "$ip"); done < <(host_ips "$host"); done
+  fi
+  if ! is_check_skipped timesync; then
+    printed=0
+    for host in "${!HOST_IPS[@]}"; do
+      while IFS= read -r ip; do
+        line="$(get_timesync_status "$host" "$ip")"
+        [[ "$line" == TIMESYNC=missing\|* ]] && continue
+        if [[ "$printed" -eq 0 ]]; then printf '\nTIME SYNC / NTP\n%-18s %-18s %-12s %s\n' HOST SOURCE STATUS DETAIL; printed=1; fi
+        state="${line#*=}"; state="${state%%|*}"; detail="${line#*|}"
+        printf '%-18s %-18s %-12s %s\n' "$host" summary "$state" "$detail"
+        while IFS='=|' read -r _ source provider source_state source_detail; do
+          [[ -n "$source" ]] && printf '%-18s %-18s %-12s %s\n' "$host" "$source" "$provider/$source_state" "$source_detail"
+        done < <(get_timesync_statuses "$host" "$ip" | awk -F'[=|]' '$1 == "TIMESYNC_SOURCE"')
+        break
+      done < <(host_ips "$host")
+    done
+  fi
 }
-
 render_logs_menu() {
   local choice status=0 menu_args=()
   while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(configured_docker_menu_args)
@@ -173,7 +184,7 @@ render_logs_menu() {
     render_logs; return 0
   fi
   [[ "$status" -ne 0 || "$choice" == back ]] && return 0
-  if [[ "$choice" == log\|* ]]; then IFS='|' read -r _ log_host log_ip log_container <<< "$choice"; render_logs "$log_host" "$log_ip" "$log_container"; fi
+  if [[ "$choice" == log\|* ]]; then IFS='|' read -r _ log_host log_ip log_container <<< "$choice"; render_logs "$log_host" "$log_ip" "$log_container"; render_logs_menu; fi
 }
 
 render_logs() {

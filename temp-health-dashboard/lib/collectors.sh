@@ -183,7 +183,7 @@ function detail(state) {
   if (state == "~") return "source has too much time variability";
   return "chrony source state " state;
 }
-/^[\^=][*+?x~ -]/ {state=substr($1,2,1); route="unknown"; cmd="ip route get " $2 " 2>/dev/null"; if ((cmd | getline r) > 0 && match(r, / src [^ ]+/)) route=substr(r, RSTART+5, RLENGTH-5); close(cmd); print $2 "|chrony|" state "|" route "|" detail(state)}'
+/^[\^=][*+?x~ -]/ {state=substr($1,2,1); print $2 "|chrony|" state "|" detail(state)}'
 ntpq -pn 2>/dev/null | awk '
 function detail(state) {
   if (state == "*") return "selected peer currently synchronizing the clock";
@@ -199,9 +199,9 @@ function detail(state) {
 NR > 2 && $1 !~ /^=+$/ {
   state=substr($0,1,1); peer=$1;
   if (state ~ /[*+#ox.-]/) sub(/^./, "", peer); else state=" ";
-  if (peer != "" && peer != "remote") {route="unknown"; cmd="ip route get " peer " 2>/dev/null"; if ((cmd | getline r) > 0 && match(r, / src [^ ]+/)) route=substr(r, RSTART+5, RLENGTH-5); close(cmd); print peer "|ntpq|" state "|" route "|" detail(state);}
+  if (peer != "" && peer != "remote") print peer "|ntpq|" state "|" detail(state);
 }'
-timedatectl show-timesync --property=ServerName --value 2>/dev/null | awk 'NF {route="unknown"; cmd="ip route get " $0 " 2>/dev/null"; if ((cmd | getline r) > 0 && match(r, / src [^ ]+/)) route=substr(r, RSTART+5, RLENGTH-5); close(cmd); print $0 "|timedatectl|server|" route "|configured systemd-timesyncd server"}'
+timedatectl show-timesync --property=ServerName --value 2>/dev/null | awk 'NF {print $0 "|timedatectl|server|configured systemd-timesyncd server"}'
 REMOTE
 }
 
@@ -278,31 +278,23 @@ collect_timesync_parallel() {
   local host
   for host in "${!HOST_IPS[@]}"; do
     (
-      local selected ip target sync sources host_ip_sources source provider source_state route_src detail status_file primary
+      local selected ip target sync sources source provider source_state detail status_file primary
       selected="$(ssh_ok_ip "$host" || true)"
       while IFS= read -r ip; do : > "$(cache_file "$host" "$ip" timesync)"; done < <(host_ips "$host")
-      if [[ "${HOST_TIMESYNC[$host]:-1}" =~ ^(0|no|false|disabled)$ ]]; then
-        while IFS= read -r ip; do printf 'TIMESYNC=SKIPPED|disabled in HOST_TIMESYNC\n' > "$(cache_file "$host" "$ip" timesync)"; done < <(host_ips "$host")
-        exit 0
-      fi
-      if [[ -z "$selected" ]]; then
-        while IFS= read -r ip; do printf 'TIMESYNC=SKIPPED|SSH failed: %s\n' "$(ssh_failed_reason "$host" "$ip")" > "$(cache_file "$host" "$ip" timesync)"; done < <(host_ips "$host")
-        exit 0
-      fi
+      ip="$(host_ips "$host" | head -1)"
+      status_file="$(cache_file "$host" "$ip" timesync)"
+      if [[ "${HOST_TIMESYNC[$host]:-1}" =~ ^(0|no|false|disabled)$ ]]; then printf 'TIMESYNC=SKIPPED|disabled in HOST_TIMESYNC\n' > "$status_file"; exit 0; fi
+      if [[ -z "$selected" ]]; then printf 'TIMESYNC=SKIPPED|SSH failed: %s\n' "$(ssh_failed_reason "$host" "$ip")" > "$status_file"; exit 0; fi
       target="$(ssh_target_for_ip "$selected")"
       sync="$(run_ssh "$host" "$target" "timedatectl show -p NTPSynchronized --value 2>/dev/null || true" 2>/dev/null || true)"
       sources="$(run_ssh "$host" "$target" "$(ntp_sources_command)" 2>/dev/null | sed '/^$/d' || true)"
-      while IFS= read -r ip; do
-        status_file="$(cache_file "$host" "$ip" timesync)"
-        host_ip_sources="$(printf '%s\n' "$sources" | awk -F'|' -v ip="$ip" '$4 == ip')"
-        [[ -z "$host_ip_sources" ]] && continue
-        primary="$(printf '%s\n' "$host_ip_sources" | awk -F'|' '$3 == "*" || $3 == "o" {print $1; found=1; exit} END {if (!found) exit 1}' || printf '%s\n' "$host_ip_sources" | cut -d'|' -f1 | head -1)"
-        [[ -z "$primary" ]] && primary=unknown
-        if [[ "$sync" == yes ]]; then printf 'TIMESYNC=PASS|synchronized=yes primary=%s\n' "$primary" > "$status_file"; else printf 'TIMESYNC=FAIL|synchronized=%s primary=%s\n' "${sync:-unknown}" "$primary" > "$status_file"; fi
-        while IFS='|' read -r source provider source_state route_src detail; do
-          [[ -n "$source" ]] && printf 'TIMESYNC_SOURCE=%s|%s|%s|%s|%s\n' "$source" "${provider:-unknown}" "${source_state:-unknown}" "${route_src:-unknown}" "${detail:-source reported}"
-        done <<< "$host_ip_sources" >> "$status_file"
-      done < <(host_ips "$host")
+      [[ -z "$sources" ]] && exit 0
+      primary="$(printf '%s\n' "$sources" | awk -F'|' '$3 == "*" || $3 == "o" {print $1; found=1; exit} END {if (!found) exit 1}' || printf '%s\n' "$sources" | cut -d'|' -f1 | head -1)"
+      [[ -z "$primary" ]] && primary=unknown
+      if [[ "$sync" == yes ]]; then printf 'TIMESYNC=PASS|synchronized=yes primary=%s\n' "$primary" > "$status_file"; else printf 'TIMESYNC=FAIL|synchronized=%s primary=%s\n' "${sync:-unknown}" "$primary" > "$status_file"; fi
+      while IFS='|' read -r source provider source_state detail; do
+        [[ -n "$source" ]] && printf 'TIMESYNC_SOURCE=%s|%s|%s|%s\n' "$source" "${provider:-unknown}" "${source_state:-unknown}" "${detail:-source reported}"
+      done <<< "$sources" >> "$status_file"
     ) &
   done
   wait
