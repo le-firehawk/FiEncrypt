@@ -132,7 +132,7 @@ render_dashboard() {
     DASHBOARD_ACTION=quit
     return 0
   fi
-  menu_args+=(refresh "Refresh tests" recheck "Recheck now")
+  menu_args+=(refresh "Refresh" recheck "Recheck now")
   has_docker_logs_available && menu_args+=(logs "Docker Logs")
   menu_args+=(quit "Quit")
   if command -v dialog >/dev/null 2>&1; then
@@ -142,7 +142,7 @@ render_dashboard() {
   else
     {
       clear 2>/dev/null || true
-      printf '%s\n\nCommands: Enter=refresh tests, r=recheck all, q=quit' "$body"
+      printf '%s\n\nCommands: Enter=refresh, r=recheck, q=quit' "$body"
       has_docker_logs_available && printf ', l=logs'
       printf '\n'
     } >/dev/tty
