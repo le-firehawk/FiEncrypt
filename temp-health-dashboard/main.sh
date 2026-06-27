@@ -26,12 +26,14 @@ trap 'printf "\nExiting health dashboard.\n" >&2; exit 130' INT TERM
 
 run_checks() {
   clear_cycle_cache
-  if is_check_skipped icmp; then mark_check_skipped icmp; else run_with_loading 5 20 "Running ICMP checks" collect_ping_parallel; fi
-  if is_check_skipped ssh; then mark_check_skipped ssh; else run_with_loading 20 40 "Running SSH checks" collect_ssh_parallel; maybe_prompt_for_ssh_password; fi
-  if is_check_skipped systemd; then mark_check_skipped systemd; else run_with_loading 40 60 "Running systemd checks" collect_systemd_parallel; fi
-  if is_check_skipped docker; then mark_check_skipped docker; else run_with_loading 60 80 "Running Docker checks" collect_docker_parallel; fi
-  if is_check_skipped timesync; then mark_check_skipped timesync; else run_with_loading 80 95 "Running NTP/time-sync checks" collect_timesync_parallel; fi
-  render_loading "Rendering dashboard..." 98
+  render_loading "Loading - running health checks..." 50
+  if is_check_skipped icmp; then mark_check_skipped icmp; else collect_ping_parallel; fi
+  if is_check_skipped ssh; then mark_check_skipped ssh; else collect_ssh_parallel; fi
+  maybe_prompt_for_ssh_password
+  render_loading "Loading - completing health checks..." 75
+  if is_check_skipped systemd; then mark_check_skipped systemd; else collect_systemd_parallel; fi
+  if is_check_skipped docker; then mark_check_skipped docker; else collect_docker_parallel; fi
+  if is_check_skipped timesync; then mark_check_skipped timesync; else collect_timesync_parallel; fi
 }
 
 run_checks
