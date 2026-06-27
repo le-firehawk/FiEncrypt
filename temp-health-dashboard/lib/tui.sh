@@ -29,6 +29,7 @@ run_with_loading() {
     "$@"
     return $?
   fi
+  draw_loading "$start_percent" "$message (starting)"
   "$@" &
   pid=$!
   elapsed=0
@@ -41,6 +42,7 @@ run_with_loading() {
   done
   wait "$pid"; status=$?
   draw_loading "$end_percent" "$message complete"
+  sleep 1
   return "$status"
 }
 
@@ -78,28 +80,61 @@ maybe_prompt_for_ssh_password() {
   done
 }
 
+has_configured_docker_containers() {
+  local host containers
+  for host in "${!HOST_IPS[@]}"; do
+    containers="${HOST_CONTAINERS[$host]:-}"
+    containers="${containers//[[:space:],]/}"
+    [[ -n "$containers" ]] && return 0
+  done
+  return 1
+}
+
+configured_docker_menu_args() {
+  local host ip container containers
+  for host in "${!HOST_IPS[@]}"; do
+    [[ -n "${HOST_CONTAINERS[$host]:-}" ]] || continue
+    while IFS= read -r ip; do
+      IFS=',' read -ra containers <<< "${HOST_CONTAINERS[$host]}"
+      for container in "${containers[@]}"; do
+        container="${container//[[:space:]]/}"
+        [[ -n "$container" ]] && printf 'log|%s|%s|%s\n%s %s\n' "$host" "$ip" "$container" "$host/$ip" "$container"
+      done
+    done < <(host_ips "$host")
+  done
+}
+
 render_dashboard() {
-  local body tmp choice status=0
+  local body choice status=0 menu_args=()
   body="$(build_dashboard_text "$(text_width)")"
   if [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]]; then
     printf '%s\n' "$body"
     return 0
   fi
+  menu_args+=(refresh "Refresh now")
+  if has_configured_docker_containers; then
+    while IFS= read -r tag && IFS= read -r label; do
+      menu_args+=("$tag" "$label")
+    done < <(configured_docker_menu_args)
+  fi
+  menu_args+=(quit "Quit")
   if command -v dialog >/dev/null 2>&1; then
-    tmp="$(mktemp)"; printf '%s\n' "$body" > "$tmp"
-    choice="$(dialog --title "Health Dashboard" --menu "$(cat "$tmp")" "$(screen_lines)" "$(screen_cols)" 4 refresh "Refresh now" logs "Docker logs" quit "Quit" 2>&1 >/dev/tty)" || status=$?
-    rm -f "$tmp"
+    choice="$(dialog --title "Health Dashboard" --menu "$body" "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
   elif command -v whiptail >/dev/null 2>&1; then
-    choice="$(whiptail --title "Health Dashboard" --menu "$body" "$(screen_lines)" "$(screen_cols)" 4 refresh "Refresh now" logs "Docker logs" quit "Quit" 2>&1 >/dev/tty)" || status=$?
+    choice="$(whiptail --title "Health Dashboard" --menu "$body" "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
   else
     clear 2>/dev/null || true
-    printf '%s\n\nCommands: Enter=refresh, l=logs, q=quit\n' "$body"
+    printf '%s\n\nCommands: Enter=refresh, q=quit' "$body"
+    has_configured_docker_containers && printf ', l=logs'
+    printf '\n'
     read -r -s -n 1 choice || true
     [[ -z "$choice" ]] && choice=refresh
   fi
   [[ "$status" -ne 0 || "$choice" == quit || "$choice" == q ]] && exit 0
-  [[ "$choice" == logs || "$choice" == l ]] && render_logs
+  if [[ "$choice" == log\|* ]]; then IFS='|' read -r _ log_host log_ip log_container <<< "$choice"; render_logs "$log_host" "$log_ip" "$log_container"; fi
+  [[ "$choice" == l ]] && has_configured_docker_containers && render_logs
 }
+
 
 build_dashboard_text() {
   local width="$1" host ip result state detail line
@@ -119,18 +154,27 @@ build_dashboard_text() {
   printf '\nTIME SYNC / NTP\n%-18s %-15s %-18s %-12s %s\n' HOST IP SOURCE STATUS DETAIL
   for host in "${!HOST_IPS[@]}"; do
     while IFS= read -r ip; do
-      line="$(get_timesync_status "$host" "$ip")"; state="${line#*=}"; state="${state%%|*}"; detail="${line#*|}"
+      line="$(get_timesync_status "$host" "$ip")"
+      [[ "$line" == TIMESYNC=missing\|* ]] && continue
+      state="${line#*=}"; state="${state%%|*}"; detail="${line#*|}"
       printf '%-18s %-15s %-18s %-12s %s\n' "$host" "$ip" summary "$state" "$detail"
-      while IFS='=|' read -r _ source provider source_state source_detail; do
-        [[ -n "$source" ]] && printf '%-18s %-15s %-18s %-12s %s\n' "$host" "$ip" "$source" "$provider/$source_state" "$source_detail"
+      while IFS='=|' read -r _ source provider source_state route_src source_detail; do
+        [[ -n "$source" ]] && printf '%-18s %-15s %-18s %-12s %s\n' "$host" "$ip" "$source" "$provider/$source_state" "route-src=$route_src $source_detail"
       done < <(get_timesync_statuses "$host" "$ip" | awk -F'[=|]' '$1 == "TIMESYNC_SOURCE"')
     done < <(host_ips "$host")
   done
 }
 
 render_logs() {
-  local host ip
+  local host="${1:-}" ip="${2:-}" container="${3:-}"
   clear 2>/dev/null || true
-  for host in "${!HOST_IPS[@]}"; do while IFS= read -r ip; do printf '\n# %s %s\n' "$host" "$ip"; get_docker_logs "$host" "$ip"; done < <(host_ips "$host"); done
+  if [[ -n "$host" && -n "$ip" ]]; then
+    printf '\n# %s %s' "$host" "$ip"
+    [[ -n "$container" ]] && printf ' container=%s' "$container"
+    printf '\n'
+    get_docker_logs "$host" "$ip" | awk -v c="$container" 'c == "" {print; next} $0 == "===== " c " =====" {show=1; print; next} /^===== / && show {exit} show {print}'
+  else
+    for host in "${!HOST_IPS[@]}"; do while IFS= read -r ip; do printf '\n# %s %s\n' "$host" "$ip"; get_docker_logs "$host" "$ip"; done < <(host_ips "$host"); done
+  fi
   printf '\nPress any key to return...'; read -r -s -n 1 _ || true
 }

@@ -26,6 +26,14 @@ cat > "$fakebin/timedatectl" <<'FAKE'
 #!/usr/bin/env bash
 exit 1
 FAKE
+cat > "$fakebin/ip" <<'FAKE'
+#!/usr/bin/env bash
+case "$3" in
+  192.0.2.10|192.0.2.11) echo "$3 dev eth0 src 127.0.0.1" ;;
+  192.0.2.12) echo "$3 dev eth1 src 127.0.0.2" ;;
+  *) exit 1 ;;
+esac
+FAKE
 cat > "$fakebin/ntpq" <<'FAKE'
 #!/usr/bin/env bash
 cat <<'NTPQ'
@@ -38,9 +46,9 @@ NTPQ
 FAKE
 chmod +x "$fakebin"/*
 ntp_parsed="$(PATH="$fakebin:$PATH" bash -c "$(ntp_sources_command)")"
-grep -q '^192.0.2.10|ntpq|\*|selected peer' <<< "$ntp_parsed" || fail "ntpq selected peer not parsed"
-grep -q '^192.0.2.11|ntpq|+|candidate peer' <<< "$ntp_parsed" || fail "ntpq candidate peer not parsed"
-grep -q '^192.0.2.12|ntpq| |reachable peer' <<< "$ntp_parsed" || fail "ntpq unselected peer not parsed"
+grep -q '^192.0.2.10|ntpq|\*|127.0.0.1|selected peer' <<< "$ntp_parsed" || fail "ntpq selected peer not parsed"
+grep -q '^192.0.2.11|ntpq|+|127.0.0.1|candidate peer' <<< "$ntp_parsed" || fail "ntpq candidate peer not parsed"
+grep -q '^192.0.2.12|ntpq| |127.0.0.2|reachable peer' <<< "$ntp_parsed" || fail "ntpq unselected peer not parsed"
 ! grep -q '^remote|' <<< "$ntp_parsed" || fail "ntpq header parsed as source"
 rm -rf "$fakebin"
 
@@ -67,10 +75,10 @@ get_docker_logs localhost 127.0.0.1 | grep -q ready || fail "docker logs unreada
 
 cat > "$(cache_file localhost 127.0.0.1 timesync)" <<'DATA'
 TIMESYNC=PASS|synchronized=yes primary=192.0.2.1
-TIMESYNC_SOURCE=192.0.2.1|chrony|*|selected source currently disciplining the clock
-TIMESYNC_SOURCE=192.0.2.2|chrony|+|acceptable source combined with the selected source
+TIMESYNC_SOURCE=192.0.2.1|chrony|*|127.0.0.1|selected source currently disciplining the clock
+TIMESYNC_SOURCE=192.0.2.2|chrony|+|127.0.0.1|acceptable source combined with the selected source
 DATA
-printf 'TIMESYNC=SKIPPED|checked via 127.0.0.1\n' > "$(cache_file localhost 127.0.0.2 timesync)"
+: > "$(cache_file localhost 127.0.0.2 timesync)"
 printf 'PASS|1ms\n' > "$(cache_file localhost 127.0.0.2 ping)"
 printf 'DOCKER=discovery|SSH_FAILED|auth denied\n' > "$(cache_file localhost 127.0.0.2 docker)"
 printf 'SYSTEMD=docker|SSH_FAILED|auth denied\n' > "$(cache_file localhost 127.0.0.2 systemd)"
@@ -81,6 +89,8 @@ grep -q 'TIME SYNC / NTP' <<< "$dashboard" || fail "timesync table missing"
 grep -q 'primary=192.0.2.1' <<< "$dashboard" || fail "timesync primary missing"
 grep -q '192.0.2.2' <<< "$dashboard" || fail "secondary timesync source missing"
 grep -q 'acceptable source combined' <<< "$dashboard" || fail "timesync source detail missing"
+grep -q 'route-src=127.0.0.1' <<< "$dashboard" || fail "timesync route source missing"
+! grep -q '127.0.0.2 .*summary' <<< "$dashboard" || fail "timesync summary rendered for interface without sources"
 grep -q 'journalctl' <<< "$dashboard" || fail "systemd guidance missing"
 
 echo "all tests passed"
