@@ -30,6 +30,10 @@ run_checks() {
   if is_check_skipped icmp; then mark_check_skipped icmp; else collect_ping_parallel; fi
   if is_check_skipped ssh; then mark_check_skipped ssh; else collect_ssh_parallel; fi
   maybe_prompt_for_ssh_password
+  run_tests
+}
+
+run_tests() {
   render_loading "Loading - completing health checks..." 75
   if is_check_skipped systemd; then mark_check_skipped systemd; else collect_systemd_parallel; fi
   if is_check_skipped docker; then mark_check_skipped docker; else collect_docker_parallel; fi
@@ -45,6 +49,6 @@ while true; do
   render_dashboard
   action="$DASHBOARD_ACTION"
   [[ "$action" == quit ]] && break
+  [[ "$action" == refresh ]] && run_tests
   [[ "$action" == recheck ]] && run_checks
-  # refresh redraws cached results only; no automatic recheck here.
 done

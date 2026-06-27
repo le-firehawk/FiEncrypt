@@ -81,29 +81,47 @@ maybe_prompt_for_ssh_password() {
   done
 }
 
-has_configured_docker_containers() {
-  local host containers
+has_docker_logs_available() {
+  local host ip containers status_file logs_file
+  is_check_skipped docker && return 1
   for host in "${!HOST_IPS[@]}"; do
     containers="${HOST_CONTAINERS[$host]:-}"
     containers="${containers//[[:space:],]/}"
     [[ -n "$containers" ]] && return 0
+    while IFS= read -r ip; do
+      status_file="$(cache_file "$host" "$ip" docker)"
+      logs_file="$(cache_file "$host" "$ip" docker_logs)"
+      [[ -s "$logs_file" ]] && return 0
+      [[ -f "$status_file" ]] && awk -F'[=|]' '$1 == "DOCKER" && $2 != "" && $2 != "discovery" && $2 != "generic" {found=1} END {exit !found}' "$status_file" && return 0
+    done < <(host_ips "$host")
   done
   return 1
 }
 
-configured_docker_menu_args() {
-  local host ip container containers
+has_configured_docker_containers() { has_docker_logs_available; }
+
+docker_log_menu_args() {
+  local host ip container containers status_file output=""
   for host in "${!HOST_IPS[@]}"; do
-    [[ -n "${HOST_CONTAINERS[$host]:-}" ]] || continue
     while IFS= read -r ip; do
-      IFS=',' read -ra containers <<< "${HOST_CONTAINERS[$host]}"
-      for container in "${containers[@]}"; do
-        container="${container//[[:space:]]/}"
-        [[ -n "$container" ]] && printf 'log|%s|%s|%s\n%s %s\n' "$host" "$ip" "$container" "$host/$ip" "$container"
-      done
+      status_file="$(cache_file "$host" "$ip" docker)"
+      if [[ -n "${HOST_CONTAINERS[$host]:-}" ]]; then
+        IFS=',' read -ra containers <<< "${HOST_CONTAINERS[$host]}"
+        for container in "${containers[@]}"; do
+          container="${container//[[:space:]]/}"
+          [[ -n "$container" ]] && output+="$(printf 'log|%s|%s|%s\n%s %s' "$host" "$ip" "$container" "$host/$ip" "$container")"$'\n'
+        done
+      elif [[ -f "$status_file" ]]; then
+        while IFS='=|' read -r _ container _ _; do
+          [[ -n "$container" && "$container" != discovery && "$container" != generic ]] && output+="$(printf 'log|%s|%s|%s\n%s %s' "$host" "$ip" "$container" "$host/$ip" "$container")"$'\n'
+        done < "$status_file"
+      fi
     done < <(host_ips "$host")
   done
+  printf '%s' "$output"
 }
+
+configured_docker_menu_args() { docker_log_menu_args; }
 
 render_dashboard() {
   local body choice status=0 menu_args=()
@@ -114,8 +132,8 @@ render_dashboard() {
     DASHBOARD_ACTION=quit
     return 0
   fi
-  menu_args+=(refresh "Refresh display" recheck "Recheck now")
-  has_configured_docker_containers && menu_args+=(logs "Docker Logs")
+  menu_args+=(refresh "Refresh tests" recheck "Recheck now")
+  has_docker_logs_available && menu_args+=(logs "Docker Logs")
   menu_args+=(quit "Quit")
   if command -v dialog >/dev/null 2>&1; then
     choice="$(dialog --title "Health Dashboard" --menu "$body" "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
@@ -124,8 +142,8 @@ render_dashboard() {
   else
     {
       clear 2>/dev/null || true
-      printf '%s\n\nCommands: Enter=refresh, r=recheck, q=quit' "$body"
-      has_configured_docker_containers && printf ', l=logs'
+      printf '%s\n\nCommands: Enter=refresh tests, r=recheck all, q=quit' "$body"
+      has_docker_logs_available && printf ', l=logs'
       printf '\n'
     } >/dev/tty
     read -r -s -n 1 choice </dev/tty || true
@@ -133,7 +151,7 @@ render_dashboard() {
     [[ "$choice" == r ]] && choice=recheck
   fi
   if [[ "$status" -ne 0 || "$choice" == quit || "$choice" == q ]]; then DASHBOARD_ACTION=quit; return 0; fi
-  if [[ "$choice" == logs || "$choice" == l ]] && has_configured_docker_containers; then render_logs_menu; DASHBOARD_ACTION=refresh; return 0; fi
+  if [[ "$choice" == logs || "$choice" == l ]] && has_docker_logs_available; then render_logs_menu; DASHBOARD_ACTION=display; return 0; fi
   [[ "$choice" == recheck ]] && DASHBOARD_ACTION=recheck || DASHBOARD_ACTION=refresh
   return 0
 }
@@ -178,7 +196,7 @@ build_dashboard_text() {
 }
 render_logs_menu() {
   local choice status=0 menu_args=()
-  while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(configured_docker_menu_args)
+  while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(docker_log_menu_args)
   menu_args+=(back "Back to summary")
   if [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]]; then render_logs; return 0; fi
   if command -v dialog >/dev/null 2>&1; then
