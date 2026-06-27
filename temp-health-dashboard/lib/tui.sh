@@ -112,11 +112,7 @@ render_dashboard() {
     return 0
   fi
   menu_args+=(refresh "Refresh now")
-  if has_configured_docker_containers; then
-    while IFS= read -r tag && IFS= read -r label; do
-      menu_args+=("$tag" "$label")
-    done < <(configured_docker_menu_args)
-  fi
+  has_configured_docker_containers && menu_args+=(logs "Docker Logs")
   menu_args+=(quit "Quit")
   if command -v dialog >/dev/null 2>&1; then
     choice="$(dialog --title "Health Dashboard" --menu "$body" "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
@@ -131,8 +127,7 @@ render_dashboard() {
     [[ -z "$choice" ]] && choice=refresh
   fi
   [[ "$status" -ne 0 || "$choice" == quit || "$choice" == q ]] && exit 0
-  if [[ "$choice" == log\|* ]]; then IFS='|' read -r _ log_host log_ip log_container <<< "$choice"; render_logs "$log_host" "$log_ip" "$log_container"; fi
-  [[ "$choice" == l ]] && has_configured_docker_containers && render_logs
+  [[ "$choice" == logs || "$choice" == l ]] && has_configured_docker_containers && render_logs_menu
 }
 
 
@@ -165,16 +160,43 @@ build_dashboard_text() {
   done
 }
 
+render_logs_menu() {
+  local choice status=0 menu_args=()
+  while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(configured_docker_menu_args)
+  menu_args+=(back "Back to summary")
+  if [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]]; then render_logs; return 0; fi
+  if command -v dialog >/dev/null 2>&1; then
+    choice="$(dialog --title "Docker Logs" --menu "Select a configured container to stream cached logs." "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
+  elif command -v whiptail >/dev/null 2>&1; then
+    choice="$(whiptail --title "Docker Logs" --menu "Select a configured container to stream cached logs." "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
+  else
+    render_logs; return 0
+  fi
+  [[ "$status" -ne 0 || "$choice" == back ]] && return 0
+  if [[ "$choice" == log\|* ]]; then IFS='|' read -r _ log_host log_ip log_container <<< "$choice"; render_logs "$log_host" "$log_ip" "$log_container"; fi
+}
+
 render_logs() {
-  local host="${1:-}" ip="${2:-}" container="${3:-}"
+  local host="${1:-}" ip="${2:-}" container="${3:-}" src stream_file
   clear 2>/dev/null || true
   if [[ -n "$host" && -n "$ip" ]]; then
-    printf '\n# %s %s' "$host" "$ip"
-    [[ -n "$container" ]] && printf ' container=%s' "$container"
-    printf '\n'
-    get_docker_logs "$host" "$ip" | awk -v c="$container" 'c == "" {print; next} $0 == "===== " c " =====" {show=1; print; next} /^===== / && show {exit} show {print}'
+    src="$(cache_file "$host" "$ip" docker_logs)"
+    stream_file="$src"
+    if [[ -n "$container" ]]; then
+      stream_file="$(cache_file "$host" "$ip" "docker_${container}.stream")"
+      get_docker_logs "$host" "$ip" | awk -v c="$container" 'c == "" {print; next} $0 == "===== " c " =====" {show=1; print; next} /^===== / && show {exit} show {print}' > "$stream_file"
+    fi
+    if [[ "${RUN_ONCE:-0}" -eq 0 && -t 1 && -f "$stream_file" ]] && command -v dialog >/dev/null 2>&1; then
+      dialog --title "Docker Logs${container:+: $container}" --tailbox "$stream_file" "$(screen_lines)" "$(screen_cols)" 2>/dev/tty || true
+      return 0
+    elif [[ "${RUN_ONCE:-0}" -eq 0 && -t 1 && -f "$stream_file" ]] && command -v whiptail >/dev/null 2>&1; then
+      whiptail --title "Docker Logs${container:+: $container}" --textbox "$stream_file" "$(screen_lines)" "$(screen_cols)" 2>/dev/tty || true
+      return 0
+    fi
+    printf '\n# %s %s' "$host" "$ip"; [[ -n "$container" ]] && printf ' container=%s' "$container"; printf '\n'
+    cat "$stream_file" 2>/dev/null || true
   else
     for host in "${!HOST_IPS[@]}"; do while IFS= read -r ip; do printf '\n# %s %s\n' "$host" "$ip"; get_docker_logs "$host" "$ip"; done < <(host_ips "$host"); done
   fi
-  printf '\nPress any key to return...'; read -r -s -n 1 _ || true
+  [[ "${RUN_ONCE:-0}" -eq 0 && -t 1 ]] && { printf '\nPress any key to return...'; read -r -s -n 1 _ || true; }
 }

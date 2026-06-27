@@ -8,6 +8,39 @@ host_ips() {
 
 clear_cycle_cache() { mkdir -p "$CACHE_DIR"; rm -f "$CACHE_DIR"/*; }
 
+
+mark_check_skipped() {
+  local check="$1" host ip service container
+  for host in "${!HOST_IPS[@]}"; do
+    case "$check" in
+      icmp)
+        while IFS= read -r ip; do printf 'SKIPPED|disabled by --skip-checks\n' > "$(cache_file "$host" "$ip" ping)"; done < <(host_ips "$host") ;;
+      ssh)
+        while IFS= read -r ip; do printf 'SKIPPED|disabled by --skip-checks\n' > "$(cache_file "$host" "$ip" ssh)"; done < <(host_ips "$host") ;;
+      systemd)
+        while IFS= read -r ip; do
+          : > "$(cache_file "$host" "$ip" systemd)"
+          IFS=',' read -ra services <<< "${HOST_SERVICES[$host]:-}"
+          for service in "${services[@]}"; do service="${service//[[:space:]]/}"; [[ -n "$service" ]] && printf 'SYSTEMD=%s|SKIPPED|disabled by --skip-checks\n' "$service" >> "$(cache_file "$host" "$ip" systemd)"; done
+        done < <(host_ips "$host") ;;
+      docker)
+        while IFS= read -r ip; do
+          : > "$(cache_file "$host" "$ip" docker_logs)"
+          : > "$(cache_file "$host" "$ip" docker)"
+          if [[ -n "${HOST_CONTAINERS[$host]:-}" ]]; then
+            IFS=',' read -ra containers <<< "${HOST_CONTAINERS[$host]}"
+            for container in "${containers[@]}"; do container="${container//[[:space:]]/}"; [[ -n "$container" ]] && printf 'DOCKER=%s|SKIPPED|disabled by --skip-checks\n' "$container" >> "$(cache_file "$host" "$ip" docker)"; done
+          else
+            printf 'DOCKER=discovery|SKIPPED|disabled by --skip-checks\n' > "$(cache_file "$host" "$ip" docker)"
+          fi
+        done < <(host_ips "$host") ;;
+      timesync|ntp)
+        while IFS= read -r ip; do printf 'TIMESYNC=SKIPPED|disabled by --skip-checks\n' > "$(cache_file "$host" "$ip" timesync)"; done < <(host_ips "$host") ;;
+    esac
+  done
+}
+
+
 collect_all() {
   clear_cycle_cache
   render_loading "Running ICMP checks..."
@@ -187,7 +220,11 @@ collect_systemd_parallel() {
           service="${service//[[:space:]]/}"; [[ -z "$service" ]] && continue
           if [[ -z "$selected" || "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" != PASS ]]; then
             reason="$(ssh_failed_reason "$host" "$ip")"
-            printf 'SYSTEMD=%s|SSH_FAILED|%s\n' "$service" "$reason" >> "$(cache_file "$host" "$ip" systemd)"
+            if [[ "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" == SKIPPED ]]; then
+              printf 'SYSTEMD=%s|SKIPPED|SSH skipped: %s\n' "$service" "$reason" >> "$(cache_file "$host" "$ip" systemd)"
+            else
+              printf 'SYSTEMD=%s|SSH_FAILED|%s\n' "$service" "$reason" >> "$(cache_file "$host" "$ip" systemd)"
+            fi
           elif [[ "$ip" != "$selected" ]]; then
             printf 'SYSTEMD=%s|SKIPPED|checked via %s\n' "$service" "$selected" >> "$(cache_file "$host" "$ip" systemd)"
           else
@@ -214,7 +251,11 @@ collect_docker_parallel() {
         : > "$status_file"; : > "$logs_file"
         if [[ -z "$selected" || "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" != PASS ]]; then
           reason="$(ssh_failed_reason "$host" "$ip")"
-          printf 'DOCKER=discovery|SSH_FAILED|%s\n' "$reason" > "$status_file"
+          if [[ "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" == SKIPPED ]]; then
+            printf 'DOCKER=discovery|SKIPPED|SSH skipped: %s\n' "$reason" > "$status_file"
+          else
+            printf 'DOCKER=discovery|SSH_FAILED|%s\n' "$reason" > "$status_file"
+          fi
           continue
         fi
         [[ "$ip" != "$selected" ]] && { printf 'DOCKER=generic|SKIPPED|checked via %s\n' "$selected" > "$status_file"; continue; }

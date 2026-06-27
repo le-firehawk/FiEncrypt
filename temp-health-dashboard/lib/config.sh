@@ -4,6 +4,7 @@ declare -Ag HOST_IPS=()
 declare -Ag HOST_SERVICES=()
 declare -Ag HOST_CONTAINERS=()
 declare -Ag HOST_TIMESYNC=()
+declare -Ag CHECK_SCOPES=([icmp]=per-ip [ssh]=per-ip [systemd]=per-host [docker]=per-host [timesync]=per-host)
 SSH_USER="${SSH_USER:-}"
 SSH_OPTS="${SSH_OPTS:--o StrictHostKeyChecking=accept-new}"
 SSH_CHECK_RETRIES="${SSH_CHECK_RETRIES:-1}"

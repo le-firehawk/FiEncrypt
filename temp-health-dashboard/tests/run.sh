@@ -15,7 +15,15 @@ REFRESH_INTERVAL=5
 RUN_ONCE=1
 init_cache
 declare -Ag HOST_IPS=([localhost]="127.0.0.1,127.0.0.2")
+HOST_CONTAINERS[localhost]="api,worker"
 assert_eq "$(operation_timeout)" "4"
+SKIP_CHECKS="ssh,ntp"
+is_check_skipped ssh || fail "ssh skip not detected"
+is_check_skipped timesync || fail "ntp skip alias not detected"
+! is_check_skipped docker || fail "docker unexpectedly skipped"
+SKIP_CHECKS=""
+has_configured_docker_containers || fail "configured docker containers not detected"
+configured_docker_menu_args | grep -q "log|localhost|127.0.0.1|api" || fail "docker log submenu entries missing"
 ntp_source_command | grep -q 'print $2' || fail "NTP source command lost awk field quoting"
 fakebin="$(mktemp -d)"
 cat > "$fakebin/chronyc" <<'FAKE'
