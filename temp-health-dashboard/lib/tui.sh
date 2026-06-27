@@ -9,45 +9,46 @@ screen_cols() { tput cols 2>/dev/null || echo 120; }
 screen_lines() { tput lines 2>/dev/null || echo 40; }
 text_width() { local w; w="$(screen_cols)"; ((w > 4)) && echo $((w - 4)) || echo 80; }
 
-loading_begin() {
-  [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]] && return 0
-  if command -v dialog >/dev/null 2>&1; then
-    coproc HEALTH_LOADING { dialog --title "Running health checks" --gauge "Starting checks..." 8 72 0 >/dev/tty 2>/dev/tty; }
-    LOADING_FD="${HEALTH_LOADING[1]}"; LOADING_PID="$HEALTH_LOADING_PID"
-  elif command -v whiptail >/dev/null 2>&1; then
-    coproc HEALTH_LOADING { whiptail --title "Running health checks" --gauge "Starting checks..." 8 72 0 >/dev/tty 2>/dev/tty; }
-    LOADING_FD="${HEALTH_LOADING[1]}"; LOADING_PID="$HEALTH_LOADING_PID"
-  else
-    clear 2>/dev/null || true
-    printf 'Running health checks...\n'
-  fi
-}
-
-loading_step() {
+draw_loading() {
   [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]] && return 0
   local percent="$1" message="$2"
-  if [[ -n "$LOADING_FD" ]]; then
-    printf 'XXX\n%s\n%s\nXXX\n' "$percent" "$message" >&"$LOADING_FD" 2>/dev/null || true
+  if command -v dialog >/dev/null 2>&1; then
+    dialog --title "Running health checks" --infobox "$message\n\nProgress: ${percent}%" 7 72 2>/dev/tty || true
+  elif command -v whiptail >/dev/null 2>&1; then
+    whiptail --title "Running health checks" --infobox "$message\n\nProgress: ${percent}%" 7 72 2>/dev/tty || true
   else
-    printf '\r%-80s' "$message"
+    clear 2>/dev/null || true
+    printf 'Running health checks [%s%%]: %s\n' "$percent" "$message"
   fi
 }
 
-loading_end() {
-  [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]] && return 0
-  if [[ -n "$LOADING_FD" ]]; then
-    printf '100\n' >&"$LOADING_FD" 2>/dev/null || true
-    eval "exec ${LOADING_FD}>&-" 2>/dev/null || true
-    [[ -n "$LOADING_PID" ]] && wait "$LOADING_PID" 2>/dev/null || true
-    LOADING_FD=""; LOADING_PID=""
-  else
-    printf '\n'
+run_with_loading() {
+  local start_percent="$1" end_percent="$2" message="$3" pid elapsed percent span status
+  shift 3
+  if [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]]; then
+    "$@"
+    return $?
   fi
+  "$@" &
+  pid=$!
+  elapsed=0
+  span=$((end_percent - start_percent)); ((span < 1)) && span=1
+  while kill -0 "$pid" 2>/dev/null; do
+    percent=$((start_percent + elapsed % span))
+    draw_loading "$percent" "$message (elapsed ${elapsed}s)"
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  wait "$pid"; status=$?
+  draw_loading "$end_percent" "$message complete"
+  return "$status"
 }
 
-render_loading() {
-  loading_step "${2:-10}" "$1"
-}
+render_loading() { draw_loading "${2:-10}" "$1"; }
+
+loading_begin() { :; }
+loading_step() { draw_loading "$1" "$2"; }
+loading_end() { :; }
 
 maybe_prompt_for_ssh_password() {
   [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]] && return 0
@@ -68,10 +69,7 @@ maybe_prompt_for_ssh_password() {
       fi
       if [[ "$status" -eq 0 && -n "$password" ]]; then
         SSH_PASSWORDS[$host]="$password"
-        loading_begin
-        render_loading "Retrying SSH for $host with the provided host password..." 45
-        collect_ssh_for_host "$host"
-        loading_end
+        run_with_loading 35 45 "Retrying SSH for $host with the provided host password" collect_ssh_for_host "$host"
       else
         SSH_PASSWORD_DECLINED[$host]=1
       fi
