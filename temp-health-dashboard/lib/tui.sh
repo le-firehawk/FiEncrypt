@@ -2,6 +2,7 @@
 
 declare -Ag SSH_PASSWORDS=()
 declare -Ag SSH_PASSWORD_DECLINED=()
+DASHBOARD_ACTION="refresh"
 LOADING_FD=""
 LOADING_PID=""
 
@@ -106,9 +107,11 @@ configured_docker_menu_args() {
 
 render_dashboard() {
   local body choice status=0 menu_args=()
+  DASHBOARD_ACTION=refresh
   body="$(build_dashboard_text "$(text_width)")"
   if [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]]; then
     printf '%s\n' "$body"
+    DASHBOARD_ACTION=quit
     return 0
   fi
   menu_args+=(refresh "Refresh display" recheck "Recheck now")
@@ -129,12 +132,11 @@ render_dashboard() {
     [[ -z "$choice" ]] && choice=refresh
     [[ "$choice" == r ]] && choice=recheck
   fi
-  [[ "$status" -ne 0 || "$choice" == quit || "$choice" == q ]] && { printf '%s\n' quit; return 0; }
-  [[ "$choice" == logs || "$choice" == l ]] && has_configured_docker_containers && { render_logs_menu; printf '%s\n' refresh; return 0; }
-  [[ "$choice" == recheck ]] && printf '%s\n' recheck || printf '%s\n' refresh
+  if [[ "$status" -ne 0 || "$choice" == quit || "$choice" == q ]]; then DASHBOARD_ACTION=quit; return 0; fi
+  if [[ "$choice" == logs || "$choice" == l ]] && has_configured_docker_containers; then render_logs_menu; DASHBOARD_ACTION=refresh; return 0; fi
+  [[ "$choice" == recheck ]] && DASHBOARD_ACTION=recheck || DASHBOARD_ACTION=refresh
   return 0
 }
-
 
 build_dashboard_text() {
   local width="$1" host ip result state detail line printed

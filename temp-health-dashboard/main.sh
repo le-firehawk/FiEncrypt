@@ -42,7 +42,8 @@ if [[ "$RUN_ONCE" -eq 1 || ! -t 1 ]]; then
   exit 0
 fi
 while true; do
-  action="$(render_dashboard)"
+  render_dashboard
+  action="$DASHBOARD_ACTION"
   [[ "$action" == quit ]] && break
   [[ "$action" == recheck ]] && run_checks
   # refresh redraws cached results only; no automatic recheck here.
