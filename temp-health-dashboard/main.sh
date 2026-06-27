@@ -37,7 +37,7 @@ run_checks() {
 }
 
 run_checks
-if [[ "$RUN_ONCE" -eq 1 ]]; then
+if [[ "$RUN_ONCE" -eq 1 || ! -t 1 ]]; then
   render_dashboard
   exit 0
 fi

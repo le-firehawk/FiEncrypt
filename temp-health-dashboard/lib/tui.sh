@@ -119,12 +119,15 @@ render_dashboard() {
   elif command -v whiptail >/dev/null 2>&1; then
     choice="$(whiptail --title "Health Dashboard" --menu "$body" "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
   else
-    clear 2>/dev/null || true
-    printf '%s\n\nCommands: Enter=refresh, q=quit' "$body"
-    has_configured_docker_containers && printf ', l=logs'
-    printf '\n'
-    read -r -s -n 1 choice || true
+    {
+      clear 2>/dev/null || true
+      printf '%s\n\nCommands: Enter=refresh, r=recheck, q=quit' "$body"
+      has_configured_docker_containers && printf ', l=logs'
+      printf '\n'
+    } >/dev/tty
+    read -r -s -n 1 choice </dev/tty || true
     [[ -z "$choice" ]] && choice=refresh
+    [[ "$choice" == r ]] && choice=recheck
   fi
   [[ "$status" -ne 0 || "$choice" == quit || "$choice" == q ]] && { printf '%s\n' quit; return 0; }
   [[ "$choice" == logs || "$choice" == l ]] && has_configured_docker_containers && { render_logs_menu; printf '%s\n' refresh; return 0; }
