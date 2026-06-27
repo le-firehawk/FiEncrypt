@@ -121,8 +121,8 @@ build_dashboard_text() {
     while IFS= read -r ip; do
       line="$(get_timesync_status "$host" "$ip")"; state="${line#*=}"; state="${state%%|*}"; detail="${line#*|}"
       printf '%-18s %-15s %-18s %-12s %s\n' "$host" "$ip" summary "$state" "$detail"
-      while IFS='=|' read -r _ source source_detail; do
-        [[ -n "$source" ]] && printf '%-18s %-15s %-18s %-12s %s\n' "$host" "$ip" "$source" SOURCE "$source_detail"
+      while IFS='=|' read -r _ source provider source_state source_detail; do
+        [[ -n "$source" ]] && printf '%-18s %-15s %-18s %-12s %s\n' "$host" "$ip" "$source" "$provider/$source_state" "$source_detail"
       done < <(get_timesync_statuses "$host" "$ip" | awk -F'[=|]' '$1 == "TIMESYNC_SOURCE"')
     done < <(host_ips "$host")
   done

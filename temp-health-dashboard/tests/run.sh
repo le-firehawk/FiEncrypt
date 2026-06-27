@@ -17,6 +17,32 @@ init_cache
 declare -Ag HOST_IPS=([localhost]="127.0.0.1,127.0.0.2")
 assert_eq "$(operation_timeout)" "4"
 ntp_source_command | grep -q 'print $2' || fail "NTP source command lost awk field quoting"
+fakebin="$(mktemp -d)"
+cat > "$fakebin/chronyc" <<'FAKE'
+#!/usr/bin/env bash
+exit 1
+FAKE
+cat > "$fakebin/timedatectl" <<'FAKE'
+#!/usr/bin/env bash
+exit 1
+FAKE
+cat > "$fakebin/ntpq" <<'FAKE'
+#!/usr/bin/env bash
+cat <<'NTPQ'
+     remote           refid      st t when poll reach   delay   offset  jitter
+==============================================================================
+*192.0.2.10      .GPS.            1 u   10   64  377    0.123   -0.010   0.002
++192.0.2.11      192.0.2.10       2 u   12   64  377    0.456    0.020   0.003
+ 192.0.2.12      192.0.2.10       2 u   14   64  377    0.789    0.030   0.004
+NTPQ
+FAKE
+chmod +x "$fakebin"/*
+ntp_parsed="$(PATH="$fakebin:$PATH" bash -c "$(ntp_sources_command)")"
+grep -q '^192.0.2.10|ntpq|\*|selected peer' <<< "$ntp_parsed" || fail "ntpq selected peer not parsed"
+grep -q '^192.0.2.11|ntpq|+|candidate peer' <<< "$ntp_parsed" || fail "ntpq candidate peer not parsed"
+grep -q '^192.0.2.12|ntpq| |reachable peer' <<< "$ntp_parsed" || fail "ntpq unselected peer not parsed"
+! grep -q '^remote|' <<< "$ntp_parsed" || fail "ntpq header parsed as source"
+rm -rf "$fakebin"
 
 ping_one localhost 127.0.0.1 > "$(cache_file localhost 127.0.0.1 ping)"
 [[ "$(get_ping_result localhost 127.0.0.1)" == PASS\|* ]] || fail "localhost ping failed"
@@ -41,8 +67,8 @@ get_docker_logs localhost 127.0.0.1 | grep -q ready || fail "docker logs unreada
 
 cat > "$(cache_file localhost 127.0.0.1 timesync)" <<'DATA'
 TIMESYNC=PASS|synchronized=yes primary=192.0.2.1
-TIMESYNC_SOURCE=192.0.2.1|chrony *
-TIMESYNC_SOURCE=192.0.2.2|chrony +
+TIMESYNC_SOURCE=192.0.2.1|chrony|*|selected source currently disciplining the clock
+TIMESYNC_SOURCE=192.0.2.2|chrony|+|acceptable source combined with the selected source
 DATA
 printf 'TIMESYNC=SKIPPED|checked via 127.0.0.1\n' > "$(cache_file localhost 127.0.0.2 timesync)"
 printf 'PASS|1ms\n' > "$(cache_file localhost 127.0.0.2 ping)"
@@ -54,6 +80,7 @@ grep -q '127.0.0.2' <<< "$dashboard" || fail "second IP missing"
 grep -q 'TIME SYNC / NTP' <<< "$dashboard" || fail "timesync table missing"
 grep -q 'primary=192.0.2.1' <<< "$dashboard" || fail "timesync primary missing"
 grep -q '192.0.2.2' <<< "$dashboard" || fail "secondary timesync source missing"
+grep -q 'acceptable source combined' <<< "$dashboard" || fail "timesync source detail missing"
 grep -q 'journalctl' <<< "$dashboard" || fail "systemd guidance missing"
 
 echo "all tests passed"

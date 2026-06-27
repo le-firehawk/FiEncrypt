@@ -136,9 +136,35 @@ systemd_result_message() {
 
 ntp_sources_command() {
   cat <<'REMOTE'
-chronyc -n sources 2>/dev/null | awk '/^[\^=][*+?-]/ {state=substr($1,2,1); print $2 "|chrony " state}'
-ntpq -pn 2>/dev/null | awk '/^[*+ -]/ {peer=$1; state=substr(peer,1,1); sub(/^[*+ -]/, "", peer); if (peer != "") print peer "|ntpq " state}'
-timedatectl show-timesync --property=ServerName --value 2>/dev/null | awk 'NF {print $0 "|timedatectl"}'
+chronyc -n sources 2>/dev/null | awk '
+function detail(state) {
+  if (state == "*") return "selected source currently disciplining the clock";
+  if (state == "+") return "acceptable source combined with the selected source";
+  if (state == "-") return "acceptable source excluded by the selection algorithm";
+  if (state == "?") return "unreachable or not enough measurements";
+  if (state == "x") return "false ticker rejected by chrony";
+  if (state == "~") return "source has too much time variability";
+  return "chrony source state " state;
+}
+/^[\^=][*+?x~ -]/ {state=substr($1,2,1); print $2 "|chrony|" state "|" detail(state)}'
+ntpq -pn 2>/dev/null | awk '
+function detail(state) {
+  if (state == "*") return "selected peer currently synchronizing the clock";
+  if (state == "+") return "candidate peer included by the clock selection algorithm";
+  if (state == "#") return "selected backup peer, more than the maximum number of sources";
+  if (state == "o") return "PPS peer currently synchronizing the clock";
+  if (state == "x") return "false ticker rejected by ntpd";
+  if (state == ".") return "discarded because of table overflow or sanity checks";
+  if (state == "-") return "discarded by the cluster algorithm";
+  if (state == " ") return "reachable peer not currently selected";
+  return "ntpd peer state " state;
+}
+NR > 2 && $1 !~ /^=+$/ {
+  state=substr($0,1,1); peer=$1;
+  if (state ~ /[*+#ox.-]/) sub(/^./, "", peer); else state=" ";
+  if (peer != "" && peer != "remote") print peer "|ntpq|" state "|" detail(state);
+}'
+timedatectl show-timesync --property=ServerName --value 2>/dev/null | awk 'NF {print $0 "|timedatectl|server|configured systemd-timesyncd server"}'
 REMOTE
 }
 
@@ -217,15 +243,15 @@ collect_timesync_parallel() {
         target="$(ssh_target_for_ip "$ip")"
         sync="$(run_ssh "$host" "$target" "timedatectl show -p NTPSynchronized --value 2>/dev/null || true" 2>/dev/null || true)"
         sources="$(run_ssh "$host" "$target" "$(ntp_sources_command)" 2>/dev/null | sed '/^$/d' || true)"
-        source="$(printf '%s\n' "$sources" | cut -d'|' -f1 | head -1)"
+        source="$(printf '%s\n' "$sources" | awk -F'|' '$3 == "*" || $3 == "o" {print $1; found=1; exit} END {if (!found) exit 1}' || printf '%s\n' "$sources" | cut -d'|' -f1 | head -1)"
         [[ -z "$source" ]] && source=unknown
         if [[ "$sync" == yes ]]; then printf 'TIMESYNC=PASS|synchronized=yes primary=%s\n' "$source" > "$status_file"; else printf 'TIMESYNC=FAIL|synchronized=%s primary=%s\n' "${sync:-unknown}" "$source" > "$status_file"; fi
         if [[ -n "$sources" ]]; then
-          while IFS='|' read -r source detail; do
-            [[ -n "$source" ]] && printf 'TIMESYNC_SOURCE=%s|%s\n' "$source" "${detail:-source}" >> "$status_file"
-          done <<< "$sources"
+          while IFS='|' read -r source provider source_state detail; do
+            [[ -n "$source" ]] && printf 'TIMESYNC_SOURCE=%s|%s|%s|%s\n' "$source" "${provider:-unknown}" "${source_state:-unknown}" "${detail:-source reported}"
+          done <<< "$sources" >> "$status_file"
         else
-          printf 'TIMESYNC_SOURCE=unknown|no source reported\n' >> "$status_file"
+          printf 'TIMESYNC_SOURCE=unknown|unknown|unknown|no source reported\n' >> "$status_file"
         fi
       done < <(host_ips "$host")
     ) &
