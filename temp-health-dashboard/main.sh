@@ -48,7 +48,10 @@ fi
 while true; do
   render_dashboard
   action="$DASHBOARD_ACTION"
-  [[ "$action" == quit ]] && break
-  [[ "$action" == refresh ]] && run_tests
-  [[ "$action" == recheck ]] && run_checks
+  case "$action" in
+    quit) break ;;
+    refresh) run_tests ;;
+    recheck) run_checks ;;
+    display|*) : ;;
+  esac
 done

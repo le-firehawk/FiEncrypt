@@ -127,9 +127,11 @@ printf 'FAIL|auth denied\n' > "$(cache_file localhost 127.0.0.2 ssh)"
 assert_eq "$(ssh_ok_ip localhost)" "127.0.0.1"
 
 cat > "$(cache_file localhost 127.0.0.1 systemd)" <<'DATA'
-SYSTEMD=ssh|active|ssh is active and running
-SYSTEMD=nginx|failed|nginx is failed; inspect journalctl -u nginx
+SYSTEMD=ssh|running/enabled|ssh is running/enabled
+SYSTEMD=nginx|failed/disabled|nginx is failed/disabled; inspect journalctl -u nginx
 DATA
+assert_eq "$(systemd_state_label active enabled)" "running/enabled"
+assert_eq "$(systemd_state_label inactive disabled)" "stopped/disabled"
 assert_eq "$(get_systemd_statuses localhost 127.0.0.1 | summarize_status_lines SYSTEMD)" "1/2 ok"
 printf 'SYSTEMD=missing-unit|missing|missing\n' >> "$(cache_file localhost 127.0.0.1 systemd)"
 systemd_menu="$(systemd_unit_menu_args localhost)"

@@ -498,6 +498,7 @@ launch_ffplay() {
     return 1
   fi
   rm -f "$log_file"
+  disown "$pid" 2>/dev/null || true
   show_message "Open stream" "ffplay started."
 }
 
@@ -530,7 +531,7 @@ open_host_stream() {
 
 render_dashboard() {
   local body prompt choice status=0 menu_args=()
-  DASHBOARD_ACTION=refresh
+  DASHBOARD_ACTION=display
   body="$(build_dashboard_text "$(text_width)")"
   if [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]]; then
     printf '%s\n' "$body"
@@ -635,13 +636,15 @@ render_row_context() {
     docker:start|docker:stop|docker:restart)
       output="$(run_docker_action "$host" "$ip" "$name" "$choice" 2>&1)"; status=$?
       show_operation_result "Docker $choice: $name" "$status" "$output"
-      DASHBOARD_ACTION=refresh ;;
+      [[ "$status" -eq 0 ]] && run_with_loading 70 90 "Refreshing Docker result for $host" collect_docker_for_host "$host"
+      DASHBOARD_ACTION=display ;;
     systemd:start|systemd:stop|systemd:restart)
       maybe_prompt_for_sudo_password "$host"
       output="$(run_systemd_action "$host" "$ip" "$name" "$choice" 2>&1)"; status=$?
       if [[ "$status" -ne 0 ]] && auth_failure_output "$output"; then unset "SUDO_PASSWORDS[$host]"; unset "SSH_PASSWORDS[$host]"; fi
       show_operation_result "Systemd $choice: $name" "$status" "$output"
-      DASHBOARD_ACTION=refresh ;;
+      [[ "$status" -eq 0 ]] && run_with_loading 70 90 "Refreshing systemd result for $host" collect_systemd_for_host "$host"
+      DASHBOARD_ACTION=display ;;
   esac
 }
 

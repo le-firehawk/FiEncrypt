@@ -202,12 +202,33 @@ ssh_ok_ip() {
 
 ssh_failed_reason() { local r; r="$(get_ssh_result "$1" "$2")"; printf '%s' "${r#*|}"; }
 
+
+systemd_state_label() {
+  local active="$1" enabled="$2" run_state enable_state
+  case "$active" in
+    active) run_state=running ;;
+    inactive) run_state=stopped ;;
+    failed) run_state=failed ;;
+    activating|deactivating|reloading) run_state="$active" ;;
+    *) run_state="${active:-unknown}" ;;
+  esac
+  case "$enabled" in
+    enabled|enabled-runtime) enable_state=enabled ;;
+    disabled) enable_state=disabled ;;
+    static|indirect|generated|transient|alias|masked) enable_state="$enabled" ;;
+    *) enable_state="${enabled:-unknown}" ;;
+  esac
+  printf '%s/%s' "$run_state" "$enable_state"
+}
+
 systemd_result_message() {
-  case "$2" in
-    active) printf '%s is active and running' "$1" ;;
-    failed) printf '%s is failed; inspect journalctl -u %s' "$1" "$1" ;;
-    inactive) printf '%s is inactive' "$1" ;;
-    *) printf '%s returned systemd state %s' "$1" "$2" ;;
+  local unit="$1" active="$2" enabled="${3:-unknown}" label
+  label="$(systemd_state_label "$active" "$enabled")"
+  case "$active" in
+    active) printf '%s is %s' "$unit" "$label" ;;
+    failed) printf '%s is %s; inspect journalctl -u %s' "$unit" "$label" "$unit" ;;
+    inactive) printf '%s is %s' "$unit" "$label" ;;
+    *) printf '%s returned systemd state %s' "$unit" "$label" ;;
   esac
 }
 
@@ -247,39 +268,43 @@ REMOTE
 
 ntp_source_command() { ntp_sources_command; }
 
+collect_systemd_for_host() {
+  local host="$1" selected ip service active enabled state reason target logs_file status_file
+  selected="$(ssh_ok_ip "$host" || true)"
+  while IFS= read -r ip; do
+    status_file="$(cache_file "$host" "$ip" systemd)"
+    : > "$status_file"
+    logs_file="$(cache_file "$host" "$ip" systemd_logs)"
+    : > "$logs_file"
+    IFS=',' read -ra services <<< "${HOST_SERVICES[$host]:-}"
+    for service in "${services[@]}"; do
+      service="${service//[[:space:]]/}"; [[ -z "$service" ]] && continue
+      if [[ -z "$selected" || "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" != PASS ]]; then
+        reason="$(ssh_failed_reason "$host" "$ip")"
+        if [[ "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" == SKIPPED ]]; then
+          printf 'SYSTEMD=%s|SKIPPED|SSH skipped: %s\n' "$service" "$reason" >> "$status_file"
+        else
+          printf 'SYSTEMD=%s|SSH_FAILED|%s\n' "$service" "$reason" >> "$status_file"
+        fi
+      elif [[ "$ip" != "$selected" ]]; then
+        printf 'SYSTEMD=%s|SKIPPED|checked via %s\n' "$service" "$selected" >> "$status_file"
+      else
+        target="$(ssh_target_for_ip "$ip")"
+        active="$(run_ssh "$host" "$target" "systemctl is-active '$service' 2>/dev/null || true" 2>/dev/null || true)"
+        enabled="$(run_ssh "$host" "$target" "systemctl is-enabled '$service' 2>/dev/null || true" 2>/dev/null || true)"
+        [[ -z "$active" ]] && active=unknown
+        [[ -z "$enabled" ]] && enabled=unknown
+        state="$(systemd_state_label "$active" "$enabled")"
+        printf 'SYSTEMD=%s|%s|%s\n' "$service" "$state" "$(systemd_result_message "$service" "$active" "$enabled")" >> "$status_file"
+        { printf '===== %s =====\n' "$service"; run_ssh "$host" "$target" "journalctl -u '$service' -n '$DOCKER_LOG_LINES' --no-pager 2>&1" 2>/dev/null || true; } >> "$logs_file"
+      fi
+    done
+  done < <(host_ips "$host")
+}
+
 collect_systemd_parallel() {
   local host
-  for host in "${!HOST_IPS[@]}"; do
-    (
-      local selected ip service state reason target logs_file
-      selected="$(ssh_ok_ip "$host" || true)"
-      while IFS= read -r ip; do
-        : > "$(cache_file "$host" "$ip" systemd)"
-        logs_file="$(cache_file "$host" "$ip" systemd_logs)"
-        : > "$logs_file"
-        IFS=',' read -ra services <<< "${HOST_SERVICES[$host]:-}"
-        for service in "${services[@]}"; do
-          service="${service//[[:space:]]/}"; [[ -z "$service" ]] && continue
-          if [[ -z "$selected" || "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" != PASS ]]; then
-            reason="$(ssh_failed_reason "$host" "$ip")"
-            if [[ "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" == SKIPPED ]]; then
-              printf 'SYSTEMD=%s|SKIPPED|SSH skipped: %s\n' "$service" "$reason" >> "$(cache_file "$host" "$ip" systemd)"
-            else
-              printf 'SYSTEMD=%s|SSH_FAILED|%s\n' "$service" "$reason" >> "$(cache_file "$host" "$ip" systemd)"
-            fi
-          elif [[ "$ip" != "$selected" ]]; then
-            printf 'SYSTEMD=%s|SKIPPED|checked via %s\n' "$service" "$selected" >> "$(cache_file "$host" "$ip" systemd)"
-          else
-            target="$(ssh_target_for_ip "$ip")"
-            state="$(run_ssh "$host" "$target" "systemctl is-active '$service' 2>/dev/null || true" 2>/dev/null || true)"
-            [[ -z "$state" ]] && state=unknown
-            printf 'SYSTEMD=%s|%s|%s\n' "$service" "$state" "$(systemd_result_message "$service" "$state")" >> "$(cache_file "$host" "$ip" systemd)"
-            { printf '===== %s =====\n' "$service"; run_ssh "$host" "$target" "journalctl -u '$service' -n '$DOCKER_LOG_LINES' --no-pager 2>&1" 2>/dev/null || true; } >> "$logs_file"
-          fi
-        done
-      done < <(host_ips "$host")
-    ) &
-  done
+  for host in "${!HOST_IPS[@]}"; do collect_systemd_for_host "$host" & done
   wait
 }
 
@@ -296,37 +321,37 @@ run_docker_action() {
   run_ssh "$host" "$target" "docker '$action' '$container'"
 }
 
+collect_docker_for_host() {
+  local host="$1" selected ip reason target names container inspect state health logs_file status_file
+  selected="$(ssh_ok_ip "$host" || true)"
+  while IFS= read -r ip; do
+    status_file="$(cache_file "$host" "$ip" docker)"; logs_file="$(cache_file "$host" "$ip" docker_logs)"
+    : > "$status_file"; : > "$logs_file"
+    if [[ -z "$selected" || "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" != PASS ]]; then
+      reason="$(ssh_failed_reason "$host" "$ip")"
+      if [[ "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" == SKIPPED ]]; then
+        printf 'DOCKER=discovery|SKIPPED|SSH skipped: %s\n' "$reason" > "$status_file"
+      else
+        printf 'DOCKER=discovery|SSH_FAILED|%s\n' "$reason" > "$status_file"
+      fi
+      continue
+    fi
+    [[ "$ip" != "$selected" ]] && { printf 'DOCKER=generic|SKIPPED|checked via %s\n' "$selected" > "$status_file"; continue; }
+    target="$(ssh_target_for_ip "$ip")"
+    if [[ -n "${HOST_CONTAINERS[$host]:-}" ]]; then IFS=',' read -ra names <<< "${HOST_CONTAINERS[$host]}"; else mapfile -t names < <(run_ssh "$host" "$target" "docker ps --format '{{.Names}}'" 2>/dev/null || true); fi
+    for container in "${names[@]}"; do
+      container="${container//[[:space:]]/}"; [[ -z "$container" ]] && continue
+      inspect="$(run_ssh "$host" "$target" "docker inspect --format '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' '$container'" 2>/dev/null || true)"
+      state="${inspect%%|*}"; health="${inspect#*|}"; [[ -z "$inspect" || "$state" == "$inspect" ]] && { state=missing; health=unknown; }
+      printf 'DOCKER=%s|%s|%s\n' "$container" "$state" "$health" >> "$status_file"
+      { printf '===== %s =====\n' "$container"; run_ssh "$host" "$target" "docker logs --tail '$DOCKER_LOG_LINES' '$container' 2>&1" 2>/dev/null || true; } >> "$logs_file"
+    done
+  done < <(host_ips "$host")
+}
+
 collect_docker_parallel() {
   local host
-  for host in "${!HOST_IPS[@]}"; do
-    (
-      local selected ip reason target names container inspect state health logs_file status_file
-      selected="$(ssh_ok_ip "$host" || true)"
-      while IFS= read -r ip; do
-        status_file="$(cache_file "$host" "$ip" docker)"; logs_file="$(cache_file "$host" "$ip" docker_logs)"
-        : > "$status_file"; : > "$logs_file"
-        if [[ -z "$selected" || "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" != PASS ]]; then
-          reason="$(ssh_failed_reason "$host" "$ip")"
-          if [[ "$(get_ssh_result "$host" "$ip" | cut -d'|' -f1)" == SKIPPED ]]; then
-            printf 'DOCKER=discovery|SKIPPED|SSH skipped: %s\n' "$reason" > "$status_file"
-          else
-            printf 'DOCKER=discovery|SSH_FAILED|%s\n' "$reason" > "$status_file"
-          fi
-          continue
-        fi
-        [[ "$ip" != "$selected" ]] && { printf 'DOCKER=generic|SKIPPED|checked via %s\n' "$selected" > "$status_file"; continue; }
-        target="$(ssh_target_for_ip "$ip")"
-        if [[ -n "${HOST_CONTAINERS[$host]:-}" ]]; then IFS=',' read -ra names <<< "${HOST_CONTAINERS[$host]}"; else mapfile -t names < <(run_ssh "$host" "$target" "docker ps --format '{{.Names}}'" 2>/dev/null || true); fi
-        for container in "${names[@]}"; do
-          container="${container//[[:space:]]/}"; [[ -z "$container" ]] && continue
-          inspect="$(run_ssh "$host" "$target" "docker inspect --format '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' '$container'" 2>/dev/null || true)"
-          state="${inspect%%|*}"; health="${inspect#*|}"; [[ -z "$inspect" || "$state" == "$inspect" ]] && { state=missing; health=unknown; }
-          printf 'DOCKER=%s|%s|%s\n' "$container" "$state" "$health" >> "$status_file"
-          { printf '===== %s =====\n' "$container"; run_ssh "$host" "$target" "docker logs --tail '$DOCKER_LOG_LINES' '$container' 2>&1" 2>/dev/null || true; } >> "$logs_file"
-        done
-      done < <(host_ips "$host")
-    ) &
-  done
+  for host in "${!HOST_IPS[@]}"; do collect_docker_for_host "$host" & done
   wait
 }
 

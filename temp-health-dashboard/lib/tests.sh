@@ -12,5 +12,5 @@ get_timesync_status() { get_timesync_statuses "$1" "$2" | awk -F'=' '$1 == "TIME
 
 summarize_status_lines() {
   local type="$1"
-  awk -F'[=|]' -v type="$type" '$1 == type { total++; if ($3 == "active" || $3 == "running" || $4 == "healthy" || $4 == "no-healthcheck") ok++ } END { if (!total) print "none"; else printf "%d/%d ok", ok, total }'
+  awk -F'[=|]' -v type="$type" '$1 == type { total++; if ($3 == "active" || $3 == "running" || $3 ~ /^running\// || $4 == "healthy" || $4 == "no-healthcheck") ok++ } END { if (!total) print "none"; else printf "%d/%d ok", ok, total }'
 }
