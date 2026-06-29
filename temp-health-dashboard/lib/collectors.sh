@@ -276,7 +276,7 @@ collect_systemd_parallel() {
 
 run_systemd_action() {
   local host="$1" ip="$2" unit="$3" action="$4" target command
-  target="$(sudo_target_for_ip "$ip")"
+  target="$(ssh_target_for_ip "$ip")"
   command="$(sudo_systemctl_command "$host" "$action" "$unit")"
   run_ssh "$host" "$target" "$command"
 }
@@ -335,7 +335,14 @@ collect_timesync_parallel() {
       target="$(ssh_target_for_ip "$selected")"
       sync="$(run_ssh "$host" "$target" "timedatectl show -p NTPSynchronized --value 2>/dev/null || true" 2>/dev/null || true)"
       sources="$(run_ssh "$host" "$target" "$(ntp_sources_command)" 2>/dev/null | sed '/^$/d' || true)"
-      [[ -z "$sources" ]] && exit 0
+      if [[ -z "$sources" ]]; then
+        if [[ "$sync" == yes ]]; then
+          printf 'TIMESYNC=PASS|synchronized=yes primary=unknown; no NTP sources reported\n' > "$status_file"
+        else
+          printf 'TIMESYNC=FAIL|synchronized=%s primary=unknown; no NTP sources reported\n' "${sync:-unknown}" > "$status_file"
+        fi
+        exit 0
+      fi
       primary="$(printf '%s\n' "$sources" | awk -F'|' '$3 == "*" || $3 == "o" {print $1; found=1; exit} END {if (!found) exit 1}' || printf '%s\n' "$sources" | cut -d'|' -f1 | head -1)"
       [[ -z "$primary" ]] && primary=unknown
       if [[ "$sync" == yes ]]; then printf 'TIMESYNC=PASS|synchronized=yes primary=%s\n' "$primary" > "$status_file"; else printf 'TIMESYNC=FAIL|synchronized=%s primary=%s\n' "${sync:-unknown}" "$primary" > "$status_file"; fi

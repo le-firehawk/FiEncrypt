@@ -32,6 +32,11 @@ assert_eq "$(sudo_target_for_ip 192.0.2.99)" "admin@192.0.2.99"
 SUDO_USER="$SSH_USER"
 assert_eq "$(sudo_systemctl_command localhost restart ssh)" "sudo -n systemctl 'restart' 'ssh'"
 assert_eq "$(sudo_journalctl_command localhost ssh)" "sudo -n journalctl -u 'ssh' -n '40' -f --no-pager"
+captured_target=""
+run_ssh() { captured_target="$2"; return 0; }
+run_systemd_action localhost 127.0.0.1 ssh restart
+assert_eq "$captured_target" "ops@127.0.0.1"
+unset -f run_ssh
 SUDO_PASSWORDS[localhost]="secret"
 [[ "$(sudo_systemctl_command localhost restart ssh)" == *"sudo -S -p '' systemctl 'restart' 'ssh'" ]] || fail "sudo password command not generated"
 [[ "$(sudo_journalctl_command localhost ssh)" == *"sudo -S -p '' journalctl -u 'ssh'"* ]] || fail "sudo journal command not generated"
@@ -48,6 +53,19 @@ grep -q "localhost (127.0.0.1) api" <<< "$docker_menu" || fail "docker log subme
 has_host_streams || fail "host streams not detected"
 stream_host_menu_args | grep -q '^localhost$' || fail "stream host menu missing localhost"
 stream_url_menu_args localhost | grep -q '^rtsp://camera.local/live$' || fail "stream URL menu missing stream"
+fakebin="$(mktemp -d)"
+ssh_log="$(mktemp)"
+cat > "$fakebin/ssh" <<'FAKE'
+#!/usr/bin/env bash
+printf '%s\n' "$*" > "$SSH_LOG"
+exit 0
+FAKE
+chmod +x "$fakebin/ssh"
+SSH_LOG="$ssh_log" PATH="$fakebin:$PATH" start_stream_tunnel myserver 192.0.2.50 23456 camera.local 554
+grep -q -- '-J ops@192.0.2.10,ops@192.0.2.5,ops@192.0.2.20' "$ssh_log" || fail "stream tunnel did not include expanded ProxyJump"
+grep -q -- 'ExitOnForwardFailure=yes' "$ssh_log" || fail "stream tunnel does not require forward success"
+grep -q -- 'BatchMode=yes' "$ssh_log" || fail "stream tunnel can still prompt interactively"
+rm -rf "$fakebin" "$ssh_log"
 SKIP_CHECKS="icmp,ssh,systemd,docker,ntp"
 skipped_dashboard="$(build_dashboard_text 80)"
 ! grep -q "ENDPOINTS" <<< "$skipped_dashboard" || fail "skipped endpoint section rendered"
@@ -123,6 +141,9 @@ TIMESYNC=PASS|synchronized=yes primary=192.0.2.1
 TIMESYNC_SOURCE=192.0.2.1|chrony|*|selected source currently disciplining the clock
 TIMESYNC_SOURCE=192.0.2.2|chrony|+|acceptable source combined with the selected source
 DATA
+cat > "$(cache_file myserver 192.0.2.50 timesync)" <<'DATA'
+TIMESYNC=FAIL|synchronized=no primary=unknown; no NTP sources reported
+DATA
 : > "$(cache_file localhost 127.0.0.2 timesync)"
 printf 'PASS|1ms\n' > "$(cache_file localhost 127.0.0.2 ping)"
 printf 'DOCKER=discovery|SSH_FAILED|auth denied\n' > "$(cache_file localhost 127.0.0.2 docker)"
@@ -132,6 +153,7 @@ dashboard="$(build_dashboard_text 100)"
 grep -q '127.0.0.2' <<< "$dashboard" || fail "second IP missing"
 grep -q 'TIME SYNC / NTP' <<< "$dashboard" || fail "timesync table missing"
 grep -q 'primary=192.0.2.1' <<< "$dashboard" || fail "timesync primary missing"
+grep -q 'myserver.*synchronized=no' <<< "$dashboard" || fail "second host NTP summary missing"
 grep -q '192.0.2.2' <<< "$dashboard" || fail "secondary timesync source missing"
 grep -q 'acceptable source combined' <<< "$dashboard" || fail "timesync source detail missing"
 grep -q 'journalctl' <<< "$dashboard" || fail "systemd guidance missing"

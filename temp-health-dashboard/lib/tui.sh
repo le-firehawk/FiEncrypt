@@ -375,11 +375,48 @@ render_streams_menu() {
   done
 }
 
+start_stream_tunnel() {
+  local host="$1" ip="$2" local_port="$3" hostpart="$4" url_port="$5"
+  local target password timeout_s jump
+  local jump_args=()
+  target="$(ssh_target_for_ip "$ip")"
+  password="$(ssh_password_for_host "$host")"
+  timeout_s="$(operation_timeout)"
+  jump="$(ssh_proxy_jump_for_host "$host" 2>/dev/null || true)"
+  [[ -n "$jump" ]] && jump_args=(-J "$jump")
+  if [[ -n "$password" ]] && command -v sshpass >/dev/null 2>&1; then
+    env SSHPASS="$password" SSH_ASKPASS=/bin/false SSH_ASKPASS_REQUIRE=never DISPLAY= \
+      sshpass -e ssh -f -N $SSH_OPTS \
+      "${jump_args[@]}" \
+      -o ExitOnForwardFailure=yes \
+      -o BatchMode=no \
+      -o PubkeyAuthentication=no \
+      -o PreferredAuthentications=password,keyboard-interactive \
+      -o NumberOfPasswordPrompts=1 \
+      -o ConnectTimeout="$timeout_s" \
+      -o IdentitiesOnly=yes \
+      -o IdentityAgent=none \
+      -L "127.0.0.1:${local_port}:${hostpart}:${url_port}" "$target"
+  else
+    env SSH_ASKPASS=/bin/false SSH_ASKPASS_REQUIRE=never DISPLAY= \
+      ssh -f -N $SSH_OPTS \
+      "${jump_args[@]}" \
+      -o ExitOnForwardFailure=yes \
+      -o BatchMode=yes \
+      -o PasswordAuthentication=no \
+      -o KbdInteractiveAuthentication=no \
+      -o NumberOfPasswordPrompts=0 \
+      -o ConnectTimeout="$timeout_s" \
+      -o IdentitiesOnly=yes \
+      -o IdentityAgent=none \
+      -L "127.0.0.1:${local_port}:${hostpart}:${url_port}" "$target"
+  fi
+}
+
 open_host_stream() {
-  local host="$1" url="$2" ip jump port target hostpart url_port local_port rewritten tunnel_pid
+  local host="$1" url="$2" ip hostpart url_port local_port rewritten output status
   command -v ffplay >/dev/null 2>&1 || { show_message "ffplay missing" "ffplay is required to open streams."; return 0; }
   ip="$(first_host_ip "$host")"
-  jump="$(ssh_proxy_jump_for_host "$host" 2>/dev/null || true)"
   hostpart="$(sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://([^/:]+).*#\1#' <<< "$url")"
   url_port="$(sed -nE 's#^[a-zA-Z][a-zA-Z0-9+.-]*://[^/:]+:([0-9]+).*#\1#p' <<< "$url")"
   case "$url" in
@@ -389,18 +426,19 @@ open_host_stream() {
     *) ffplay "$url" >/dev/null 2>&1 & return 0 ;;
   esac
   local_port="$((20000 + RANDOM % 20000))"
-  target="$(ssh_target_for_ip "$ip")"
   if [[ "$hostpart" != "$url" && -n "$url_port" ]]; then
-    if [[ -n "$jump" ]]; then
-      ssh -f -N -L "127.0.0.1:${local_port}:${hostpart}:${url_port}" -J "$jump" "$target" 2>/dev/null || true
-    else
-      ssh -f -N -L "127.0.0.1:${local_port}:${hostpart}:${url_port}" "$target" 2>/dev/null || true
+    output="$(start_stream_tunnel "$host" "$ip" "$local_port" "$hostpart" "$url_port" 2>&1)"
+    status=$?
+    if [[ "$status" -ne 0 ]]; then
+      show_operation_result "Open stream" "$status" "${output:-Could not create SSH tunnel.}"
+      return 0
     fi
     rewritten="$(sed -E "s#^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/:]+(:[0-9]+)?#\\1127.0.0.1:${local_port}#" <<< "$url")"
-    ffplay "$rewritten" >/dev/null 2>&1 &
+    nohup ffplay "$rewritten" >/dev/null 2>&1 &
   else
-    ffplay "$url" >/dev/null 2>&1 &
+    nohup ffplay "$url" >/dev/null 2>&1 &
   fi
+  show_message "Open stream" "Opening stream in ffplay."
 }
 
 render_dashboard() {
@@ -433,7 +471,7 @@ render_dashboard() {
   fi
   if [[ "$status" -ne 0 || "$choice" == quit || "$choice" == q ]]; then DASHBOARD_ACTION=quit; return 0; fi
   if [[ "$choice" == summary ]]; then render_summary_view; DASHBOARD_ACTION=display; return 0; fi
-  if [[ "$choice" == docker || "$choice" == systemd ]]; then render_service_menu "$choice"; return 0; fi
+  if [[ "$choice" == docker || "$choice" == systemd ]]; then render_service_menu "$choice"; DASHBOARD_ACTION=display; return 0; fi
   if [[ "$choice" == streams ]]; then render_streams_menu; DASHBOARD_ACTION=display; return 0; fi
   [[ "$choice" == recheck ]] && DASHBOARD_ACTION=recheck || DASHBOARD_ACTION=refresh
   return 0
@@ -525,7 +563,7 @@ render_systemd_logs() {
   local host="$1" ip="$2" unit="$3" src stream_file command target
   maybe_prompt_for_sudo_password "$host"
   command="$(sudo_journalctl_command "$host" "$unit")"
-  target="$(sudo_target_for_ip "$ip")"
+  target="$(ssh_target_for_ip "$ip")"
   if [[ "${RUN_ONCE:-0}" -eq 0 && -t 1 ]] && command -v dialog >/dev/null 2>&1; then
     stream_remote_logs "Systemd Logs: $unit" "$host" "$ip" "$command" "$target"
     return 0
