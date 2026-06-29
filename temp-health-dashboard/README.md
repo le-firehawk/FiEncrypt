@@ -25,7 +25,7 @@ For CI or non-interactive checks:
 ./main.sh --config hosts.conf --once
 ```
 
-Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback). If neither package is installed, the tool warns and falls back to CLI stdin/stdout controls (`r` refresh, `q` quit). The first run and every manual refresh show a running-checks screen with the active collection stage before the updated dashboard is rendered. The main menu shows a summary preview above simple menu choices and includes a scrollable Summary view for the full result output, `Refresh` to re-run host tests, `Recheck` to re-run checks and tests, structured Systemd/Docker submenus (`service -> host -> unit/container -> operation`) for row actions such as logs, start, stop, and restart, and optional Host Streams (`host -> stream URL`) entries. Missing, skipped, or SSH-failed Docker containers/systemd units are shown in the summary but omitted from operation submenus.
+Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback). If neither package is installed, the tool warns and falls back to CLI stdin/stdout controls (`r` refresh, `q` quit). The first run and every manual refresh show a running-checks screen with the active collection stage before the updated dashboard is rendered. The main menu shows a summary preview above simple menu choices and includes a scrollable Summary view for the full result output, `Refresh` to re-run host tests, `Recheck` to re-run checks and tests, structured Systemd/Docker submenus (`service -> host -> unit/container -> operation`) for row actions such as realtime logs, start, stop, and restart, and optional Host Streams (`host -> stream URL`) entries. Missing, skipped, or SSH-failed Docker containers/systemd units are shown in the summary but omitted from operation submenus.
 
 ## Config
 
@@ -37,7 +37,7 @@ If `HOST_CONTAINERS[host]` is empty or unset, the dashboard discovers containers
 
 `HOSTS_VIA[host]="jump-a,jump-b"` adds OpenSSH `ProxyJump` routing for that host. Jump hosts must also exist in `HOST_IPS`, and nested routes are expanded, so if `jump-b` itself has `HOSTS_VIA[jump-b]="bastion"`, connections to `host` go through `jump-a,bastion,jump-b`.
 
-Docker actions run `docker` directly as the SSH user. Systemd start/stop/restart actions run through `sudo systemctl`; `SUDO_USER` defaults to `SSH_USER` and is fixed by `hosts.conf`. The TUI prompts once per host for the sudo password before the first systemd action and stores it separately from SSH passwords for the current run; canceling the prompt attempts `sudo -n` without a password.
+Docker actions run `docker` directly as the SSH user. Systemd start/stop/restart actions run through `sudo systemctl`; `SUDO_USER` defaults to `SSH_USER` and is fixed by `hosts.conf`. The TUI prompts once per host for the sudo password before the first systemd action or systemd realtime log stream and stores it separately from SSH passwords for the current run; canceling the prompt attempts `sudo -n` without a password. Action failures and successes are shown in popups, and authentication failures clear cached passwords so the next attempt can prompt again.
 
 `HOST_STREAMS[host]="url1,url2"` adds media streams to the Host Streams menu. Selecting a stream launches `ffplay`; for HTTP(S)/RTSP URLs the tool opens an SSH local-forward through the host's configured `HOSTS_VIA` chain before rewriting the URL to the local tunnel.
 

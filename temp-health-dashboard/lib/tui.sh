@@ -175,6 +175,36 @@ show_message() {
   fi
 }
 
+auth_failure_output() {
+  grep -Eiq 'permission denied|authentication failed|incorrect password|try again|sorry' <<< "${1:-}"
+}
+
+show_operation_result() {
+  local title="$1" status="$2" output="$3"
+  if [[ "$status" -eq 0 ]]; then
+    show_message "$title" "Operation completed successfully."
+  else
+    show_message "$title" "Operation failed with exit code $status.${output:+\n\n$output}"
+  fi
+}
+
+stream_remote_logs() {
+  local title="$1" host="$2" ip="$3" command="$4" target="${5:-}" file pid
+  file="$(mktemp)"
+  [[ -n "$target" ]] || target="$(ssh_target_for_ip "$ip")"
+  if [[ "${RUN_ONCE:-0}" -eq 0 && -t 1 ]] && command -v dialog >/dev/null 2>&1; then
+    (run_ssh "$host" "$target" "$command" > "$file" 2>&1) &
+    pid=$!
+    dialog --title "$title" --tailbox "$file" "$(screen_lines)" "$(screen_cols)" 2>/dev/tty || true
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+  else
+    run_ssh "$host" "$target" "$command" 2>&1 | tee "$file"
+    [[ "${RUN_ONCE:-0}" -eq 0 && -t 1 ]] && { printf '\nPress any key to return...'; read -r -s -n 1 _ || true; }
+  fi
+  rm -f "$file"
+}
+
 render_summary_view() {
   local file
   file="$(mktemp)"
@@ -462,7 +492,7 @@ render_logs_menu() {
 }
 
 render_row_context() {
-  local tag="$1" kind host ip name choice status=0 title
+  local tag="$1" kind host ip name choice status=0 title output
   DASHBOARD_ACTION=display
   IFS='|' read -r kind host ip name <<< "$tag"
   title="$kind: $host ($ip) $name"
@@ -477,13 +507,28 @@ render_row_context() {
   case "$kind:$choice" in
     docker:logs) render_logs "$host" "$ip" "$name" ;;
     systemd:logs) render_systemd_logs "$host" "$ip" "$name" ;;
-    docker:start|docker:stop|docker:restart) run_docker_action "$host" "$ip" "$name" "$choice"; DASHBOARD_ACTION=refresh ;;
-    systemd:start|systemd:stop|systemd:restart) maybe_prompt_for_sudo_password "$host"; run_systemd_action "$host" "$ip" "$name" "$choice"; DASHBOARD_ACTION=refresh ;;
+    docker:start|docker:stop|docker:restart)
+      output="$(run_docker_action "$host" "$ip" "$name" "$choice" 2>&1)"; status=$?
+      show_operation_result "Docker $choice: $name" "$status" "$output"
+      DASHBOARD_ACTION=refresh ;;
+    systemd:start|systemd:stop|systemd:restart)
+      maybe_prompt_for_sudo_password "$host"
+      output="$(run_systemd_action "$host" "$ip" "$name" "$choice" 2>&1)"; status=$?
+      if [[ "$status" -ne 0 ]] && auth_failure_output "$output"; then unset "SUDO_PASSWORDS[$host]"; unset "SSH_PASSWORDS[$host]"; fi
+      show_operation_result "Systemd $choice: $name" "$status" "$output"
+      DASHBOARD_ACTION=refresh ;;
   esac
 }
 
 render_systemd_logs() {
-  local host="$1" ip="$2" unit="$3" src stream_file
+  local host="$1" ip="$2" unit="$3" src stream_file command target
+  maybe_prompt_for_sudo_password "$host"
+  command="$(sudo_journalctl_command "$host" "$unit")"
+  target="$(sudo_target_for_ip "$ip")"
+  if [[ "${RUN_ONCE:-0}" -eq 0 && -t 1 ]] && command -v dialog >/dev/null 2>&1; then
+    stream_remote_logs "Systemd Logs: $unit" "$host" "$ip" "$command" "$target"
+    return 0
+  fi
   src="$(cache_file "$host" "$ip" systemd_logs)"
   stream_file="$(cache_file "$host" "$ip" "systemd_${unit}.stream")"
   get_systemd_logs "$host" "$ip" | awk -v u="$unit" '$0 == "===== " u " =====" {show=1; print; next} /^===== / && show {exit} show {print}' > "$stream_file"
@@ -500,6 +545,10 @@ render_logs() {
   local host="${1:-}" ip="${2:-}" container="${3:-}" src stream_file
   clear 2>/dev/null || true
   if [[ -n "$host" && -n "$ip" ]]; then
+    if [[ "${RUN_ONCE:-0}" -eq 0 && -t 1 && -n "$container" ]] && command -v dialog >/dev/null 2>&1; then
+      stream_remote_logs "Docker Logs: $container" "$host" "$ip" "docker logs --tail '$DOCKER_LOG_LINES' -f '$container' 2>&1"
+      return 0
+    fi
     src="$(cache_file "$host" "$ip" docker_logs)"
     stream_file="$src"
     if [[ -n "$container" ]]; then

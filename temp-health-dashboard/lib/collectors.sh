@@ -105,6 +105,17 @@ sudo_systemctl_command() {
   fi
 }
 
+sudo_journalctl_command() {
+  local host="$1" unit="$2" password encoded
+  password="$(sudo_password_for_host "$host")"
+  if [[ -n "$password" ]]; then
+    encoded="$(printf '%s' "$password" | base64 | tr -d '\n')"
+    printf "printf '%%s' '%s' | base64 -d | sudo -S -p '' journalctl -u '%s' -n '%s' -f --no-pager" "$encoded" "$unit" "$DOCKER_LOG_LINES"
+  else
+    printf "sudo -n journalctl -u '%s' -n '%s' -f --no-pager" "$unit" "$DOCKER_LOG_LINES"
+  fi
+}
+
 run_ssh() {
   local host="$1" target="$2" command="$3" password timeout_s jump jump_args=()
   password="$(ssh_password_for_host "$host")"
@@ -267,13 +278,13 @@ run_systemd_action() {
   local host="$1" ip="$2" unit="$3" action="$4" target command
   target="$(sudo_target_for_ip "$ip")"
   command="$(sudo_systemctl_command "$host" "$action" "$unit")"
-  run_ssh "$host" "$target" "$command" >/dev/null 2>&1 || true
+  run_ssh "$host" "$target" "$command"
 }
 
 run_docker_action() {
   local host="$1" ip="$2" container="$3" action="$4" target
   target="$(ssh_target_for_ip "$ip")"
-  run_ssh "$host" "$target" "docker '$action' '$container'" >/dev/null 2>&1 || true
+  run_ssh "$host" "$target" "docker '$action' '$container'"
 }
 
 collect_docker_parallel() {

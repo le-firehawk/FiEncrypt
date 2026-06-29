@@ -31,8 +31,10 @@ SUDO_USER=admin
 assert_eq "$(sudo_target_for_ip 192.0.2.99)" "admin@192.0.2.99"
 SUDO_USER="$SSH_USER"
 assert_eq "$(sudo_systemctl_command localhost restart ssh)" "sudo -n systemctl 'restart' 'ssh'"
+assert_eq "$(sudo_journalctl_command localhost ssh)" "sudo -n journalctl -u 'ssh' -n '40' -f --no-pager"
 SUDO_PASSWORDS[localhost]="secret"
 [[ "$(sudo_systemctl_command localhost restart ssh)" == *"sudo -S -p '' systemctl 'restart' 'ssh'" ]] || fail "sudo password command not generated"
+[[ "$(sudo_journalctl_command localhost ssh)" == *"sudo -S -p '' journalctl -u 'ssh'"* ]] || fail "sudo journal command not generated"
 unset 'SUDO_PASSWORDS[localhost]'
 SKIP_CHECKS="ssh,ntp"
 is_check_skipped ssh || fail "ssh skip not detected"
