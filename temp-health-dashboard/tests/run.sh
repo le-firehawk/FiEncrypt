@@ -77,6 +77,7 @@ grep -q -- 'ExitOnForwardFailure=yes' "$ssh_log" || fail "stream tunnel does not
 grep -q -- 'BatchMode=yes' "$ssh_log" || fail "stream tunnel can still prompt interactively"
 SSH_LOG="$ssh_log" FFPLAY_LOG="$ffplay_log" PATH="$fakebin:$PATH" open_host_stream myserver rtsp://camera.local/live
 grep -q 'rtsp://127.0.0.1:' "$ffplay_log" || fail "stream URL was not rewritten to forwarded localhost port"
+grep -q -- '-rtsp_transport tcp' "$ffplay_log" || fail "RTSP streams must force TCP transport through SSH tunnels"
 first_stream_url="$(cat "$ffplay_log")"
 SSH_LOG="$ssh_log" FFPLAY_LOG="$ffplay_log" PATH="$fakebin:$PATH" open_host_stream myserver rtsp://camera.local/live
 assert_eq "$(cat "$ffplay_log")" "$first_stream_url"

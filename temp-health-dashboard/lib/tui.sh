@@ -506,11 +506,15 @@ start_stream_tunnel() {
 
 launch_ffplay() {
   local url="$1" log_file pid
+  local ffplay_args=()
+  case "$url" in
+    rtsp://*) ffplay_args=(-rtsp_transport tcp -analyzeduration 10000000 -probesize 10000000) ;;
+  esac
   log_file="$(mktemp)"
   if command -v setsid >/dev/null 2>&1; then
-    setsid ffplay "$url" >"$log_file" 2>&1 &
+    setsid ffplay "${ffplay_args[@]}" "$url" >"$log_file" 2>&1 &
   else
-    ffplay "$url" >"$log_file" 2>&1 &
+    ffplay "${ffplay_args[@]}" "$url" >"$log_file" 2>&1 &
   fi
   pid=$!
   sleep 1
@@ -554,7 +558,7 @@ open_host_stream() {
       return 0
     fi
     rewritten="$(sed -E "s#^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/:]+(:[0-9]+)?#\\1127.0.0.1:${local_port}#" <<< "$url")"
-    show_message "Stream tunnel" "Forwarded stream URL:\n$rewritten\n\nThe tunnel stays open until the dashboard exits."
+    show_message "Stream tunnel" "Forwarded stream URL:\n$rewritten\n\nFor RTSP, use TCP interleaving manually:\nffplay -rtsp_transport tcp \"$rewritten\"\n\nThe tunnel stays open until the dashboard exits."
     launch_ffplay "$rewritten"
   else
     launch_ffplay "$url"
