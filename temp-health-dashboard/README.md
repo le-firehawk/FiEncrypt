@@ -29,13 +29,15 @@ Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by
 
 ## Config
 
-`hosts.conf` is a Bash config file. Define `HOST_IPS`; optionally define `HOST_SERVICES`, `HOST_CONTAINERS`, `HOST_TIMESYNC`, `HOSTS_VIA`, `SSH_USER`, `SSH_OPTS`, `SSH_CHECK_RETRIES`, and `DOCKER_LOG_LINES`. Use `--interval SECONDS` to configure operation timeouts; ICMP performs one-second ping attempts using a count of `interval - 1` attempts, while SSH, systemd, Docker, and time-sync operations use a timeout one second shorter than the interval, with a minimum of one second. `HOST_TIMESYNC[host]="1"` enables the NTP/time-sync check for that host and `0`, `no`, `false`, or `disabled` skips it. `SSH_CHECK_RETRIES` defaults to `1` and only retries transient SSH transport failures such as blank-stderr exits and timeouts; authentication failures are not retried unless the interactive password retry path is used.
+`hosts.conf` is a Bash config file. Define `HOST_IPS`; optionally define `HOST_SERVICES`, `HOST_CONTAINERS`, `HOST_TIMESYNC`, `HOSTS_VIA`, `SSH_USER`, `SUDO_USER`, `SSH_OPTS`, `SSH_CHECK_RETRIES`, and `DOCKER_LOG_LINES`. Use `--interval SECONDS` to configure operation timeouts; ICMP performs one-second ping attempts using a count of `interval - 1` attempts, while SSH, systemd, Docker, and time-sync operations use a timeout one second shorter than the interval, with a minimum of one second. `HOST_TIMESYNC[host]="1"` enables the NTP/time-sync check for that host and `0`, `no`, `false`, or `disabled` skips it. `SSH_CHECK_RETRIES` defaults to `1` and only retries transient SSH transport failures such as blank-stderr exits and timeouts; authentication failures are not retried unless the interactive password retry path is used.
 
 Define each host once in `HOST_IPS` and put multiple addresses in a comma-separated value, for example `[edge-a]="10.0.0.10,10.0.1.10"`. Repeating the same Bash associative-array key overwrites the earlier value, so only the last assignment survives.
 
 If `HOST_CONTAINERS[host]` is empty or unset, the dashboard discovers containers on that host with `docker ps --format '{{.Names}}'` over SSH.
 
 `HOSTS_VIA[host]="jump-a,jump-b"` adds OpenSSH `ProxyJump` routing for that host. Jump hosts must also exist in `HOST_IPS`, and nested routes are expanded, so if `jump-b` itself has `HOSTS_VIA[jump-b]="bastion"`, connections to `host` go through `jump-a,bastion,jump-b`.
+
+Docker actions run `docker` directly as the SSH user. Systemd start/stop/restart actions run through `sudo -n systemctl`; `SUDO_USER` defaults to `SSH_USER`, and if it differs the TUI prompts once per run to confirm or edit the sudo-capable user before the first systemd action.
 
 ## Tests
 

@@ -2,6 +2,7 @@
 
 declare -Ag SSH_PASSWORDS=()
 declare -Ag SSH_PASSWORD_DECLINED=()
+SUDO_USER_PROMPTED=0
 DASHBOARD_ACTION="refresh"
 LOADING_FD=""
 LOADING_PID=""
@@ -79,6 +80,22 @@ maybe_prompt_for_ssh_password() {
       break
     done < <(host_ips "$host")
   done
+}
+
+ensure_sudo_user_prompted() {
+  [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]] && return 0
+  [[ "${SUDO_USER:-}" == "${SSH_USER:-}" || "$SUDO_USER_PROMPTED" -eq 1 ]] && return 0
+  local value status=0
+  if command -v dialog >/dev/null 2>&1; then
+    value="$(dialog --title "Sudo user" --inputbox "Systemd start/stop/restart operations use sudo. Confirm or edit the sudo-capable user for this run." 10 76 "${SUDO_USER:-$SSH_USER}" 2>&1 >/dev/tty)" || status=$?
+  elif command -v whiptail >/dev/null 2>&1; then
+    value="$(whiptail --title "Sudo user" --inputbox "Systemd start/stop/restart operations use sudo. Confirm or edit the sudo-capable user for this run." 10 76 "${SUDO_USER:-$SSH_USER}" 2>&1 >/dev/tty)" || status=$?
+  else
+    SUDO_USER_PROMPTED=1
+    return 0
+  fi
+  [[ "$status" -eq 0 && -n "$value" ]] && SUDO_USER="$value"
+  SUDO_USER_PROMPTED=1
 }
 
 has_docker_logs_available() {
@@ -248,7 +265,7 @@ render_row_context() {
     docker:logs) render_logs "$host" "$ip" "$name" ;;
     systemd:logs) render_systemd_logs "$host" "$ip" "$name" ;;
     docker:start|docker:stop|docker:restart) run_docker_action "$host" "$ip" "$name" "$choice"; DASHBOARD_ACTION=refresh ;;
-    systemd:start|systemd:stop|systemd:restart) run_systemd_action "$host" "$ip" "$name" "$choice"; DASHBOARD_ACTION=refresh ;;
+    systemd:start|systemd:stop|systemd:restart) ensure_sudo_user_prompted; run_systemd_action "$host" "$ip" "$name" "$choice"; DASHBOARD_ACTION=refresh ;;
   esac
 }
 

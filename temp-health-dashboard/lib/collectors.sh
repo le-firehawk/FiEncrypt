@@ -249,7 +249,7 @@ collect_systemd_parallel() {
 
 run_systemd_action() {
   local host="$1" ip="$2" unit="$3" action="$4" target
-  target="$(ssh_target_for_ip "$ip")"
+  target="$(sudo_target_for_ip "$ip")"
   run_ssh "$host" "$target" "sudo -n systemctl '$action' '$unit'" >/dev/null 2>&1 || true
 }
 

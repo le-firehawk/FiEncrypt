@@ -7,6 +7,7 @@ declare -Ag HOST_TIMESYNC=()
 declare -Ag HOSTS_VIA=()
 declare -Ag CHECK_SCOPES=([icmp]=per-ip [ssh]=per-ip [systemd]=per-host [docker]=per-host [timesync]=per-host)
 SSH_USER="${SSH_USER:-}"
+SUDO_USER="${SUDO_USER:-$SSH_USER}"
 SSH_OPTS="${SSH_OPTS:--o StrictHostKeyChecking=accept-new}"
 SSH_CHECK_RETRIES="${SSH_CHECK_RETRIES:-1}"
 DOCKER_LOG_LINES="${DOCKER_LOG_LINES:-40}"
@@ -23,6 +24,10 @@ load_config() {
 
 ssh_target_for_ip() {
   [[ -n "$SSH_USER" && "$1" != *@* ]] && printf '%s@%s' "$SSH_USER" "$1" || printf '%s' "$1"
+}
+
+sudo_target_for_ip() {
+  [[ -n "$SUDO_USER" && "$1" != *@* ]] && printf '%s@%s' "$SUDO_USER" "$1" || ssh_target_for_ip "$1"
 }
 
 validate_hosts_via() {
