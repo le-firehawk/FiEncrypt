@@ -22,7 +22,8 @@ parse_args "$@"
 load_config "$CONFIG_FILE"
 init_cache
 [[ "$RUN_ONCE" -eq 0 ]] && SUPPRESS_STDERR_LOGS=1
-trap 'printf "\nExiting health dashboard.\n" >&2; exit 130' INT TERM
+trap 'cleanup_stream_tunnels; printf "\nExiting health dashboard.\n" >&2; exit 130' INT TERM
+trap 'cleanup_stream_tunnels' EXIT
 
 run_checks() {
   clear_cycle_cache

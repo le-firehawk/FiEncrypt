@@ -5,7 +5,7 @@ This directory expands the provided shell sketch into a real-results-only Bash d
 ## What it checks
 
 - ICMP reachability with `ping` for every configured host/IP.
-- SSH connectivity for every host/IP; host-level SSH overrides are intentionally not supported so every address is tested independently.
+- SSH connectivity for every host/IP; host-level SSH overrides are intentionally not supported so every address is tested independently. If ICMP reports no route to an address, SSH and SSH-dependent checks for that address are skipped instead of prompting for credentials.
 - Systemd unit status and recent journal logs over SSH with `systemctl is-active`, `systemctl is-enabled`, and `journalctl`, rendered one unit per row with qualified states such as `running/enabled`, `stopped/disabled`, or `failed/enabled`. For hosts with multiple IPs, generic SSH-backed checks run on the first SSH-successful IP and later IPs are marked `SKIPPED`; if an earlier IP does not yield an SSH result, the next IP is tried.
 - Docker container status and recent logs over SSH with `docker ps`, `docker inspect`, and `docker logs`, rendered one container per row. If SSH fails for every IP, Docker rows are marked `SSH_FAILED` with the SSH failure reason.
 - Time synchronization health over SSH, including a per-host NTP summary in the dashboard and a separate NTP Sources submenu for every source reported by `chronyc`, `ntpq`, or `timedatectl`.
@@ -39,7 +39,7 @@ If `HOST_CONTAINERS[host]` is empty or unset, the dashboard discovers containers
 
 Docker actions run `docker` directly as the SSH user. Systemd start/stop/restart actions run through `sudo systemctl`; `SUDO_USER` defaults to `SSH_USER` and is fixed by `hosts.conf`. The TUI prompts once per host for the sudo password before the first systemd action or systemd realtime log stream and stores it separately from SSH passwords for the current run; canceling the prompt attempts `sudo -n` without a password. Action failures and successes are shown in popups, successful Docker/Systemd actions immediately refresh that host's cached rows, and authentication failures clear cached passwords so the next attempt can prompt again.
 
-`HOST_STREAMS[host]="url1,url2"` adds media streams to the Host Streams menu. Selecting a stream launches `ffplay`; for HTTP(S)/RTSP URLs the tool opens an SSH local-forward through the host's configured `HOSTS_VIA` chain before rewriting the URL to the local tunnel, then reports if `ffplay` exits immediately.
+`HOST_STREAMS[host]="url1,url2"` adds media streams to the Host Streams menu. Selecting a stream launches `ffplay`; for HTTP(S)/RTSP URLs the tool opens an SSH local-forward through the host's configured `HOSTS_VIA` chain before rewriting the URL to the local tunnel, reuses the same local port on repeated launches of the same stream, keeps the tunnel open until the dashboard exits, displays the local URL, and reports if `ffplay` exits immediately.
 
 ## Tests
 

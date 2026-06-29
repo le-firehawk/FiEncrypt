@@ -4,6 +4,8 @@ declare -Ag SSH_PASSWORDS=()
 declare -Ag SSH_PASSWORD_DECLINED=()
 declare -Ag SUDO_PASSWORDS=()
 declare -Ag SUDO_PASSWORD_DECLINED=()
+declare -Ag STREAM_PORTS=()
+declare -Ag STREAM_TUNNEL_PIDS=()
 DASHBOARD_ACTION="refresh"
 LOADING_FD=""
 LOADING_PID=""
@@ -11,6 +13,14 @@ LOADING_PID=""
 screen_cols() { tput cols 2>/dev/null || echo 120; }
 screen_lines() { tput lines 2>/dev/null || echo 40; }
 text_width() { local w; w="$(screen_cols)"; ((w > 4)) && echo $((w - 4)) || echo 80; }
+
+cleanup_stream_tunnels() {
+  local key pid
+  for key in "${!STREAM_TUNNEL_PIDS[@]}"; do
+    pid="${STREAM_TUNNEL_PIDS[$key]}"
+    [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
+  done
+}
 
 draw_loading() {
   [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]] && return 0
@@ -445,9 +455,13 @@ render_ntp_sources_menu() {
 }
 
 start_stream_tunnel() {
-  local host="$1" ip="$2" local_port="$3" hostpart="$4" url_port="$5"
+  local host="$1" ip="$2" local_port="$3" hostpart="$4" url_port="$5" key="${6:-}"
   local target password timeout_s jump
   local jump_args=()
+  local cmd_pid
+  if [[ -n "$key" && -n "${STREAM_TUNNEL_PIDS[$key]:-}" ]] && kill -0 "${STREAM_TUNNEL_PIDS[$key]}" 2>/dev/null; then
+    return 0
+  fi
   target="$(ssh_target_for_ip "$ip")"
   password="$(ssh_password_for_host "$host")"
   timeout_s="$(operation_timeout)"
@@ -455,7 +469,7 @@ start_stream_tunnel() {
   [[ -n "$jump" ]] && jump_args=(-J "$jump")
   if [[ -n "$password" ]] && command -v sshpass >/dev/null 2>&1; then
     env SSHPASS="$password" SSH_ASKPASS=/bin/false SSH_ASKPASS_REQUIRE=never DISPLAY= \
-      sshpass -e ssh -f -N $SSH_OPTS \
+      sshpass -e ssh -N $SSH_OPTS \
       "${jump_args[@]}" \
       -o ExitOnForwardFailure=yes \
       -o BatchMode=no \
@@ -465,10 +479,10 @@ start_stream_tunnel() {
       -o ConnectTimeout="$timeout_s" \
       -o IdentitiesOnly=yes \
       -o IdentityAgent=none \
-      -L "127.0.0.1:${local_port}:${hostpart}:${url_port}" "$target"
+      -L "127.0.0.1:${local_port}:${hostpart}:${url_port}" "$target" &
   else
     env SSH_ASKPASS=/bin/false SSH_ASKPASS_REQUIRE=never DISPLAY= \
-      ssh -f -N $SSH_OPTS \
+      ssh -N $SSH_OPTS \
       "${jump_args[@]}" \
       -o ExitOnForwardFailure=yes \
       -o BatchMode=yes \
@@ -478,8 +492,16 @@ start_stream_tunnel() {
       -o ConnectTimeout="$timeout_s" \
       -o IdentitiesOnly=yes \
       -o IdentityAgent=none \
-      -L "127.0.0.1:${local_port}:${hostpart}:${url_port}" "$target"
+      -L "127.0.0.1:${local_port}:${hostpart}:${url_port}" "$target" &
   fi
+  cmd_pid=$!
+  sleep 1
+  if ! kill -0 "$cmd_pid" 2>/dev/null; then
+    wait "$cmd_pid" 2>/dev/null || return $?
+    return 1
+  fi
+  [[ -n "$key" ]] && STREAM_TUNNEL_PIDS[$key]="$cmd_pid"
+  return 0
 }
 
 launch_ffplay() {
@@ -503,7 +525,7 @@ launch_ffplay() {
 }
 
 open_host_stream() {
-  local host="$1" url="$2" ip hostpart url_port local_port rewritten output status
+  local host="$1" url="$2" ip hostpart url_port local_port rewritten output status stream_key output_file
   command -v ffplay >/dev/null 2>&1 || { show_message "ffplay missing" "ffplay is required to open streams."; return 0; }
   ip="$(first_host_ip "$host")"
   hostpart="$(sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://([^/:]+).*#\1#' <<< "$url")"
@@ -514,15 +536,25 @@ open_host_stream() {
     rtsp://*) : "${url_port:=554}" ;;
     *) launch_ffplay "$url"; return 0 ;;
   esac
-  local_port="$((20000 + RANDOM % 20000))"
+  stream_key="$(safe_key "${host}_${url}")"
+  local_port="${STREAM_PORTS[$stream_key]:-}"
+  if [[ -z "$local_port" ]]; then
+    local_port="$((20000 + RANDOM % 20000))"
+    STREAM_PORTS[$stream_key]="$local_port"
+  fi
   if [[ "$hostpart" != "$url" && -n "$url_port" ]]; then
-    output="$(start_stream_tunnel "$host" "$ip" "$local_port" "$hostpart" "$url_port" 2>&1)"
+    output_file="$(mktemp)"
+    start_stream_tunnel "$host" "$ip" "$local_port" "$hostpart" "$url_port" "$stream_key" >"$output_file" 2>&1
     status=$?
+    output="$(cat "$output_file" 2>/dev/null || true)"
+    rm -f "$output_file"
     if [[ "$status" -ne 0 ]]; then
+      unset "STREAM_PORTS[$stream_key]"
       show_operation_result "Open stream" "$status" "${output:-Could not create SSH tunnel.}"
       return 0
     fi
     rewritten="$(sed -E "s#^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/:]+(:[0-9]+)?#\\1127.0.0.1:${local_port}#" <<< "$url")"
+    show_message "Stream tunnel" "Forwarded stream URL:\n$rewritten\n\nThe tunnel stays open until the dashboard exits."
     launch_ffplay "$rewritten"
   else
     launch_ffplay "$url"
@@ -568,7 +600,7 @@ render_dashboard() {
 }
 
 build_dashboard_text() {
-  local width="$1" host ip result state detail line printed
+  local width="$1" host ip result state detail line printed local_status local_enabled
   printf 'Health Dashboard | updated %s | interval %ss | timeout %ss\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$REFRESH_INTERVAL" "$(operation_timeout)"
   printf '%*s\n' "$width" '' | tr ' ' '-'
   if ! is_check_skipped icmp || ! is_check_skipped ssh; then
@@ -581,8 +613,22 @@ build_dashboard_text() {
     done
   fi
   if ! is_check_skipped systemd; then
-    printf '\nSYSTEMD\n%-18s %-15s %-24s %-12s %s\n' HOST IP UNIT STATUS DETAIL
-    for host in "${!HOST_IPS[@]}"; do while IFS= read -r ip; do while IFS='=|' read -r _ unit state detail; do [[ -n "$unit" ]] && printf '%-18s %-15s %-24s %-12s %s\n' "$host" "$ip" "$unit" "$state" "$detail"; done < <(get_systemd_statuses "$host" "$ip"); done < <(host_ips "$host"); done
+    printf '\nSYSTEMD\n%-18s %-15s %-24s %-12s %-8s %s\n' HOST IP UNIT STATUS ENABLED DETAIL
+    for host in "${!HOST_IPS[@]}"; do
+      while IFS= read -r ip; do
+        while IFS='=|' read -r _ unit state detail; do
+          [[ -z "$unit" ]] && continue
+          local_status="${state%%/*}"
+          local_enabled="${state#*/}"
+          [[ "$local_enabled" == "$state" ]] && local_enabled=unknown
+          case "$local_enabled" in
+            enabled) local_enabled=yes ;;
+            disabled) local_enabled=no ;;
+          esac
+          printf '%-18s %-15s %-24s %-12s %-8s %s\n' "$host" "$ip" "$unit" "$local_status" "$local_enabled" "$detail"
+        done < <(get_systemd_statuses "$host" "$ip")
+      done < <(host_ips "$host")
+    done
   fi
   if ! is_check_skipped docker; then
     printf '\nDOCKER\n%-18s %-15s %-24s %-12s %s\n' HOST IP CONTAINER STATE HEALTH

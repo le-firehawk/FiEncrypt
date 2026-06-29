@@ -60,9 +60,12 @@ ping_one() {
   local host="$1" ip="$2" tmp timeout_s lat
   tmp="$(cache_file "$host" "$ip" ping.raw)"
   timeout_s="$(operation_timeout)"
-  if ping -n -c1 -W"$timeout_s" "$ip" > "$tmp" 2>/dev/null; then
+  if ping -n -c1 -W"$timeout_s" "$ip" > "$tmp" 2>&1; then
     lat="$(sed -n 's/.*time=\([0-9.]*\).*/\1/p' "$tmp" | head -1)"
     printf 'PASS|%sms\n' "${lat:-unknown}"
+  elif grep -Eiq 'no route to host|network is unreachable|destination host unreachable' "$tmp"; then
+    log_event WARN "icmp no route host=$host ip=$ip timeout=${timeout_s}s"
+    printf 'NO_ROUTE|no route to host\n'
   else
     log_event WARN "icmp ping failed host=$host ip=$ip timeout=${timeout_s}s"
     printf 'FAIL|unreachable\n'
@@ -166,9 +169,15 @@ ssh_error_reason_text() {
 }
 
 collect_ssh_for_host() {
-  local host="$1" ip key target output status reason attempt max_attempts
+  local host="$1" ip key target output status reason attempt max_attempts ping_result
   while IFS= read -r ip; do
     key="$(cache_file "$host" "$ip" ssh)"
+    ping_result="$(get_ping_result "$host" "$ip")"
+    if [[ "${ping_result%%|*}" == NO_ROUTE ]]; then
+      printf 'SKIPPED|ICMP no route to host\n' > "$key"
+      : > "$(cache_file "$host" "$ip" ssh.err)"
+      continue
+    fi
     target="$(ssh_target_for_ip "$ip")"
     max_attempts=$((SSH_CHECK_RETRIES + 1))
     for ((attempt=1; attempt<=max_attempts; attempt++)); do

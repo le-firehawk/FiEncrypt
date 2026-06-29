@@ -62,7 +62,7 @@ ssh_log="$(mktemp)"
 cat > "$fakebin/ssh" <<'FAKE'
 #!/usr/bin/env bash
 printf '%s\n' "$*" > "$SSH_LOG"
-exit 0
+sleep 5
 FAKE
 ffplay_log="$(mktemp)"
 cat > "$fakebin/ffplay" <<'FAKE'
@@ -71,12 +71,16 @@ printf '%s\n' "$*" > "$FFPLAY_LOG"
 sleep 2
 FAKE
 chmod +x "$fakebin"/*
-SSH_LOG="$ssh_log" PATH="$fakebin:$PATH" start_stream_tunnel myserver 192.0.2.50 23456 camera.local 554
+SSH_LOG="$ssh_log" PATH="$fakebin:$PATH" start_stream_tunnel myserver 192.0.2.50 23456 camera.local 554 test_stream
 grep -q -- '-J ops@192.0.2.10,ops@192.0.2.5,ops@192.0.2.20' "$ssh_log" || fail "stream tunnel did not include expanded ProxyJump"
 grep -q -- 'ExitOnForwardFailure=yes' "$ssh_log" || fail "stream tunnel does not require forward success"
 grep -q -- 'BatchMode=yes' "$ssh_log" || fail "stream tunnel can still prompt interactively"
 SSH_LOG="$ssh_log" FFPLAY_LOG="$ffplay_log" PATH="$fakebin:$PATH" open_host_stream myserver rtsp://camera.local/live
 grep -q 'rtsp://127.0.0.1:' "$ffplay_log" || fail "stream URL was not rewritten to forwarded localhost port"
+first_stream_url="$(cat "$ffplay_log")"
+SSH_LOG="$ssh_log" FFPLAY_LOG="$ffplay_log" PATH="$fakebin:$PATH" open_host_stream myserver rtsp://camera.local/live
+assert_eq "$(cat "$ffplay_log")" "$first_stream_url"
+cleanup_stream_tunnels
 rm -rf "$fakebin" "$ssh_log" "$ffplay_log"
 SKIP_CHECKS="icmp,ssh,systemd,docker,ntp"
 skipped_dashboard="$(build_dashboard_text 80)"
@@ -125,6 +129,12 @@ ping_one localhost 127.0.0.1 > "$(cache_file localhost 127.0.0.1 ping)"
 printf 'PASS|connected\n' > "$(cache_file localhost 127.0.0.1 ssh)"
 printf 'FAIL|auth denied\n' > "$(cache_file localhost 127.0.0.2 ssh)"
 assert_eq "$(ssh_ok_ip localhost)" "127.0.0.1"
+HOST_IPS[noroute]="203.0.113.10"
+printf 'NO_ROUTE|no route to host\n' > "$(cache_file noroute 203.0.113.10 ping)"
+run_ssh() { fail "SSH should not run after ICMP no route"; }
+collect_ssh_for_host noroute
+unset -f run_ssh
+assert_eq "$(get_ssh_result noroute 203.0.113.10)" "SKIPPED|ICMP no route to host"
 
 cat > "$(cache_file localhost 127.0.0.1 systemd)" <<'DATA'
 SYSTEMD=ssh|running/enabled|ssh is running/enabled
@@ -174,5 +184,7 @@ ntp_host_menu_args | grep -q '^myserver$' || fail "NTP sources menu missing seco
 grep -q '192.0.2.2' <<< "$ntp_detail" || fail "secondary timesync source missing from NTP detail"
 grep -q 'acceptable source combined' <<< "$ntp_detail" || fail "timesync source detail missing from NTP detail"
 grep -q 'journalctl' <<< "$dashboard" || fail "systemd guidance missing"
+grep -q 'STATUS       ENABLED' <<< "$dashboard" || fail "systemd enabled column missing"
+grep -q 'ssh.*running.*yes' <<< "$dashboard" || fail "systemd enabled value not rendered separately"
 
 echo "all tests passed"
