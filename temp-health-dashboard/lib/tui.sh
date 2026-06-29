@@ -109,11 +109,11 @@ docker_log_menu_args() {
         IFS=',' read -ra containers <<< "${HOST_CONTAINERS[$host]}"
         for container in "${containers[@]}"; do
           container="${container//[[:space:]]/}"
-          [[ -n "$container" ]] && output+="$(printf 'log|%s|%s|%s\n%s %s' "$host" "$ip" "$container" "$host/$ip" "$container")"$'\n'
+          [[ -n "$container" ]] && output+="$(printf 'log|%s|%s|%s\n%s (%s) %s' "$host" "$ip" "$container" "$host" "$ip" "$container")"$'\n'
         done
       elif [[ -f "$status_file" ]]; then
         while IFS='=|' read -r _ container _ _; do
-          [[ -n "$container" && "$container" != discovery && "$container" != generic ]] && output+="$(printf 'log|%s|%s|%s\n%s %s' "$host" "$ip" "$container" "$host/$ip" "$container")"$'\n'
+          [[ -n "$container" && "$container" != discovery && "$container" != generic ]] && output+="$(printf 'log|%s|%s|%s\n%s (%s) %s' "$host" "$ip" "$container" "$host" "$ip" "$container")"$'\n'
         done < "$status_file"
       fi
     done < <(host_ips "$host")
@@ -122,6 +122,29 @@ docker_log_menu_args() {
 }
 
 configured_docker_menu_args() { docker_log_menu_args; }
+
+dashboard_row_menu_args() {
+  local host ip unit state detail container health output=""
+  if ! is_check_skipped systemd; then
+    for host in "${!HOST_IPS[@]}"; do
+      while IFS= read -r ip; do
+        while IFS='=|' read -r _ unit state detail; do
+          [[ -n "$unit" ]] && output+="$(printf 'systemd|%s|%s|%s\n%s (%s) systemd %s [%s]' "$host" "$ip" "$unit" "$host" "$ip" "$unit" "$state")"$'\n'
+        done < <(get_systemd_statuses "$host" "$ip")
+      done < <(host_ips "$host")
+    done
+  fi
+  if ! is_check_skipped docker; then
+    for host in "${!HOST_IPS[@]}"; do
+      while IFS= read -r ip; do
+        while IFS='=|' read -r _ container state health; do
+          [[ -n "$container" && "$container" != discovery && "$container" != generic ]] && output+="$(printf 'docker|%s|%s|%s\n%s (%s) docker %s [%s/%s]' "$host" "$ip" "$container" "$host" "$ip" "$container" "$state" "$health")"$'\n'
+        done < <(get_docker_statuses "$host" "$ip")
+      done < <(host_ips "$host")
+    done
+  fi
+  printf '%s' "$output"
+}
 
 render_dashboard() {
   local body choice status=0 menu_args=()
@@ -132,8 +155,8 @@ render_dashboard() {
     DASHBOARD_ACTION=quit
     return 0
   fi
-  menu_args+=(refresh "Refresh" recheck "Recheck now")
-  has_docker_logs_available && menu_args+=(logs "Docker Logs")
+  menu_args+=(refresh "Refresh: re-run tests" recheck "Recheck: re-run checks & tests")
+  while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(dashboard_row_menu_args)
   menu_args+=(quit "Quit")
   if command -v dialog >/dev/null 2>&1; then
     choice="$(dialog --title "Health Dashboard" --menu "$body" "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
@@ -143,7 +166,6 @@ render_dashboard() {
     {
       clear 2>/dev/null || true
       printf '%s\n\nCommands: Enter=refresh, r=recheck, q=quit' "$body"
-      has_docker_logs_available && printf ', l=logs'
       printf '\n'
     } >/dev/tty
     read -r -s -n 1 choice </dev/tty || true
@@ -151,7 +173,7 @@ render_dashboard() {
     [[ "$choice" == r ]] && choice=recheck
   fi
   if [[ "$status" -ne 0 || "$choice" == quit || "$choice" == q ]]; then DASHBOARD_ACTION=quit; return 0; fi
-  if [[ "$choice" == logs || "$choice" == l ]] && has_docker_logs_available; then render_logs_menu; DASHBOARD_ACTION=display; return 0; fi
+  if [[ "$choice" == systemd\|* || "$choice" == docker\|* ]]; then render_row_context "$choice"; return 0; fi
   [[ "$choice" == recheck ]] && DASHBOARD_ACTION=recheck || DASHBOARD_ACTION=refresh
   return 0
 }
@@ -197,17 +219,51 @@ build_dashboard_text() {
 render_logs_menu() {
   local choice status=0 menu_args=()
   while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(docker_log_menu_args)
-  menu_args+=(back "Back to summary")
   if [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]]; then render_logs; return 0; fi
   if command -v dialog >/dev/null 2>&1; then
-    choice="$(dialog --title "Docker Logs" --menu "Select a configured container to stream cached logs." "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
+    choice="$(dialog --cancel-label "Back" --title "Docker Logs" --menu "Select a container to stream cached logs." "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
   elif command -v whiptail >/dev/null 2>&1; then
-    choice="$(whiptail --title "Docker Logs" --menu "Select a configured container to stream cached logs." "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
+    choice="$(whiptail --cancel-button "Back" --title "Docker Logs" --menu "Select a container to stream cached logs." "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
   else
     render_logs; return 0
   fi
-  [[ "$status" -ne 0 || "$choice" == back ]] && return 0
+  [[ "$status" -ne 0 ]] && return 0
   if [[ "$choice" == log\|* ]]; then IFS='|' read -r _ log_host log_ip log_container <<< "$choice"; render_logs "$log_host" "$log_ip" "$log_container"; render_logs_menu; fi
+}
+
+render_row_context() {
+  local tag="$1" kind host ip name choice status=0 title
+  DASHBOARD_ACTION=display
+  IFS='|' read -r kind host ip name <<< "$tag"
+  title="$kind: $host ($ip) $name"
+  if command -v dialog >/dev/null 2>&1; then
+    choice="$(dialog --cancel-label "Back" --title "$title" --menu "Choose an action." 14 76 8 logs "View logs" start "Start" stop "Stop" restart "Restart" 2>&1 >/dev/tty)" || status=$?
+  elif command -v whiptail >/dev/null 2>&1; then
+    choice="$(whiptail --cancel-button "Back" --title "$title" --menu "Choose an action." 14 76 8 logs "View logs" start "Start" stop "Stop" restart "Restart" 2>&1 >/dev/tty)" || status=$?
+  else
+    return 0
+  fi
+  [[ "$status" -ne 0 ]] && return 0
+  case "$kind:$choice" in
+    docker:logs) render_logs "$host" "$ip" "$name" ;;
+    systemd:logs) render_systemd_logs "$host" "$ip" "$name" ;;
+    docker:start|docker:stop|docker:restart) run_docker_action "$host" "$ip" "$name" "$choice"; DASHBOARD_ACTION=refresh ;;
+    systemd:start|systemd:stop|systemd:restart) run_systemd_action "$host" "$ip" "$name" "$choice"; DASHBOARD_ACTION=refresh ;;
+  esac
+}
+
+render_systemd_logs() {
+  local host="$1" ip="$2" unit="$3" src stream_file
+  src="$(cache_file "$host" "$ip" systemd_logs)"
+  stream_file="$(cache_file "$host" "$ip" "systemd_${unit}.stream")"
+  get_systemd_logs "$host" "$ip" | awk -v u="$unit" '$0 == "===== " u " =====" {show=1; print; next} /^===== / && show {exit} show {print}' > "$stream_file"
+  if [[ "${RUN_ONCE:-0}" -eq 0 && -t 1 && -f "$stream_file" ]] && command -v dialog >/dev/null 2>&1; then
+    dialog --title "Systemd Logs: $unit" --tailbox "$stream_file" "$(screen_lines)" "$(screen_cols)" 2>/dev/tty || true
+  elif [[ "${RUN_ONCE:-0}" -eq 0 && -t 1 && -f "$stream_file" ]] && command -v whiptail >/dev/null 2>&1; then
+    whiptail --title "Systemd Logs: $unit" --textbox "$stream_file" "$(screen_lines)" "$(screen_cols)" 2>/dev/tty || true
+  else
+    cat "$stream_file" 2>/dev/null || true
+  fi
 }
 
 render_logs() {

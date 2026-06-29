@@ -15,8 +15,16 @@ REFRESH_INTERVAL=5
 RUN_ONCE=1
 init_cache
 declare -Ag HOST_IPS=([localhost]="127.0.0.1,127.0.0.2")
+HOST_IPS[myserver]="192.0.2.50"
+HOST_IPS[myhost1]="192.0.2.10"
+HOST_IPS[myhost2]="192.0.2.20"
+HOST_IPS[myhost]="192.0.2.5"
 HOST_CONTAINERS[localhost]="api,worker"
+HOSTS_VIA[myserver]="myhost1,myhost2"
+HOSTS_VIA[myhost2]="myhost"
 assert_eq "$(operation_timeout)" "4"
+assert_eq "$(ssh_proxy_jump_for_host myserver)" "192.0.2.10,192.0.2.5,192.0.2.20"
+validate_hosts_via
 SKIP_CHECKS="ssh,ntp"
 is_check_skipped ssh || fail "ssh skip not detected"
 is_check_skipped timesync || fail "ntp skip alias not detected"
@@ -24,6 +32,7 @@ is_check_skipped timesync || fail "ntp skip alias not detected"
 SKIP_CHECKS=""
 has_configured_docker_containers || fail "configured docker containers not detected"
 configured_docker_menu_args | grep -q "log|localhost|127.0.0.1|api" || fail "docker log submenu entries missing"
+configured_docker_menu_args | grep -q "localhost (127.0.0.1) api" || fail "docker log submenu label missing"
 SKIP_CHECKS="icmp,ssh,systemd,docker,ntp"
 skipped_dashboard="$(build_dashboard_text 80)"
 ! grep -q "ENDPOINTS" <<< "$skipped_dashboard" || fail "skipped endpoint section rendered"

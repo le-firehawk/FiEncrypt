@@ -4,6 +4,7 @@ cache_file() { printf '%s/%s.%s' "$CACHE_DIR" "$(safe_key "$1_$2")" "$3"; }
 get_ping_result() { cat "$(cache_file "$1" "$2" ping)" 2>/dev/null || echo "FAIL|missing"; }
 get_ssh_result() { cat "$(cache_file "$1" "$2" ssh)" 2>/dev/null || echo "FAIL|missing"; }
 get_systemd_statuses() { cat "$(cache_file "$1" "$2" systemd)" 2>/dev/null || true; }
+get_systemd_logs() { cat "$(cache_file "$1" "$2" systemd_logs)" 2>/dev/null || true; }
 get_docker_statuses() { cat "$(cache_file "$1" "$2" docker)" 2>/dev/null || true; }
 get_docker_logs() { cat "$(cache_file "$1" "$2" docker_logs)" 2>/dev/null || true; }
 get_timesync_statuses() { cat "$(cache_file "$1" "$2" timesync)" 2>/dev/null || true; }

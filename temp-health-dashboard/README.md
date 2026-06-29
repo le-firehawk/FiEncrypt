@@ -6,8 +6,8 @@ This directory expands the provided shell sketch into a real-results-only Bash d
 
 - ICMP reachability with `ping` for every configured host/IP.
 - SSH connectivity for every host/IP; host-level SSH overrides are intentionally not supported so every address is tested independently.
-- Systemd unit status over SSH with `systemctl is-active`, rendered one unit per row with state-specific guidance such as active, inactive, failed, activating, or unknown. For hosts with multiple IPs, generic SSH-backed checks run on the first SSH-successful IP and later IPs are marked `SKIPPED`; if an earlier IP does not yield an SSH result, the next IP is tried.
-- Docker container status over SSH with `docker ps` discovery or configured container names, rendered one container per row. If SSH fails for every IP, Docker rows are marked `SSH_FAILED` with the SSH failure reason.
+- Systemd unit status and recent journal logs over SSH with `systemctl is-active` and `journalctl`, rendered one unit per row with state-specific guidance such as active, inactive, failed, activating, or unknown. For hosts with multiple IPs, generic SSH-backed checks run on the first SSH-successful IP and later IPs are marked `SKIPPED`; if an earlier IP does not yield an SSH result, the next IP is tried.
+- Docker container status and recent logs over SSH with `docker ps`, `docker inspect`, and `docker logs`, rendered one container per row. If SSH fails for every IP, Docker rows are marked `SSH_FAILED` with the SSH failure reason.
 - Time synchronization health over SSH, including NTP synchronization status and the best available NTP source from `chronyc` or `ntpq`.
 - Docker logs over SSH with `docker logs --tail`, wrapped to the current screen width.
 
@@ -25,15 +25,17 @@ For CI or non-interactive checks:
 ./main.sh --config hosts.conf --once
 ```
 
-Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback). If neither package is installed, the tool warns and falls back to CLI stdin/stdout controls (`r` refresh, `l` logs, `q` quit). The first run and every manual refresh show a running-checks screen with the active collection stage before the updated dashboard is rendered. The main screen uses a navigable action menu; choose `Refresh now`, `Docker logs`, or `q Quit`. In `dialog`, use the Docker Logs button to open a separate container-log picker/screen; logs are not shown on the main dashboard.
+Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback). If neither package is installed, the tool warns and falls back to CLI stdin/stdout controls (`r` refresh, `q` quit). The first run and every manual refresh show a running-checks screen with the active collection stage before the updated dashboard is rendered. The main screen uses a navigable action menu; choose `Refresh` to re-run host tests, `Recheck` to re-run checks and tests, or select a systemd/Docker result row to open row actions such as logs, start, stop, and restart.
 
 ## Config
 
-`hosts.conf` is a Bash config file. Define `HOST_IPS`; optionally define `HOST_SERVICES`, `HOST_CONTAINERS`, `HOST_TIMESYNC`, `SSH_USER`, `SSH_OPTS`, `SSH_CHECK_RETRIES`, and `DOCKER_LOG_LINES`. Use `--interval SECONDS` to configure operation timeouts; ICMP performs one-second ping attempts using a count of `interval - 1` attempts, while SSH, systemd, Docker, and time-sync operations use a timeout one second shorter than the interval, with a minimum of one second. `HOST_TIMESYNC[host]="1"` enables the NTP/time-sync check for that host and `0`, `no`, `false`, or `disabled` skips it. `SSH_CHECK_RETRIES` defaults to `1` and only retries transient SSH transport failures such as blank-stderr exits and timeouts; authentication failures are not retried unless the interactive password retry path is used.
+`hosts.conf` is a Bash config file. Define `HOST_IPS`; optionally define `HOST_SERVICES`, `HOST_CONTAINERS`, `HOST_TIMESYNC`, `HOSTS_VIA`, `SSH_USER`, `SSH_OPTS`, `SSH_CHECK_RETRIES`, and `DOCKER_LOG_LINES`. Use `--interval SECONDS` to configure operation timeouts; ICMP performs one-second ping attempts using a count of `interval - 1` attempts, while SSH, systemd, Docker, and time-sync operations use a timeout one second shorter than the interval, with a minimum of one second. `HOST_TIMESYNC[host]="1"` enables the NTP/time-sync check for that host and `0`, `no`, `false`, or `disabled` skips it. `SSH_CHECK_RETRIES` defaults to `1` and only retries transient SSH transport failures such as blank-stderr exits and timeouts; authentication failures are not retried unless the interactive password retry path is used.
 
 Define each host once in `HOST_IPS` and put multiple addresses in a comma-separated value, for example `[edge-a]="10.0.0.10,10.0.1.10"`. Repeating the same Bash associative-array key overwrites the earlier value, so only the last assignment survives.
 
 If `HOST_CONTAINERS[host]` is empty or unset, the dashboard discovers containers on that host with `docker ps --format '{{.Names}}'` over SSH.
+
+`HOSTS_VIA[host]="jump-a,jump-b"` adds OpenSSH `ProxyJump` routing for that host. Jump hosts must also exist in `HOST_IPS`, and nested routes are expanded, so if `jump-b` itself has `HOSTS_VIA[jump-b]="bastion"`, connections to `host` go through `jump-a,bastion,jump-b`.
 
 ## Tests
 

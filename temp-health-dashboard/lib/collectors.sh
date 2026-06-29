@@ -90,12 +90,15 @@ ssh_password_for_host() {
 }
 
 run_ssh() {
-  local host="$1" target="$2" command="$3" password timeout_s
+  local host="$1" target="$2" command="$3" password timeout_s jump jump_args=()
   password="$(ssh_password_for_host "$host")"
   timeout_s="$(operation_timeout)"
+  jump="$(ssh_proxy_jump_for_host "$host" 2>/dev/null || true)"
+  [[ -n "$jump" ]] && jump_args=(-J "$jump")
   if [[ -n "$password" ]] && command -v sshpass >/dev/null 2>&1; then
     env SSHPASS="$password" SSH_ASKPASS=/bin/false SSH_ASKPASS_REQUIRE=never DISPLAY= \
       timeout "${timeout_s}s" sshpass -e ssh -T $SSH_OPTS \
+      "${jump_args[@]}" \
       -o BatchMode=no \
       -o PubkeyAuthentication=no \
       -o PreferredAuthentications=password,keyboard-interactive \
@@ -107,6 +110,7 @@ run_ssh() {
   else
     env SSH_ASKPASS=/bin/false SSH_ASKPASS_REQUIRE=never DISPLAY= \
       timeout "${timeout_s}s" ssh -n -T $SSH_OPTS \
+      "${jump_args[@]}" \
       -o BatchMode=yes \
       -o PasswordAuthentication=no \
       -o KbdInteractiveAuthentication=no \
@@ -211,10 +215,12 @@ collect_systemd_parallel() {
   local host
   for host in "${!HOST_IPS[@]}"; do
     (
-      local selected ip service state reason target
+      local selected ip service state reason target logs_file
       selected="$(ssh_ok_ip "$host" || true)"
       while IFS= read -r ip; do
         : > "$(cache_file "$host" "$ip" systemd)"
+        logs_file="$(cache_file "$host" "$ip" systemd_logs)"
+        : > "$logs_file"
         IFS=',' read -ra services <<< "${HOST_SERVICES[$host]:-}"
         for service in "${services[@]}"; do
           service="${service//[[:space:]]/}"; [[ -z "$service" ]] && continue
@@ -232,12 +238,25 @@ collect_systemd_parallel() {
             state="$(run_ssh "$host" "$target" "systemctl is-active '$service' 2>/dev/null || true" 2>/dev/null || true)"
             [[ -z "$state" ]] && state=unknown
             printf 'SYSTEMD=%s|%s|%s\n' "$service" "$state" "$(systemd_result_message "$service" "$state")" >> "$(cache_file "$host" "$ip" systemd)"
+            { printf '===== %s =====\n' "$service"; run_ssh "$host" "$target" "journalctl -u '$service' -n '$DOCKER_LOG_LINES' --no-pager 2>&1" 2>/dev/null || true; } >> "$logs_file"
           fi
         done
       done < <(host_ips "$host")
     ) &
   done
   wait
+}
+
+run_systemd_action() {
+  local host="$1" ip="$2" unit="$3" action="$4" target
+  target="$(ssh_target_for_ip "$ip")"
+  run_ssh "$host" "$target" "sudo -n systemctl '$action' '$unit'" >/dev/null 2>&1 || true
+}
+
+run_docker_action() {
+  local host="$1" ip="$2" container="$3" action="$4" target
+  target="$(ssh_target_for_ip "$ip")"
+  run_ssh "$host" "$target" "docker '$action' '$container'" >/dev/null 2>&1 || true
 }
 
 collect_docker_parallel() {
