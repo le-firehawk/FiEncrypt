@@ -5,6 +5,7 @@ declare -Ag HOST_SERVICES=()
 declare -Ag HOST_CONTAINERS=()
 declare -Ag HOST_TIMESYNC=()
 declare -Ag HOSTS_VIA=()
+declare -Ag HOST_STREAMS=()
 declare -Ag CHECK_SCOPES=([icmp]=per-ip [ssh]=per-ip [systemd]=per-host [docker]=per-host [timesync]=per-host)
 SSH_USER="${SSH_USER:-}"
 SUDO_USER="${SUDO_USER:-$SSH_USER}"

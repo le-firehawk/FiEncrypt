@@ -193,7 +193,7 @@ systemd_host_menu_args() {
   for host in "${!HOST_IPS[@]}"; do
     while IFS= read -r ip; do
       while IFS='=|' read -r _ unit state detail; do
-        [[ -n "$unit" && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && { output+="$(printf 'systemdhost|%s\n%s' "$host" "$host")"$'\n'; break 2; }
+        [[ -n "$unit" && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && { output+="$(printf '%s\n%s' "$host" "$host")"$'\n'; break 2; }
       done < <(get_systemd_statuses "$host" "$ip")
     done < <(host_ips "$host")
   done
@@ -206,7 +206,7 @@ docker_host_menu_args() {
   for host in "${!HOST_IPS[@]}"; do
     while IFS= read -r ip; do
       while IFS='=|' read -r _ container state health; do
-        [[ -n "$container" && "$container" != discovery && "$container" != generic && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && { output+="$(printf 'dockerhost|%s\n%s' "$host" "$host")"$'\n'; break 2; }
+        [[ -n "$container" && "$container" != discovery && "$container" != generic && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && { output+="$(printf '%s\n%s' "$host" "$host")"$'\n'; break 2; }
       done < <(get_docker_statuses "$host" "$ip")
     done < <(host_ips "$host")
   done
@@ -217,7 +217,7 @@ systemd_unit_menu_args() {
   local host="$1" ip unit state detail output=""
   while IFS= read -r ip; do
     while IFS='=|' read -r _ unit state detail; do
-      [[ -n "$unit" && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && output+="$(printf 'systemd|%s|%s|%s\n%s (%s) %s [%s]' "$host" "$ip" "$unit" "$host" "$ip" "$unit" "$state")"$'\n'
+      [[ -n "$unit" && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && output+="$(printf '%s\n%s' "$unit" "$state")"$'\n'
     done < <(get_systemd_statuses "$host" "$ip")
   done < <(host_ips "$host")
   printf '%s' "$output"
@@ -227,9 +227,57 @@ docker_container_menu_args() {
   local host="$1" ip container state health output=""
   while IFS= read -r ip; do
     while IFS='=|' read -r _ container state health; do
-      [[ -n "$container" && "$container" != discovery && "$container" != generic && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && output+="$(printf 'docker|%s|%s|%s\n%s (%s) %s [%s/%s]' "$host" "$ip" "$container" "$host" "$ip" "$container" "$state" "$health")"$'\n'
+      [[ -n "$container" && "$container" != discovery && "$container" != generic && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && output+="$(printf '%s\n%s/%s' "$container" "$state" "$health")"$'\n'
     done < <(get_docker_statuses "$host" "$ip")
   done < <(host_ips "$host")
+  printf '%s' "$output"
+}
+
+systemd_ip_for_unit() {
+  local host="$1" unit="$2" ip name state detail
+  while IFS= read -r ip; do
+    while IFS='=|' read -r _ name state detail; do
+      [[ "$name" == "$unit" && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && { printf '%s' "$ip"; return 0; }
+    done < <(get_systemd_statuses "$host" "$ip")
+  done < <(host_ips "$host")
+  return 1
+}
+
+docker_ip_for_container() {
+  local host="$1" container="$2" ip name state health
+  while IFS= read -r ip; do
+    while IFS='=|' read -r _ name state health; do
+      [[ "$name" == "$container" && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && { printf '%s' "$ip"; return 0; }
+    done < <(get_docker_statuses "$host" "$ip")
+  done < <(host_ips "$host")
+  return 1
+}
+
+has_host_streams() {
+  local host streams
+  for host in "${!HOST_STREAMS[@]}"; do
+    streams="${HOST_STREAMS[$host]//[[:space:],]/}"
+    [[ -n "$streams" ]] && return 0
+  done
+  return 1
+}
+
+stream_host_menu_args() {
+  local host streams output=""
+  for host in "${!HOST_STREAMS[@]}"; do
+    streams="${HOST_STREAMS[$host]//[[:space:],]/}"
+    [[ -n "$streams" ]] && output+="$(printf '%s\n%s' "$host" "$host")"$'\n'
+  done
+  printf '%s' "$output"
+}
+
+stream_url_menu_args() {
+  local host="$1" stream output=""
+  IFS=',' read -ra streams <<< "${HOST_STREAMS[$host]:-}"
+  for stream in "${streams[@]}"; do
+    stream="${stream//[[:space:]]/}"
+    [[ -n "$stream" ]] && output+="$(printf '%s\n%s' "$stream" "$stream")"$'\n'
+  done
   printf '%s' "$output"
 }
 
@@ -249,31 +297,84 @@ choose_menu() {
 
 render_service_menu() {
   local kind="$1" choice host menu_args=()
-  if [[ "$kind" == docker ]]; then
-    while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(docker_host_menu_args)
-  else
-    while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(systemd_host_menu_args)
-  fi
-  ((${#menu_args[@]})) || { show_message "${kind^}" "No actionable ${kind} rows are available."; return 0; }
-  choice="$(choose_menu "${kind^}" "Choose a host." 12 "${menu_args[@]}")" || return 0
-  host="${choice#*|}"
-  render_host_item_menu "$kind" "$host"
+  while true; do
+    menu_args=()
+    if [[ "$kind" == docker ]]; then
+      while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(docker_host_menu_args)
+    else
+      while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(systemd_host_menu_args)
+    fi
+    ((${#menu_args[@]})) || { show_message "${kind^}" "No actionable ${kind} rows are available."; return 0; }
+    choice="$(choose_menu "${kind^}" "Choose a host." 12 "${menu_args[@]}")" || return 0
+    host="$choice"
+    render_host_item_menu "$kind" "$host"
+  done
 }
 
 render_host_item_menu() {
-  local kind="$1" host="$2" choice menu_args=()
-  if [[ "$kind" == docker ]]; then
-    while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(docker_container_menu_args "$host")
+  local kind="$1" host="$2" choice ip menu_args=()
+  while true; do
+    menu_args=()
+    if [[ "$kind" == docker ]]; then
+      while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(docker_container_menu_args "$host")
+    else
+      while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(systemd_unit_menu_args "$host")
+    fi
+    ((${#menu_args[@]})) || { show_message "$host" "No actionable ${kind} rows are available for $host."; return 0; }
+    choice="$(choose_menu "$host ${kind^}" "Choose an item." 12 "${menu_args[@]}")" || return 0
+    if [[ "$kind" == docker ]]; then ip="$(docker_ip_for_container "$host" "$choice" || true)"; else ip="$(systemd_ip_for_unit "$host" "$choice" || true)"; fi
+    [[ -n "$ip" ]] && render_row_context "$kind|$host|$ip|$choice"
+  done
+}
+
+render_streams_menu() {
+  local choice host url menu_args=()
+  while true; do
+    menu_args=()
+    while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(stream_host_menu_args)
+    ((${#menu_args[@]})) || { show_message "Host Streams" "No host streams are configured."; return 0; }
+    choice="$(choose_menu "Host Streams" "Choose a host." 12 "${menu_args[@]}")" || return 0
+    host="$choice"
+    while true; do
+      menu_args=()
+      while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(stream_url_menu_args "$host")
+      ((${#menu_args[@]})) || { show_message "$host streams" "No streams are configured for $host."; break; }
+      url="$(choose_menu "$host streams" "Choose a stream URL." 12 "${menu_args[@]}")" || break
+      open_host_stream "$host" "$url"
+    done
+  done
+}
+
+open_host_stream() {
+  local host="$1" url="$2" ip jump port target hostpart url_port local_port rewritten tunnel_pid
+  command -v ffplay >/dev/null 2>&1 || { show_message "ffplay missing" "ffplay is required to open streams."; return 0; }
+  ip="$(first_host_ip "$host")"
+  jump="$(ssh_proxy_jump_for_host "$host" 2>/dev/null || true)"
+  hostpart="$(sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://([^/:]+).*#\1#' <<< "$url")"
+  url_port="$(sed -nE 's#^[a-zA-Z][a-zA-Z0-9+.-]*://[^/:]+:([0-9]+).*#\1#p' <<< "$url")"
+  case "$url" in
+    http://*) : "${url_port:=80}" ;;
+    https://*) : "${url_port:=443}" ;;
+    rtsp://*) : "${url_port:=554}" ;;
+    *) ffplay "$url" >/dev/null 2>&1 & return 0 ;;
+  esac
+  local_port="$((20000 + RANDOM % 20000))"
+  target="$(ssh_target_for_ip "$ip")"
+  if [[ "$hostpart" != "$url" && -n "$url_port" ]]; then
+    if [[ -n "$jump" ]]; then
+      ssh -f -N -L "127.0.0.1:${local_port}:${hostpart}:${url_port}" -J "$jump" "$target" 2>/dev/null || true
+    else
+      ssh -f -N -L "127.0.0.1:${local_port}:${hostpart}:${url_port}" "$target" 2>/dev/null || true
+    fi
+    rewritten="$(sed -E "s#^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/:]+(:[0-9]+)?#\\1127.0.0.1:${local_port}#" <<< "$url")"
+    ffplay "$rewritten" >/dev/null 2>&1 &
   else
-    while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(systemd_unit_menu_args "$host")
+    ffplay "$url" >/dev/null 2>&1 &
   fi
-  ((${#menu_args[@]})) || { show_message "$host" "No actionable ${kind} rows are available for $host."; return 0; }
-  choice="$(choose_menu "$host ${kind^}" "Choose an item." 12 "${menu_args[@]}")" || return 0
-  render_row_context "$choice"
 }
 
 render_dashboard() {
-  local body choice status=0 menu_args=()
+  local body prompt choice status=0 menu_args=()
   DASHBOARD_ACTION=refresh
   body="$(build_dashboard_text "$(text_width)")"
   if [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]]; then
@@ -282,11 +383,13 @@ render_dashboard() {
     return 0
   fi
   menu_args+=(summary "View full scrollable summary" refresh "Refresh: re-run tests" recheck "Recheck: re-run checks & tests" docker "Docker" systemd "Systemd")
+  has_host_streams && menu_args+=(streams "Host Streams")
   menu_args+=(quit "Quit")
+  prompt="$(printf '%s\n\n%s' "$(printf '%s\n' "$body" | sed -n '1,18p')" "Choose an action. Use Summary for full scrollable output.")"
   if command -v dialog >/dev/null 2>&1; then
-    choice="$(dialog --title "Health Dashboard" --menu "Choose an action. Use Summary for the full scrollable result output." "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
+    choice="$(dialog --title "Health Dashboard" --menu "$prompt" "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
   elif command -v whiptail >/dev/null 2>&1; then
-    choice="$(whiptail --title "Health Dashboard" --menu "Choose an action. Use Summary for the full scrollable result output." "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
+    choice="$(whiptail --title "Health Dashboard" --menu "$prompt" "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
   else
     {
       clear 2>/dev/null || true
@@ -300,6 +403,7 @@ render_dashboard() {
   if [[ "$status" -ne 0 || "$choice" == quit || "$choice" == q ]]; then DASHBOARD_ACTION=quit; return 0; fi
   if [[ "$choice" == summary ]]; then render_summary_view; DASHBOARD_ACTION=display; return 0; fi
   if [[ "$choice" == docker || "$choice" == systemd ]]; then render_service_menu "$choice"; return 0; fi
+  if [[ "$choice" == streams ]]; then render_streams_menu; DASHBOARD_ACTION=display; return 0; fi
   [[ "$choice" == recheck ]] && DASHBOARD_ACTION=recheck || DASHBOARD_ACTION=refresh
   return 0
 }
