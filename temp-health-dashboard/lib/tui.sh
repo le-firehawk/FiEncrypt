@@ -205,6 +205,22 @@ stream_remote_logs() {
   rm -f "$file"
 }
 
+stream_remote_sudo_logs() {
+  local title="$1" host="$2" ip="$3" command="$4" target="$5" file pid
+  file="$(mktemp)"
+  if [[ "${RUN_ONCE:-0}" -eq 0 && -t 1 ]] && command -v dialog >/dev/null 2>&1; then
+    (run_sudo_ssh "$host" "$target" "$command" > "$file" 2>&1) &
+    pid=$!
+    dialog --title "$title" --tailbox "$file" "$(screen_lines)" "$(screen_cols)" 2>/dev/tty || true
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+  else
+    run_sudo_ssh "$host" "$target" "$command" 2>&1 | tee "$file"
+    [[ "${RUN_ONCE:-0}" -eq 0 && -t 1 ]] && { printf '\nPress any key to return...'; read -r -s -n 1 _ || true; }
+  fi
+  rm -f "$file"
+}
+
 render_summary_view() {
   local file
   file="$(mktemp)"
@@ -311,6 +327,39 @@ stream_url_menu_args() {
   printf '%s' "$output"
 }
 
+ntp_host_menu_args() {
+  local host ip line output=""
+  is_check_skipped timesync && return 0
+  for host in "${!HOST_IPS[@]}"; do
+    while IFS= read -r ip; do
+      line="$(get_timesync_status "$host" "$ip")"
+      [[ "$line" == TIMESYNC=missing\|* ]] && continue
+      output+="$(printf '%s\n ' "$host")"$'\n'
+      break
+    done < <(host_ips "$host")
+  done
+  printf '%s' "$output"
+}
+
+ntp_sources_text() {
+  local host="$1" ip source provider source_state source_detail line state detail printed=0
+  printf 'NTP Sources for %s\n' "$host"
+  printf '%s\n' '--------------------'
+  while IFS= read -r ip; do
+    line="$(get_timesync_status "$host" "$ip")"
+    [[ "$line" == TIMESYNC=missing\|* ]] && continue
+    state="${line#*=}"; state="${state%%|*}"; detail="${line#*|}"
+    printf 'Summary: %s - %s\n\n' "$state" "$detail"
+    while IFS='=|' read -r _ source provider source_state source_detail; do
+      [[ -z "$source" ]] && continue
+      printed=1
+      printf '%-24s %-12s %s\n' "$source" "$provider/$source_state" "$source_detail"
+    done < <(get_timesync_statuses "$host" "$ip" | awk -F'[=|]' '$1 == "TIMESYNC_SOURCE"')
+    break
+  done < <(host_ips "$host")
+  [[ "$printed" -eq 0 ]] && printf 'No source details were reported for this host.\n'
+}
+
 choose_menu() {
   local title="$1" text="$2" height="${3:-12}" choice status=0
   shift 3
@@ -375,6 +424,26 @@ render_streams_menu() {
   done
 }
 
+render_ntp_sources_menu() {
+  local choice file menu_args=()
+  while true; do
+    menu_args=()
+    while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(ntp_host_menu_args)
+    ((${#menu_args[@]})) || { show_message "NTP Sources" "No NTP results are available."; return 0; }
+    choice="$(choose_menu "NTP Sources" "Choose a host." 12 "${menu_args[@]}")" || return 0
+    file="$(mktemp)"
+    ntp_sources_text "$choice" > "$file"
+    if command -v dialog >/dev/null 2>&1; then
+      dialog --title "NTP Sources: $choice" --textbox "$file" "$(screen_lines)" "$(screen_cols)" 2>/dev/tty || true
+    elif command -v whiptail >/dev/null 2>&1; then
+      whiptail --title "NTP Sources: $choice" --textbox "$file" "$(screen_lines)" "$(screen_cols)" 2>/dev/tty || true
+    else
+      cat "$file"
+    fi
+    rm -f "$file"
+  done
+}
+
 start_stream_tunnel() {
   local host="$1" ip="$2" local_port="$3" hostpart="$4" url_port="$5"
   local target password timeout_s jump
@@ -413,6 +482,25 @@ start_stream_tunnel() {
   fi
 }
 
+launch_ffplay() {
+  local url="$1" log_file pid
+  log_file="$(mktemp)"
+  if command -v setsid >/dev/null 2>&1; then
+    setsid ffplay "$url" >"$log_file" 2>&1 &
+  else
+    ffplay "$url" >"$log_file" 2>&1 &
+  fi
+  pid=$!
+  sleep 1
+  if ! kill -0 "$pid" 2>/dev/null; then
+    show_operation_result "Open stream" 1 "$(cat "$log_file" 2>/dev/null || printf 'ffplay exited immediately')"
+    rm -f "$log_file"
+    return 1
+  fi
+  rm -f "$log_file"
+  show_message "Open stream" "ffplay started."
+}
+
 open_host_stream() {
   local host="$1" url="$2" ip hostpart url_port local_port rewritten output status
   command -v ffplay >/dev/null 2>&1 || { show_message "ffplay missing" "ffplay is required to open streams."; return 0; }
@@ -423,7 +511,7 @@ open_host_stream() {
     http://*) : "${url_port:=80}" ;;
     https://*) : "${url_port:=443}" ;;
     rtsp://*) : "${url_port:=554}" ;;
-    *) ffplay "$url" >/dev/null 2>&1 & return 0 ;;
+    *) launch_ffplay "$url"; return 0 ;;
   esac
   local_port="$((20000 + RANDOM % 20000))"
   if [[ "$hostpart" != "$url" && -n "$url_port" ]]; then
@@ -434,11 +522,10 @@ open_host_stream() {
       return 0
     fi
     rewritten="$(sed -E "s#^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/:]+(:[0-9]+)?#\\1127.0.0.1:${local_port}#" <<< "$url")"
-    nohup ffplay "$rewritten" >/dev/null 2>&1 &
+    launch_ffplay "$rewritten"
   else
-    nohup ffplay "$url" >/dev/null 2>&1 &
+    launch_ffplay "$url"
   fi
-  show_message "Open stream" "Opening stream in ffplay."
 }
 
 render_dashboard() {
@@ -452,6 +539,7 @@ render_dashboard() {
   fi
   render_summary_view
   menu_args+=(summary "View full scrollable summary" refresh "Refresh: re-run tests" recheck "Recheck: re-run checks & tests" docker "Docker" systemd "Systemd")
+  is_check_skipped timesync || menu_args+=(ntp "NTP Sources")
   has_host_streams && menu_args+=(streams "Host Streams")
   menu_args+=(quit "Quit")
   prompt="$(printf '%s\n\n%s' "$(printf '%s\n' "$body" | sed -n '1,18p')" "Choose an action. Summary opens the full output.")"
@@ -472,6 +560,7 @@ render_dashboard() {
   if [[ "$status" -ne 0 || "$choice" == quit || "$choice" == q ]]; then DASHBOARD_ACTION=quit; return 0; fi
   if [[ "$choice" == summary ]]; then render_summary_view; DASHBOARD_ACTION=display; return 0; fi
   if [[ "$choice" == docker || "$choice" == systemd ]]; then render_service_menu "$choice"; DASHBOARD_ACTION=display; return 0; fi
+  if [[ "$choice" == ntp ]]; then render_ntp_sources_menu; DASHBOARD_ACTION=display; return 0; fi
   if [[ "$choice" == streams ]]; then render_streams_menu; DASHBOARD_ACTION=display; return 0; fi
   [[ "$choice" == recheck ]] && DASHBOARD_ACTION=recheck || DASHBOARD_ACTION=refresh
   return 0
@@ -507,9 +596,6 @@ build_dashboard_text() {
         if [[ "$printed" -eq 0 ]]; then printf '\nTIME SYNC / NTP\n%-18s %-18s %-12s %s\n' HOST SOURCE STATUS DETAIL; printed=1; fi
         state="${line#*=}"; state="${state%%|*}"; detail="${line#*|}"
         printf '%-18s %-18s %-12s %s\n' "$host" summary "$state" "$detail"
-        while IFS='=|' read -r _ source provider source_state source_detail; do
-          [[ -n "$source" ]] && printf '%-18s %-18s %-12s %s\n' "$host" "$source" "$provider/$source_state" "$source_detail"
-        done < <(get_timesync_statuses "$host" "$ip" | awk -F'[=|]' '$1 == "TIMESYNC_SOURCE"')
         break
       done < <(host_ips "$host")
     done
@@ -563,9 +649,9 @@ render_systemd_logs() {
   local host="$1" ip="$2" unit="$3" src stream_file command target
   maybe_prompt_for_sudo_password "$host"
   command="$(sudo_journalctl_command "$host" "$unit")"
-  target="$(ssh_target_for_ip "$ip")"
+  target="$(sudo_target_for_ip "$ip")"
   if [[ "${RUN_ONCE:-0}" -eq 0 && -t 1 ]] && command -v dialog >/dev/null 2>&1; then
-    stream_remote_logs "Systemd Logs: $unit" "$host" "$ip" "$command" "$target"
+    stream_remote_sudo_logs "Systemd Logs: $unit" "$host" "$ip" "$command" "$target"
     return 0
   fi
   src="$(cache_file "$host" "$ip" systemd_logs)"

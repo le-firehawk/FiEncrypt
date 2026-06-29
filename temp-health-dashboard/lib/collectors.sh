@@ -116,9 +116,8 @@ sudo_journalctl_command() {
   fi
 }
 
-run_ssh() {
-  local host="$1" target="$2" command="$3" password timeout_s jump jump_args=()
-  password="$(ssh_password_for_host "$host")"
+run_ssh_with_password() {
+  local host="$1" target="$2" command="$3" password="${4:-}" timeout_s jump jump_args=()
   timeout_s="$(operation_timeout)"
   jump="$(ssh_proxy_jump_for_host "$host" 2>/dev/null || true)"
   [[ -n "$jump" ]] && jump_args=(-J "$jump")
@@ -147,6 +146,16 @@ run_ssh() {
       -o IdentityAgent=none \
       "$target" "$command"
   fi
+}
+
+run_ssh() {
+  local host="$1" target="$2" command="$3"
+  run_ssh_with_password "$host" "$target" "$command" "$(ssh_password_for_host "$host")"
+}
+
+run_sudo_ssh() {
+  local host="$1" target="$2" command="$3"
+  run_ssh_with_password "$host" "$target" "$command" "$(sudo_password_for_host "$host")"
 }
 
 ssh_error_reason_text() {
@@ -276,9 +285,9 @@ collect_systemd_parallel() {
 
 run_systemd_action() {
   local host="$1" ip="$2" unit="$3" action="$4" target command
-  target="$(ssh_target_for_ip "$ip")"
+  target="$(sudo_target_for_ip "$ip")"
   command="$(sudo_systemctl_command "$host" "$action" "$unit")"
-  run_ssh "$host" "$target" "$command"
+  run_sudo_ssh "$host" "$target" "$command"
 }
 
 run_docker_action() {

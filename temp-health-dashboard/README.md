@@ -8,7 +8,7 @@ This directory expands the provided shell sketch into a real-results-only Bash d
 - SSH connectivity for every host/IP; host-level SSH overrides are intentionally not supported so every address is tested independently.
 - Systemd unit status and recent journal logs over SSH with `systemctl is-active` and `journalctl`, rendered one unit per row with state-specific guidance such as active, inactive, failed, activating, or unknown. For hosts with multiple IPs, generic SSH-backed checks run on the first SSH-successful IP and later IPs are marked `SKIPPED`; if an earlier IP does not yield an SSH result, the next IP is tried.
 - Docker container status and recent logs over SSH with `docker ps`, `docker inspect`, and `docker logs`, rendered one container per row. If SSH fails for every IP, Docker rows are marked `SSH_FAILED` with the SSH failure reason.
-- Time synchronization health over SSH, including NTP synchronization status and the best available NTP source from `chronyc` or `ntpq`.
+- Time synchronization health over SSH, including a per-host NTP summary in the dashboard and a separate NTP Sources submenu for every source reported by `chronyc`, `ntpq`, or `timedatectl`.
 - Docker logs over SSH with `docker logs --tail`, wrapped to the current screen width.
 
 All collection activity is logged to stderr. Use `--log-file path` to also append those logs to a file. When SSH checks fail, interactive mode offers a password-auth popup per host; if `sshpass` is installed and a password is entered, that same host password is reused for every configured IP and SSH-backed check for the host during the run. SSH commands explicitly disable OpenSSH askpass helpers; password retries use `sshpass -e` with public-key auth disabled so GUI askpass tools such as `ksshaskpass` cannot steal the prompt.
@@ -25,7 +25,7 @@ For CI or non-interactive checks:
 ./main.sh --config hosts.conf --once
 ```
 
-Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback). If neither package is installed, the tool warns and falls back to CLI stdin/stdout controls (`r` refresh, `q` quit). The first run and every manual refresh show a running-checks screen with the active collection stage before the updated dashboard is rendered. The main menu shows a summary preview above simple menu choices and includes a scrollable Summary view for the full result output, `Refresh` to re-run host tests, `Recheck` to re-run checks and tests, structured Systemd/Docker submenus (`service -> host -> unit/container -> operation`) for row actions such as realtime logs, start, stop, and restart, and optional Host Streams (`host -> stream URL`) entries. Missing, skipped, or SSH-failed Docker containers/systemd units are shown in the summary but omitted from operation submenus.
+Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback). If neither package is installed, the tool warns and falls back to CLI stdin/stdout controls (`r` refresh, `q` quit). The first run and every manual refresh show a running-checks screen with the active collection stage before the updated dashboard is rendered. The main menu shows a summary preview above simple menu choices and includes a scrollable Summary view for the full result output, `Refresh` to re-run host tests, `Recheck` to re-run checks and tests, an NTP Sources browser, structured Systemd/Docker submenus (`service -> host -> unit/container -> operation`) for row actions such as realtime logs, start, stop, and restart, and optional Host Streams (`host -> stream URL`) entries. Missing, skipped, or SSH-failed Docker containers/systemd units are shown in the summary but omitted from operation submenus.
 
 ## Config
 
@@ -39,7 +39,7 @@ If `HOST_CONTAINERS[host]` is empty or unset, the dashboard discovers containers
 
 Docker actions run `docker` directly as the SSH user. Systemd start/stop/restart actions run through `sudo systemctl`; `SUDO_USER` defaults to `SSH_USER` and is fixed by `hosts.conf`. The TUI prompts once per host for the sudo password before the first systemd action or systemd realtime log stream and stores it separately from SSH passwords for the current run; canceling the prompt attempts `sudo -n` without a password. Action failures and successes are shown in popups, and authentication failures clear cached passwords so the next attempt can prompt again.
 
-`HOST_STREAMS[host]="url1,url2"` adds media streams to the Host Streams menu. Selecting a stream launches `ffplay`; for HTTP(S)/RTSP URLs the tool opens an SSH local-forward through the host's configured `HOSTS_VIA` chain before rewriting the URL to the local tunnel.
+`HOST_STREAMS[host]="url1,url2"` adds media streams to the Host Streams menu. Selecting a stream launches `ffplay`; for HTTP(S)/RTSP URLs the tool opens an SSH local-forward through the host's configured `HOSTS_VIA` chain before rewriting the URL to the local tunnel, then reports if `ffplay` exits immediately.
 
 ## Tests
 

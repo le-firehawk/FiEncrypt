@@ -32,14 +32,18 @@ assert_eq "$(sudo_target_for_ip 192.0.2.99)" "admin@192.0.2.99"
 SUDO_USER="$SSH_USER"
 assert_eq "$(sudo_systemctl_command localhost restart ssh)" "sudo -n systemctl 'restart' 'ssh'"
 assert_eq "$(sudo_journalctl_command localhost ssh)" "sudo -n journalctl -u 'ssh' -n '40' -f --no-pager"
-captured_target=""
-run_ssh() { captured_target="$2"; return 0; }
-run_systemd_action localhost 127.0.0.1 ssh restart
-assert_eq "$captured_target" "ops@127.0.0.1"
-unset -f run_ssh
 SUDO_PASSWORDS[localhost]="secret"
 [[ "$(sudo_systemctl_command localhost restart ssh)" == *"sudo -S -p '' systemctl 'restart' 'ssh'" ]] || fail "sudo password command not generated"
 [[ "$(sudo_journalctl_command localhost ssh)" == *"sudo -S -p '' journalctl -u 'ssh'"* ]] || fail "sudo journal command not generated"
+SUDO_USER=admin
+captured_target=""
+captured_password=""
+run_ssh_with_password() { captured_target="$2"; captured_password="$4"; return 0; }
+run_systemd_action localhost 127.0.0.1 ssh restart
+assert_eq "$captured_target" "admin@127.0.0.1"
+assert_eq "$captured_password" "secret"
+unset -f run_ssh_with_password
+SUDO_USER="$SSH_USER"
 unset 'SUDO_PASSWORDS[localhost]'
 SKIP_CHECKS="ssh,ntp"
 is_check_skipped ssh || fail "ssh skip not detected"
@@ -60,12 +64,20 @@ cat > "$fakebin/ssh" <<'FAKE'
 printf '%s\n' "$*" > "$SSH_LOG"
 exit 0
 FAKE
-chmod +x "$fakebin/ssh"
+ffplay_log="$(mktemp)"
+cat > "$fakebin/ffplay" <<'FAKE'
+#!/usr/bin/env bash
+printf '%s\n' "$*" > "$FFPLAY_LOG"
+sleep 2
+FAKE
+chmod +x "$fakebin"/*
 SSH_LOG="$ssh_log" PATH="$fakebin:$PATH" start_stream_tunnel myserver 192.0.2.50 23456 camera.local 554
 grep -q -- '-J ops@192.0.2.10,ops@192.0.2.5,ops@192.0.2.20' "$ssh_log" || fail "stream tunnel did not include expanded ProxyJump"
 grep -q -- 'ExitOnForwardFailure=yes' "$ssh_log" || fail "stream tunnel does not require forward success"
 grep -q -- 'BatchMode=yes' "$ssh_log" || fail "stream tunnel can still prompt interactively"
-rm -rf "$fakebin" "$ssh_log"
+SSH_LOG="$ssh_log" FFPLAY_LOG="$ffplay_log" PATH="$fakebin:$PATH" open_host_stream myserver rtsp://camera.local/live
+grep -q 'rtsp://127.0.0.1:' "$ffplay_log" || fail "stream URL was not rewritten to forwarded localhost port"
+rm -rf "$fakebin" "$ssh_log" "$ffplay_log"
 SKIP_CHECKS="icmp,ssh,systemd,docker,ntp"
 skipped_dashboard="$(build_dashboard_text 80)"
 ! grep -q "ENDPOINTS" <<< "$skipped_dashboard" || fail "skipped endpoint section rendered"
@@ -150,12 +162,15 @@ printf 'DOCKER=discovery|SSH_FAILED|auth denied\n' > "$(cache_file localhost 127
 printf 'SYSTEMD=docker|SSH_FAILED|auth denied\n' > "$(cache_file localhost 127.0.0.2 systemd)"
 
 dashboard="$(build_dashboard_text 100)"
+ntp_detail="$(ntp_sources_text localhost)"
 grep -q '127.0.0.2' <<< "$dashboard" || fail "second IP missing"
 grep -q 'TIME SYNC / NTP' <<< "$dashboard" || fail "timesync table missing"
 grep -q 'primary=192.0.2.1' <<< "$dashboard" || fail "timesync primary missing"
 grep -q 'myserver.*synchronized=no' <<< "$dashboard" || fail "second host NTP summary missing"
-grep -q '192.0.2.2' <<< "$dashboard" || fail "secondary timesync source missing"
-grep -q 'acceptable source combined' <<< "$dashboard" || fail "timesync source detail missing"
+! grep -q 'acceptable source combined' <<< "$dashboard" || fail "NTP source details should be hidden from summary"
+ntp_host_menu_args | grep -q '^myserver$' || fail "NTP sources menu missing second host"
+grep -q '192.0.2.2' <<< "$ntp_detail" || fail "secondary timesync source missing from NTP detail"
+grep -q 'acceptable source combined' <<< "$ntp_detail" || fail "timesync source detail missing from NTP detail"
 grep -q 'journalctl' <<< "$dashboard" || fail "systemd guidance missing"
 
 echo "all tests passed"
