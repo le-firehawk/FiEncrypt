@@ -88,9 +88,9 @@ maybe_prompt_for_sudo_password() {
   [[ "${RUN_ONCE:-0}" -eq 1 || ! -t 1 ]] && return 0
   [[ -n "${SUDO_PASSWORDS[$host]:-}" || -n "${SUDO_PASSWORD_DECLINED[$host]:-}" ]] && return 0
   if command -v dialog >/dev/null 2>&1; then
-    password="$(dialog --insecure --title "Sudo password for host: $host" --passwordbox "Systemd start/stop/restart operations use sudo as '${SUDO_USER:-$SSH_USER}'. Enter the sudo password once; it will be cached separately from SSH passwords for this host during this run. Cancel attempts sudo without a password." 12 78 2>&1 >/dev/tty)" || status=$?
+    password="$(dialog --insecure --title "Sudo password: $host" --passwordbox "Enter the sudo password for '${SUDO_USER:-$SSH_USER}' on $host. It is cached for this run only. Cancel tries passwordless sudo." 10 76 2>&1 >/dev/tty)" || status=$?
   elif command -v whiptail >/dev/null 2>&1; then
-    password="$(whiptail --title "Sudo password for host: $host" --passwordbox "Systemd start/stop/restart operations use sudo as '${SUDO_USER:-$SSH_USER}'. Enter the sudo password once; it will be cached separately from SSH passwords for this host during this run. Cancel attempts sudo without a password." 12 78 2>&1 >/dev/tty)" || status=$?
+    password="$(whiptail --title "Sudo password: $host" --passwordbox "Enter the sudo password for '${SUDO_USER:-$SSH_USER}' on $host. It is cached for this run only. Cancel tries passwordless sudo." 10 76 2>&1 >/dev/tty)" || status=$?
   else
     return 0
   fi
@@ -182,9 +182,9 @@ auth_failure_output() {
 show_operation_result() {
   local title="$1" status="$2" output="$3"
   if [[ "$status" -eq 0 ]]; then
-    show_message "$title" "Operation completed successfully."
+    show_message "$title" "Done."
   else
-    show_message "$title" "Operation failed with exit code $status.${output:+\n\n$output}"
+    show_message "$title" "Failed (exit $status).${output:+\n\n$output}"
   fi
 }
 
@@ -223,11 +223,11 @@ systemd_host_menu_args() {
   for host in "${!HOST_IPS[@]}"; do
     while IFS= read -r ip; do
       while IFS='=|' read -r _ unit state detail; do
-        [[ -n "$unit" && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && { output+="$(printf '%s\n%s' "$host" "$host")"$'\n'; break 2; }
+        [[ -n "$unit" && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && { output+="$(printf '%s\n ' "$host")"$'\n'; break 2; }
       done < <(get_systemd_statuses "$host" "$ip")
     done < <(host_ips "$host")
   done
-  printf '%s' "$output" | awk '!seen[$0]++'
+  printf '%s' "$output"
 }
 
 docker_host_menu_args() {
@@ -236,11 +236,11 @@ docker_host_menu_args() {
   for host in "${!HOST_IPS[@]}"; do
     while IFS= read -r ip; do
       while IFS='=|' read -r _ container state health; do
-        [[ -n "$container" && "$container" != discovery && "$container" != generic && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && { output+="$(printf '%s\n%s' "$host" "$host")"$'\n'; break 2; }
+        [[ -n "$container" && "$container" != discovery && "$container" != generic && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && { output+="$(printf '%s\n ' "$host")"$'\n'; break 2; }
       done < <(get_docker_statuses "$host" "$ip")
     done < <(host_ips "$host")
   done
-  printf '%s' "$output" | awk '!seen[$0]++'
+  printf '%s' "$output"
 }
 
 systemd_unit_menu_args() {
@@ -296,7 +296,7 @@ stream_host_menu_args() {
   local host streams output=""
   for host in "${!HOST_STREAMS[@]}"; do
     streams="${HOST_STREAMS[$host]//[[:space:],]/}"
-    [[ -n "$streams" ]] && output+="$(printf '%s\n%s' "$host" "$host")"$'\n'
+    [[ -n "$streams" ]] && output+="$(printf '%s\n ' "$host")"$'\n'
   done
   printf '%s' "$output"
 }
@@ -306,7 +306,7 @@ stream_url_menu_args() {
   IFS=',' read -ra streams <<< "${HOST_STREAMS[$host]:-}"
   for stream in "${streams[@]}"; do
     stream="${stream//[[:space:]]/}"
-    [[ -n "$stream" ]] && output+="$(printf '%s\n%s' "$stream" "$stream")"$'\n'
+    [[ -n "$stream" ]] && output+="$(printf '%s\n ' "$stream")"$'\n'
   done
   printf '%s' "$output"
 }
@@ -412,10 +412,11 @@ render_dashboard() {
     DASHBOARD_ACTION=quit
     return 0
   fi
+  render_summary_view
   menu_args+=(summary "View full scrollable summary" refresh "Refresh: re-run tests" recheck "Recheck: re-run checks & tests" docker "Docker" systemd "Systemd")
   has_host_streams && menu_args+=(streams "Host Streams")
   menu_args+=(quit "Quit")
-  prompt="$(printf '%s\n\n%s' "$(printf '%s\n' "$body" | sed -n '1,18p')" "Choose an action. Use Summary for full scrollable output.")"
+  prompt="$(printf '%s\n\n%s' "$(printf '%s\n' "$body" | sed -n '1,18p')" "Choose an action. Summary opens the full output.")"
   if command -v dialog >/dev/null 2>&1; then
     choice="$(dialog --title "Health Dashboard" --menu "$prompt" "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
   elif command -v whiptail >/dev/null 2>&1; then
