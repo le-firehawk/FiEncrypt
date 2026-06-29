@@ -37,7 +37,7 @@ If `HOST_CONTAINERS[host]` is empty or unset, the dashboard discovers containers
 
 `HOSTS_VIA[host]="jump-a,jump-b"` adds OpenSSH `ProxyJump` routing for that host. Jump hosts must also exist in `HOST_IPS`, and nested routes are expanded, so if `jump-b` itself has `HOSTS_VIA[jump-b]="bastion"`, connections to `host` go through `jump-a,bastion,jump-b`.
 
-Docker actions run `docker` directly as the SSH user. Systemd start/stop/restart actions run through `sudo -n systemctl`; `SUDO_USER` defaults to `SSH_USER`, and if it differs the TUI prompts once per run to confirm or edit the sudo-capable user before the first systemd action.
+Docker actions run `docker` directly as the SSH user. Systemd start/stop/restart actions run through `sudo systemctl`; `SUDO_USER` defaults to `SSH_USER` and is fixed by `hosts.conf`. The TUI prompts once per host for the sudo password before the first systemd action and stores it separately from SSH passwords for the current run; canceling the prompt attempts `sudo -n` without a password.
 
 ## Tests
 

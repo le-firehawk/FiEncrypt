@@ -89,6 +89,22 @@ ssh_password_for_host() {
   [[ -n "${SSH_PASSWORDS[$host]:-}" ]] && printf '%s' "${SSH_PASSWORDS[$host]}" || printf '%s' "${SSH_PASSWORD:-}"
 }
 
+sudo_password_for_host() {
+  local host="$1"
+  [[ -n "${SUDO_PASSWORDS[$host]:-}" ]] && printf '%s' "${SUDO_PASSWORDS[$host]}"
+}
+
+sudo_systemctl_command() {
+  local host="$1" action="$2" unit="$3" password encoded
+  password="$(sudo_password_for_host "$host")"
+  if [[ -n "$password" ]]; then
+    encoded="$(printf '%s' "$password" | base64 | tr -d '\n')"
+    printf "printf '%%s' '%s' | base64 -d | sudo -S -p '' systemctl '%s' '%s'" "$encoded" "$action" "$unit"
+  else
+    printf "sudo -n systemctl '%s' '%s'" "$action" "$unit"
+  fi
+}
+
 run_ssh() {
   local host="$1" target="$2" command="$3" password timeout_s jump jump_args=()
   password="$(ssh_password_for_host "$host")"
@@ -248,9 +264,10 @@ collect_systemd_parallel() {
 }
 
 run_systemd_action() {
-  local host="$1" ip="$2" unit="$3" action="$4" target
+  local host="$1" ip="$2" unit="$3" action="$4" target command
   target="$(sudo_target_for_ip "$ip")"
-  run_ssh "$host" "$target" "sudo -n systemctl '$action' '$unit'" >/dev/null 2>&1 || true
+  command="$(sudo_systemctl_command "$host" "$action" "$unit")"
+  run_ssh "$host" "$target" "$command" >/dev/null 2>&1 || true
 }
 
 run_docker_action() {

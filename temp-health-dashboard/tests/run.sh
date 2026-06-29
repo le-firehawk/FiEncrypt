@@ -29,6 +29,10 @@ SSH_USER=ops
 SUDO_USER=admin
 assert_eq "$(sudo_target_for_ip 192.0.2.99)" "admin@192.0.2.99"
 SUDO_USER="$SSH_USER"
+assert_eq "$(sudo_systemctl_command localhost restart ssh)" "sudo -n systemctl 'restart' 'ssh'"
+SUDO_PASSWORDS[localhost]="secret"
+[[ "$(sudo_systemctl_command localhost restart ssh)" == *"sudo -S -p '' systemctl 'restart' 'ssh'" ]] || fail "sudo password command not generated"
+unset 'SUDO_PASSWORDS[localhost]'
 SKIP_CHECKS="ssh,ntp"
 is_check_skipped ssh || fail "ssh skip not detected"
 is_check_skipped timesync || fail "ntp skip alias not detected"
