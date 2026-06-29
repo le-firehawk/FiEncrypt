@@ -163,6 +163,112 @@ dashboard_row_menu_args() {
   printf '%s' "$output"
 }
 
+show_message() {
+  local title="$1" message="$2"
+  if command -v dialog >/dev/null 2>&1; then
+    dialog --title "$title" --msgbox "$message" 8 72 2>/dev/tty || true
+  elif command -v whiptail >/dev/null 2>&1; then
+    whiptail --title "$title" --msgbox "$message" 8 72 2>/dev/tty || true
+  fi
+}
+
+render_summary_view() {
+  local file
+  file="$(mktemp)"
+  build_dashboard_text "$(text_width)" > "$file"
+  if command -v dialog >/dev/null 2>&1; then
+    dialog --title "Health Dashboard Summary" --textbox "$file" "$(screen_lines)" "$(screen_cols)" 2>/dev/tty || true
+  elif command -v whiptail >/dev/null 2>&1; then
+    whiptail --title "Health Dashboard Summary" --textbox "$file" "$(screen_lines)" "$(screen_cols)" 2>/dev/tty || true
+  fi
+  rm -f "$file"
+}
+
+systemd_host_menu_args() {
+  local host ip unit state detail output=""
+  is_check_skipped systemd && return 0
+  for host in "${!HOST_IPS[@]}"; do
+    while IFS= read -r ip; do
+      while IFS='=|' read -r _ unit state detail; do
+        [[ -n "$unit" && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && { output+="$(printf 'systemdhost|%s\n%s' "$host" "$host")"$'\n'; break 2; }
+      done < <(get_systemd_statuses "$host" "$ip")
+    done < <(host_ips "$host")
+  done
+  printf '%s' "$output" | awk '!seen[$0]++'
+}
+
+docker_host_menu_args() {
+  local host ip container state health output=""
+  is_check_skipped docker && return 0
+  for host in "${!HOST_IPS[@]}"; do
+    while IFS= read -r ip; do
+      while IFS='=|' read -r _ container state health; do
+        [[ -n "$container" && "$container" != discovery && "$container" != generic && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && { output+="$(printf 'dockerhost|%s\n%s' "$host" "$host")"$'\n'; break 2; }
+      done < <(get_docker_statuses "$host" "$ip")
+    done < <(host_ips "$host")
+  done
+  printf '%s' "$output" | awk '!seen[$0]++'
+}
+
+systemd_unit_menu_args() {
+  local host="$1" ip unit state detail output=""
+  while IFS= read -r ip; do
+    while IFS='=|' read -r _ unit state detail; do
+      [[ -n "$unit" && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && output+="$(printf 'systemd|%s|%s|%s\n%s (%s) %s [%s]' "$host" "$ip" "$unit" "$host" "$ip" "$unit" "$state")"$'\n'
+    done < <(get_systemd_statuses "$host" "$ip")
+  done < <(host_ips "$host")
+  printf '%s' "$output"
+}
+
+docker_container_menu_args() {
+  local host="$1" ip container state health output=""
+  while IFS= read -r ip; do
+    while IFS='=|' read -r _ container state health; do
+      [[ -n "$container" && "$container" != discovery && "$container" != generic && "$state" != SKIPPED && "$state" != SSH_FAILED && "$state" != missing ]] && output+="$(printf 'docker|%s|%s|%s\n%s (%s) %s [%s/%s]' "$host" "$ip" "$container" "$host" "$ip" "$container" "$state" "$health")"$'\n'
+    done < <(get_docker_statuses "$host" "$ip")
+  done < <(host_ips "$host")
+  printf '%s' "$output"
+}
+
+choose_menu() {
+  local title="$1" text="$2" height="${3:-12}" choice status=0
+  shift 3
+  if command -v dialog >/dev/null 2>&1; then
+    choice="$(dialog --cancel-label "Back" --title "$title" --menu "$text" "$(screen_lines)" "$(screen_cols)" "$height" "$@" 2>&1 >/dev/tty)" || status=$?
+  elif command -v whiptail >/dev/null 2>&1; then
+    choice="$(whiptail --cancel-button "Back" --title "$title" --menu "$text" "$(screen_lines)" "$(screen_cols)" "$height" "$@" 2>&1 >/dev/tty)" || status=$?
+  else
+    return 1
+  fi
+  [[ "$status" -ne 0 ]] && return 1
+  printf '%s' "$choice"
+}
+
+render_service_menu() {
+  local kind="$1" choice host menu_args=()
+  if [[ "$kind" == docker ]]; then
+    while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(docker_host_menu_args)
+  else
+    while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(systemd_host_menu_args)
+  fi
+  ((${#menu_args[@]})) || { show_message "${kind^}" "No actionable ${kind} rows are available."; return 0; }
+  choice="$(choose_menu "${kind^}" "Choose a host." 12 "${menu_args[@]}")" || return 0
+  host="${choice#*|}"
+  render_host_item_menu "$kind" "$host"
+}
+
+render_host_item_menu() {
+  local kind="$1" host="$2" choice menu_args=()
+  if [[ "$kind" == docker ]]; then
+    while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(docker_container_menu_args "$host")
+  else
+    while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(systemd_unit_menu_args "$host")
+  fi
+  ((${#menu_args[@]})) || { show_message "$host" "No actionable ${kind} rows are available for $host."; return 0; }
+  choice="$(choose_menu "$host ${kind^}" "Choose an item." 12 "${menu_args[@]}")" || return 0
+  render_row_context "$choice"
+}
+
 render_dashboard() {
   local body choice status=0 menu_args=()
   DASHBOARD_ACTION=refresh
@@ -172,13 +278,12 @@ render_dashboard() {
     DASHBOARD_ACTION=quit
     return 0
   fi
-  menu_args+=(refresh "Refresh: re-run tests" recheck "Recheck: re-run checks & tests")
-  while IFS= read -r tag && IFS= read -r label; do menu_args+=("$tag" "$label"); done < <(dashboard_row_menu_args)
+  menu_args+=(summary "View full scrollable summary" refresh "Refresh: re-run tests" recheck "Recheck: re-run checks & tests" docker "Docker" systemd "Systemd")
   menu_args+=(quit "Quit")
   if command -v dialog >/dev/null 2>&1; then
-    choice="$(dialog --title "Health Dashboard" --menu "$body" "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
+    choice="$(dialog --title "Health Dashboard" --menu "Choose an action. Use Summary for the full scrollable result output." "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
   elif command -v whiptail >/dev/null 2>&1; then
-    choice="$(whiptail --title "Health Dashboard" --menu "$body" "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
+    choice="$(whiptail --title "Health Dashboard" --menu "Choose an action. Use Summary for the full scrollable result output." "$(screen_lines)" "$(screen_cols)" 12 "${menu_args[@]}" 2>&1 >/dev/tty)" || status=$?
   else
     {
       clear 2>/dev/null || true
@@ -190,7 +295,8 @@ render_dashboard() {
     [[ "$choice" == r ]] && choice=recheck
   fi
   if [[ "$status" -ne 0 || "$choice" == quit || "$choice" == q ]]; then DASHBOARD_ACTION=quit; return 0; fi
-  if [[ "$choice" == systemd\|* || "$choice" == docker\|* ]]; then render_row_context "$choice"; return 0; fi
+  if [[ "$choice" == summary ]]; then render_summary_view; DASHBOARD_ACTION=display; return 0; fi
+  if [[ "$choice" == docker || "$choice" == systemd ]]; then render_service_menu "$choice"; return 0; fi
   [[ "$choice" == recheck ]] && DASHBOARD_ACTION=recheck || DASHBOARD_ACTION=refresh
   return 0
 }

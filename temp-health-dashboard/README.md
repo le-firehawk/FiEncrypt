@@ -25,7 +25,7 @@ For CI or non-interactive checks:
 ./main.sh --config hosts.conf --once
 ```
 
-Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback). If neither package is installed, the tool warns and falls back to CLI stdin/stdout controls (`r` refresh, `q` quit). The first run and every manual refresh show a running-checks screen with the active collection stage before the updated dashboard is rendered. The main screen uses a navigable action menu; choose `Refresh` to re-run host tests, `Recheck` to re-run checks and tests, or select a systemd/Docker result row to open row actions such as logs, start, stop, and restart.
+Interactive mode opens a dark-themed external TUI viewer (`dialog` with color by default, `whiptail` fallback). If neither package is installed, the tool warns and falls back to CLI stdin/stdout controls (`r` refresh, `q` quit). The first run and every manual refresh show a running-checks screen with the active collection stage before the updated dashboard is rendered. The main menu includes a scrollable Summary view for the full result output, `Refresh` to re-run host tests, `Recheck` to re-run checks and tests, and structured Systemd/Docker submenus (`service -> host -> unit/container -> operation`) for row actions such as logs, start, stop, and restart. Missing, skipped, or SSH-failed Docker containers/systemd units are shown in the summary but omitted from operation submenus.
 
 ## Config
 

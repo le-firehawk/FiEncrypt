@@ -91,12 +91,20 @@ SYSTEMD=ssh|active|ssh is active and running
 SYSTEMD=nginx|failed|nginx is failed; inspect journalctl -u nginx
 DATA
 assert_eq "$(get_systemd_statuses localhost 127.0.0.1 | summarize_status_lines SYSTEMD)" "1/2 ok"
+printf 'SYSTEMD=missing-unit|missing|missing\n' >> "$(cache_file localhost 127.0.0.1 systemd)"
+systemd_menu="$(systemd_unit_menu_args localhost)"
+grep -q 'systemd|localhost|127.0.0.1|ssh' <<< "$systemd_menu" || fail "systemd submenu missing active unit"
+! grep -q 'missing-unit' <<< "$systemd_menu" || fail "missing systemd unit should not be actionable"
 
 cat > "$(cache_file localhost 127.0.0.1 docker)" <<'DATA'
 DOCKER=api|running|healthy
 DOCKER=worker|exited|unknown
 DATA
 assert_eq "$(get_docker_statuses localhost 127.0.0.1 | summarize_status_lines DOCKER)" "1/2 ok"
+printf 'DOCKER=missing-container|missing|unknown\n' >> "$(cache_file localhost 127.0.0.1 docker)"
+docker_items="$(docker_container_menu_args localhost)"
+grep -q 'docker|localhost|127.0.0.1|api' <<< "$docker_items" || fail "docker submenu missing running container"
+! grep -q 'missing-container' <<< "$docker_items" || fail "missing docker container should not be actionable"
 printf '===== api =====\nready\n' > "$(cache_file localhost 127.0.0.1 docker_logs)"
 get_docker_logs localhost 127.0.0.1 | grep -q ready || fail "docker logs unreadable"
 
